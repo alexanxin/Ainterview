@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { getUserUsage, getDailyUsageCount, getUserInterviewsCompleted, recordUsage } from '@/lib/database';
 
 interface InterviewContext {
   jobPosting: string;
@@ -28,38 +29,28 @@ interface ApiResult {
 const FREE_INTERVIEWS = 1; // 1 complete interview free (all questions in an interview session)
 const FREE_INTERACTIONS_PER_DAY = 2; // Additional individual interactions per day after free interview is used
 
-// For demo purposes only - in production this should be stored in a database
-// Store both interview completion status and daily usage
-const usageTracker = new Map<string, { 
-  freeInterviewUsed: boolean, 
-  dailyCount: number, 
-  resetTime: number,
-  interviewsCompleted: number
-}>();
-
 async function checkUsage(
   userId: string,
   action: string
 ): Promise<{ allowed: boolean; remaining: number; cost: number; freeInterviewUsed: boolean }> {
   const cost = 1; // Each action costs 1
-  const now = Date.now();
-  const dayReset = new Date().setHours(0, 0, 0, 0); // Reset at start of each day
-
-  // Check if user exists in tracker or if their daily quota should reset
-  if (!usageTracker.has(userId) || usageTracker.get(userId)!.resetTime < dayReset) {
-    const existingData = usageTracker.get(userId);
-    usageTracker.set(userId, { 
-      freeInterviewUsed: existingData?.freeInterviewUsed || false,
-      dailyCount: 0, 
-      resetTime: dayReset,
-      interviewsCompleted: existingData?.interviewsCompleted || 0
-    });
+  
+  if (!userId || userId === "anonymous") {
+    // For anonymous users, only allow basic usage with no personalization
+    return {
+      allowed: true,
+      remaining: -1, // Indicate unlimited for anonymous
+      cost,
+      freeInterviewUsed: false
+    };
   }
 
-  const userUsage = usageTracker.get(userId)!;
+  // Check if user has completed their free interview
+  const interviewsCompleted = await getUserInterviewsCompleted(userId);
+  const freeInterviewUsed = interviewsCompleted >= 1;
 
   // If user hasn't used their free interview yet, allow it
-  if (!userUsage.freeInterviewUsed) {
+  if (!freeInterviewUsed) {
     return {
       allowed: true,
       remaining: -1, // Indicate unlimited for free interview
@@ -68,8 +59,10 @@ async function checkUsage(
     };
   }
 
-  // If free interview is used, apply daily limit
-  const remainingDaily = Math.max(0, FREE_INTERACTIONS_PER_DAY - userUsage.dailyCount);
+  // If free interview is used, check daily limit
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const dailyUsageCount = await getDailyUsageCount(userId, `${today}T00:00:00Z`);
+  const remainingDaily = Math.max(0, FREE_INTERACTIONS_PER_DAY - dailyUsageCount);
 
   return {
     allowed: remainingDaily >= cost,
@@ -79,46 +72,39 @@ async function checkUsage(
   };
 }
 
-async function recordUsage(userId: string, action: string, cost: number, freeInterviewAlreadyUsed: boolean) {
-  // Update the usage tracker
-  const userUsage = usageTracker.get(userId) || {
-    freeInterviewUsed: false,
-    dailyCount: 0,
-    resetTime: Date.now(),
-    interviewsCompleted: 0
-  };
-
-  // Only increment daily count if free interview has already been used
-  if (freeInterviewAlreadyUsed) {
-    userUsage.dailyCount += cost;
-  } else {
-    // Mark that the free interview has been used now
-    userUsage.freeInterviewUsed = true;
-    userUsage.interviewsCompleted += 1;
+async function recordUsageWithDatabase(userId: string, action: string, cost: number, freeInterviewAlreadyUsed: boolean) {
+  if (!userId || userId === "anonymous") {
+    // Don't record usage for anonymous users
+    return;
   }
 
-  usageTracker.set(userId, userUsage);
+  // Calculate interviews completed based on action type
+  let interviewsCompleted = 0;
+  if (action === 'generateFlow') { // This indicates a complete interview session
+    interviewsCompleted = await getUserInterviewsCompleted(userId);
+    interviewsCompleted += 1;
+  }
 
-  console.log(
-    `Recorded usage: user=${userId}, action=${action}, cost=${cost}, dailyCount=${userUsage.dailyCount}, freeInterviewUsed=${userUsage.freeInterviewUsed}`
-  );
+  // Record the usage in the database
+  const usageRecord = {
+    user_id: userId,
+    action,
+    cost,
+    free_interview_used: freeInterviewAlreadyUsed,
+    interviews_completed: interviewsCompleted
+  };
 
-  // In a real application, you'd record the usage in the database
-  // Example Supabase usage:
-  // const { error } = await supabase
-  //   .from('usage_tracking')
-  //   .insert([{
-  //     user_id: userId,
-  //     action,
-  //     cost,
-  //     free_interview_used: userUsage.freeInterviewUsed,
-  //     interviews_completed: userUsage.interviewsCompleted,
-  //     timestamp: new Date().toISOString()
-  //   }]);
-  //
-  // if (error) {
-  //   console.error('Error recording usage:', error);
-  // }
+  const success = await recordUsage(usageRecord);
+  
+  if (success) {
+    console.log(
+      `Recorded usage in database: user=${userId}, action=${action}, cost=${cost}, freeInterviewUsed=${freeInterviewAlreadyUsed}`
+    );
+  } else {
+    console.error(
+      `Failed to record usage in database: user=${userId}, action=${action}, cost=${cost}`
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {

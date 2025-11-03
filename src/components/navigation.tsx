@@ -1,8 +1,8 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { User, Menu, Home, FileText, Users, Settings, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info } from 'lucide-react';
+import { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -15,24 +15,18 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function Navigation() {
   const [open, setOpen] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
-  
+
   // Use the context inside this component but handle errors gracefully
   const authContext = useAuth();
   const { user, signOut } = authContext;
 
-  useEffect(() => {
-    // Mark that auth check is complete to prevent SSR issues
-    setAuthChecked(true);
-  }, []);
-
   const navItems = [
     { name: 'Home', icon: Home, href: '/' },
     { name: 'Practice', icon: FileText, href: '/interview' },
-    { name: 'Dashboard', icon: Users, href: '/dashboard' },
-    { name: 'Profile', icon: User, href: '/profile' },
-    { name: 'Test API', icon: FileText, href: '/test-api' },
+    { name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
+    // Profile link will be conditionally rendered when user is authenticated
+    { name: 'About', icon: Info, href: '/about' },
   ];
 
   const handleNavigation = (href: string) => {
@@ -45,28 +39,17 @@ export default function Navigation() {
     setOpen(false);
   };
 
-  // Show nothing until auth is checked to prevent context errors
-  if (!authChecked) {
-    return (
-      <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center">
-            <div className="mr-2 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white">
-              <span className="font-bold">AI</span>
-            </div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              Ainterview
-            </h1>
-          </div>
-        </div>
-      </header>
-    );
-  }
+  const handleSignIn = () => {
+    router.push('/auth');
+    setOpen(false);
+  };
+
+  // The auth context should handle SSR issues, so we can render immediately
 
   return (
     <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <div 
+        <div
           className="flex items-center cursor-pointer"
           onClick={() => router.push('/')}
         >
@@ -97,10 +80,31 @@ export default function Navigation() {
               variant="ghost"
               size="sm"
               className="flex items-center space-x-2"
+              onClick={() => router.push('/profile')}
+            >
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </Button>
+          )}
+          {user ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center space-x-2"
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
               <span>Sign Out</span>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center space-x-2"
+              onClick={handleSignIn}
+            >
+              <LogIn className="h-4 w-4" />
+              <span>Sign In</span>
             </Button>
           )}
         </nav>
@@ -135,10 +139,29 @@ export default function Navigation() {
                 <Button
                   variant="ghost"
                   className="justify-start"
+                  onClick={() => handleNavigation('/profile')}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </Button>
+              )}
+              {user ? (
+                <Button
+                  variant="ghost"
+                  className="justify-start"
                   onClick={handleSignOut}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign Out
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={handleSignIn}
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Sign In
                 </Button>
               )}
             </div>

@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { x402Service } from '@/lib/x402-payment-service';
+import { useToast } from '@/lib/toast';
 
 export default function PaymentPage() {
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('basic');
   const [isProcessing, setIsProcessing] = useState(false);
   const router = useRouter();
+  const { success, error, warning, info } = useToast(); // Initialize toast notifications
 
   const plans = {
     basic: {
@@ -46,15 +48,15 @@ export default function PaymentPage() {
       if (result.success) {
         // In a real app, you would update the user's credit balance
         console.log(`Payment successful: ${result.transactionId}`);
-        alert('Payment successful! Your credits have been added.');
+        success('Payment successful! Your credits have been added.');
         router.push('/dashboard'); // Redirect to dashboard after successful payment
       } else {
         console.error('Payment failed:', result.error);
-        alert(`Payment failed: ${result.error}`);
+        error(`Payment failed: ${result.error}`);
       }
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('An error occurred during payment. Please try again.');
+    } catch (err) {
+      console.error('Payment error:', err);
+      error('An error occurred during payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }

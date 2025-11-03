@@ -1,21 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast';
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
   const [cv, setCv] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { user, loading } = useAuth();
+  const { error, success, warning, info } = useToast(); // Initialize toast notifications
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth?redirect=/interview');
+    }
+  }, [user, loading, router]);
 
   const handleStartInterview = () => {
     if (!jobPosting.trim() || !cv.trim()) {
-      alert('Please fill in both job posting and CV fields');
+      error('Please fill in both job posting and CV fields');
       return;
     }
 
@@ -54,6 +65,28 @@ export default function InterviewPage() {
     }
     return companyInfo || 'Information about the company will be analyzed from the job posting.';
   };
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+        <Navigation />
+        <main className="flex-1 p-4">
+          <div className="container mx-auto max-w-4xl py-8">
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading interview setup...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Show nothing while redirecting
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">

@@ -1,14 +1,29 @@
-# Ainterview App
+# Ainterview
 
 AI-powered interview preparation platform that helps job seekers practice for interviews with personalized AI-generated questions and feedback.
 
-## Features
+## About
 
-- AI-powered interview questions based on job postings and user CVs
-- Personalized feedback on interview answers
-- Practice sessions with progress tracking
-- Integration with x402 payment protocol for premium features
-- Responsive web application with PWA support
+Ainterview is an innovative platform that connects job applicants with AI interviewers specially trained for each application. The system leverages job posting requirements, company information, and applicant background to generate realistic interview experiences that mirror what applicants can expect in their actual interviews.
+
+The platform addresses the significant gap in personalized, on-demand interview preparation that aligns with specific job requirements. Traditional methods are generic, time-consuming, and fail to provide role-specific practice, leading to poor interview performance and higher rejection rates.
+
+## Key Features
+
+- **Hyper-Personalization**: AI interviewers specifically tailored to each job application and company culture
+- **Realistic Simulation**: Dynamic AI interviewers that understand job requirements and company culture
+- **Seamless Integration**: Incorporates information from user CV and cover letter into the interview simulation
+- **On-Demand Availability**: Practice anytime with completely personalized interview sessions
+- **Intelligent Feedback**: Detailed feedback highlighting strengths and improvement areas
+
+## Technology Stack
+
+- **Frontend**: Next.js 16, React 19, TypeScript
+- **UI Components**: Radix UI, Tailwind CSS
+- **AI Engine**: Google Gemini for intelligent question generation and feedback
+- **Authentication**: Supabase for user management and data storage
+- **Payments**: x402 protocol for autonomous blockchain-based transactions
+- **Deployment**: Vercel for hosting and global CDN distribution
 
 ## Development Setup
 
@@ -17,12 +32,7 @@ AI-powered interview preparation platform that helps job seekers practice for in
    npm install
    ```
 
-2. Create a `.env.local` file with your API keys:
-   ```
-   GEMINI_API_KEY=your_google_gemini_api_key
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+2. Create a `.env.local` file with your API keys (see `.env.example` for required variables)
 
 3. Run the development server:
    ```bash
@@ -31,15 +41,9 @@ AI-powered interview preparation platform that helps job seekers practice for in
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Environment Variables
-
-Make sure to set the following environment variables in your `.env.local` file:
-
-- `GEMINI_API_KEY` - Google Gemini API key for AI features
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
-
 ## Contributing
+
+We welcome contributions to Ainterview! Please follow these steps:
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)

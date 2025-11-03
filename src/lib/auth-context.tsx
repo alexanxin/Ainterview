@@ -6,9 +6,12 @@ import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: any;
-  signUp: (email: string, password: string) => Promise<any>;
-  signIn: (email: string, password: string) => Promise<any>;
+  session: any;
+  signUp: (email: string) => Promise<any>;
+  signIn: (email: string) => Promise<any>;
   signOut: () => Promise<void>;
+  sendOtp: (email: string) => Promise<any>;
+  verifyOtp: (email: string, token: string) => Promise<any>;
   loading: boolean;
 }
 
@@ -16,6 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -23,12 +27,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get the current session
     const getUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
       setUser(session?.user || null);
       setLoading(false);
 
       // Listen for auth changes
       const { data: { subscription } } = await supabase.auth.onAuthStateChange(
         (_event, session) => {
+          setSession(session);
           setUser(session?.user || null);
           setLoading(false);
         }
@@ -42,12 +48,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getUser();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
-    return await supabase.auth.signUp({ email, password });
+  const signUp = async (email: string) => {
+    // For OTP sign up, we use signInWithOtp with shouldCreateUser: true
+    return await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   };
 
-  const signIn = async (email: string, password: string) => {
-    return await supabase.auth.signInWithPassword({ email, password });
+  const signIn = async (email: string) => {
+    // For OTP sign in, we use signInWithOtp
+    return await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false, // Only sign in existing users
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   };
 
   const signOut = async () => {
@@ -55,11 +75,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
+  const sendOtp = async (email: string) => {
+    // Send OTP via email
+    return await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
+
+  const verifyOtp = async (email: string, token: string) => {
+    // Verify the OTP token
+    return await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+  };
+
   const value = {
     user,
+    session,
     signUp,
     signIn,
     signOut,
+    sendOtp,
+    verifyOtp,
     loading,
   };
 

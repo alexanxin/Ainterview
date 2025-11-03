@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { geminiService, InterviewContext } from '@/lib/gemini-service';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast';
 
 export default function InterviewSessionPage() {
   const [question, setQuestion] = useState('');
@@ -20,10 +21,42 @@ export default function InterviewSessionPage() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const router = useRouter();
-  const { user } = useAuth(); // Get user from auth context
+  const { user, loading } = useAuth(); // Get user and loading state from auth context
+  const { success, error, info, warning } = useToast(); // Initialize toast notifications
 
-  // Interview context from localStorage
-  const [interviewContext, setInterviewContext] = useState<InterviewContext | null>(null);
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+        <Navigation />
+        <main className="flex-1 p-4">
+          <div className="container mx-auto max-w-2xl py-8">
+            <Card className="shadow-xl dark:bg-gray-800">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
+                  AI Interview Session
+                </CardTitle>
+                <Progress value={0} className="h-2 mt-4" />
+              </CardHeader>
+              <CardContent className="flex flex-col items-center py-12">
+                <div className="mb-8 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading interview session...</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth?redirect=/interview/session');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     // Load interview context from localStorage
@@ -57,7 +90,7 @@ export default function InterviewSessionPage() {
 
   const startInterview = async () => {
     if (!interviewContext) {
-      alert('Interview context not available. Please return to the interview setup page.');
+      error('Interview context not available. Please return to the interview setup page.');
       return;
     }
     
@@ -69,7 +102,7 @@ export default function InterviewSessionPage() {
       await generateInterviewFlow();
     } catch (error) {
       console.error('Error generating interview flow:', error);
-      alert('Failed to start interview. Please try again.');
+      error('Failed to start interview. Please try again.');
       setInterviewStarted(false);
     } finally {
       setIsLoading(false);
@@ -90,7 +123,7 @@ export default function InterviewSessionPage() {
     } catch (error: any) {
       if (error.message?.includes('Free quota exceeded') || error.status === 402) {
         // Handle payment required case
-        alert('You\'ve reached your free usage limit. Please purchase credits to continue.');
+        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
         // In a real app, redirect to payment page
         router.push('/dashboard');
       } else {
@@ -111,7 +144,7 @@ export default function InterviewSessionPage() {
 
   const submitAnswer = async () => {
     if (!answer.trim()) {
-      alert('Please provide an answer before continuing');
+      error('Please provide an answer before continuing');
       return;
     }
 
@@ -188,12 +221,12 @@ export default function InterviewSessionPage() {
     } catch (error: any) {
       if (error.message?.includes('Free quota exceeded') || error.status === 402) {
         // Handle payment required case
-        alert('You\'ve reached your free usage limit. Please purchase credits to continue.');
+        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
         // In a real app, redirect to payment page
         router.push('/dashboard');
       } else {
         console.error('Error processing answer:', error);
-        alert('Error processing your answer. Please try again.');
+        error('Error processing your answer. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -242,27 +275,26 @@ export default function InterviewSessionPage() {
                   <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
                     AI Interview Session
                   </CardTitle>
-                  <Progress value={0} className="h-2 mt-4" />
-                </CardHeader>
-                <CardContent className="flex flex-col items-center py-12">
-                  <div className="mb-8 text-center">
-                    <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                      Interview Data Missing
-                    </h3>
-                    <p className="mt-2 text-gray-600 dark:text-gray-400">
-                      Please return to the interview setup page to enter job posting and CV information.
-                    </p>
-                  </div>
-                  <Button onClick={() => router.push('/interview')} className="text-lg py-6 px-8">
-                    Go to Interview Setup
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </main>
-        </div>
-      );
-    }
+                <Progress value={0} className="h-2 mt-4" />
+              </CardHeader>
+              <CardContent className="flex flex-col items-center py-12">
+                <div className="mb-8 text-center">
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                    Interview Data Missing
+                  </h3>
+                  <p className="mt-2 text-gray-600 dark:text-gray-400">
+                    Please return to the interview setup page to enter job posting and CV information.
+                  </p>
+                </div>
+                <Button onClick={() => router.push('/interview')} className="text-lg py-6 px-8">
+                  Go to Interview Setup
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
     
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
