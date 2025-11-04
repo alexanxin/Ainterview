@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
 import { parsePdfText } from '@/lib/pdf-parser';
 import { useToast } from '@/lib/toast';
+import { cacheRefreshService } from '@/lib/cache-refresh-service';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -126,6 +127,8 @@ export default function ProfilePage() {
       console.log('Update result:', successResult);
 
       if (successResult) {
+        // Refresh cache for the user profile after update
+        await cacheRefreshService.refreshCacheForUser(user.id);
         success('Profile updated successfully!');
       } else {
         error('Failed to update profile. Please try again.');
@@ -296,17 +299,41 @@ export default function ProfilePage() {
       console.log('Extracted Sections:', sections);
 
       // Update form data with extracted information, ensuring user ID is preserved
-      setFormData(prev => ({
-        ...prev,
-        id: user?.id || prev.id, // Preserve user ID
-        full_name: sections.name || prev.full_name,
-        location: sections.location || prev.location,
-        bio: sections.bio || prev.bio,
-        experience: sections.experience || prev.experience,
-        education: sections.education || prev.education,
-        skills: sections.skills || prev.skills,
-        phone: sections.phone || prev.phone
-      }));
+      setFormData(prev => {
+        const updatedFormData = {
+          ...prev,
+          id: user?.id || prev.id, // Preserve user ID
+          full_name: sections.name || prev.full_name,
+          location: sections.location || prev.location,
+          bio: sections.bio || prev.bio,
+          experience: sections.experience || prev.experience,
+          education: sections.education || prev.education,
+          skills: sections.skills || prev.skills,
+          phone: sections.phone || prev.phone
+        };
+
+        // Also save to database immediately after import
+        (async () => {
+          const profileData: Partial<UserProfile> = {
+            full_name: updatedFormData.full_name,
+            phone: updatedFormData.phone,
+            location: updatedFormData.location,
+            bio: updatedFormData.bio,
+            experience: updatedFormData.experience,
+            education: updatedFormData.education,
+            skills: updatedFormData.skills,
+            updated_at: new Date().toISOString(),
+          };
+
+          const successResult = await updateUserProfile(user!.id, profileData);
+          if (successResult) {
+            // Refresh cache for the user profile after update
+            await cacheRefreshService.refreshCacheForUser(user!.id);
+          }
+        })();
+
+        return updatedFormData;
+      });
 
       success('LinkedIn PDF data imported successfully!');
     } catch (err) {
@@ -348,14 +375,14 @@ export default function ProfilePage() {
       <main className="flex-1 p-4">
         <div className="container mx-auto max-w-4xl py-8">
           <Card className="shadow-xl dark:bg-gray-800">
-            <CardHeader>
+            <CardHeader className="border-b border-gray-200 dark:border-gray-700">
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
                 My Profile
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               {/* LinkedIn PDF Import Section */}
-              <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="mb-8 p-4 bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
                   <span className="mr-2">📄</span>
                   Import from LinkedIn PDF

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info } from 'lucide-react';
+import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import {
   Sheet,
@@ -23,10 +23,11 @@ export default function Navigation() {
 
   const navItems = [
     { name: 'Home', icon: Home, href: '/' },
+    { name: 'About', icon: Info, href: '/about' },
     { name: 'Practice', icon: FileText, href: '/interview' },
+    { name: 'Feedback', icon: MessageSquare, href: '/feedback' },
     { name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
     // Profile link will be conditionally rendered when user is authenticated
-    { name: 'About', icon: Info, href: '/about' },
   ];
 
   const handleNavigation = (href: string) => {

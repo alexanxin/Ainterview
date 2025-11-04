@@ -11,9 +11,11 @@ import Navigation from '@/components/navigation';
 import { geminiService, InterviewContext } from '@/lib/gemini-service';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast';
+import { InterviewSession, InterviewQuestion, InterviewAnswer } from '@/lib/database';
+import { cacheRefreshService } from '@/lib/cache-refresh-service';
 
 // API functions using the server-side endpoint to ensure proper permissions
-const createInterviewSession = async (sessionData: any) => {
+const createInterviewSession = async (sessionData: Omit<InterviewSession, "id" | "created_at" | "updated_at">) => {
   try {
     const response = await fetch('/api/interview/session', {
       method: 'POST',
@@ -38,7 +40,7 @@ const createInterviewSession = async (sessionData: any) => {
   }
 };
 
-const createInterviewQuestion = async (questionData: any) => {
+const createInterviewQuestion = async (questionData: Omit<InterviewQuestion, "id" | "created_at">) => {
   try {
     const response = await fetch('/api/interview/session', {
       method: 'POST',
@@ -63,7 +65,7 @@ const createInterviewQuestion = async (questionData: any) => {
   }
 };
 
-const createInterviewAnswer = async (answerData: any) => {
+const createInterviewAnswer = async (answerData: Omit<InterviewAnswer, "id" | "created_at">) => {
   try {
     const response = await fetch('/api/interview/session', {
       method: 'POST',
@@ -88,7 +90,7 @@ const createInterviewAnswer = async (answerData: any) => {
   }
 };
 
-const updateInterviewSession = async (sessionId: string, sessionData: any) => {
+const updateInterviewSession = async (sessionId: string, sessionData: Partial<InterviewSession>) => {
   try {
     const response = await fetch('/api/interview/session', {
       method: 'POST',
@@ -114,14 +116,7 @@ const updateInterviewSession = async (sessionId: string, sessionData: any) => {
   }
 };
 
-// Define the InterviewQuestion interface locally since we removed the import
-interface InterviewQuestion {
-  id?: string;
-  session_id: string;
-  question_text: string;
-  question_number: number;
-  created_at?: string;
-}
+// The InterviewQuestion interface is now imported from database.ts
 
 // Function to get questions using the server-side API endpoint
 const getQuestionBySessionAndNumber = async (sessionId: string, questionNumber: number): Promise<InterviewQuestion | null> => {
@@ -157,12 +152,55 @@ export default function InterviewSessionPage() {
   const [interviewContext, setInterviewContext] = useState<InterviewContext | null>(null);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [interviewSessionId, setInterviewSessionId] = useState<string | null>(null);
+  const [isPracticeMode, setIsPracticeMode] = useState(false); // Track if this is practice mode
+  const [practiceQuestion, setPracticeQuestion] = useState<string | null>(null); // Store the practice question
+  const [isContextLoading, setIsContextLoading] = useState(true); // Track if context is being loaded
   const router = useRouter();
   const { user, loading } = useAuth(); // Get user and loading state from auth context
   const { success, error, info, warning } = useToast(); // Initialize toast notifications
 
-  // Show loading state while checking auth
-  if (loading) {
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth?redirect=/interview/session');
+    }
+  }, [user, loading, router]);
+
+  // Load initial data and manage interview flow
+  useEffect(() => {
+    // Check if this is practice mode
+    const practiceMode = localStorage.getItem('practiceMode');
+    const practiceQuestion = localStorage.getItem('practiceQuestion');
+
+    if (practiceMode === 'true' && practiceQuestion) {
+      setIsPracticeMode(true);
+      setPracticeQuestion(practiceQuestion);
+    } else {
+      // Ensure practice mode is false if not set
+      setIsPracticeMode(false);
+    }
+
+    // Load interview context from localStorage (for both normal and practice modes)
+    const jobPosting = localStorage.getItem('interviewJobPosting');
+    const cv = localStorage.getItem('interviewCv');
+    const companyInfo = localStorage.getItem('interviewCompanyInfo');
+
+    if (jobPosting && cv) {
+      const context = {
+        jobPosting,
+        userCv: cv,
+        companyInfo: companyInfo || 'Company information'
+      };
+      setInterviewContext(context);
+    } else {
+      // Set to null if not available to ensure consistent state
+      setInterviewContext(null);
+    }
+    setIsContextLoading(false); // Set loading to false after context is loaded
+  }, []);
+
+  // Show loading state while checking auth or loading context
+  if (loading || isContextLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
         <Navigation />
@@ -178,7 +216,9 @@ export default function InterviewSessionPage() {
               <CardContent className="flex flex-col items-center py-12">
                 <div className="mb-8 text-center">
                   <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading interview session...</p>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">
+                    {isContextLoading ? 'Loading interview context...' : 'Loading interview session...'}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -188,43 +228,12 @@ export default function InterviewSessionPage() {
     );
   }
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth?redirect=/interview/session');
-    }
-  }, [user, loading, router]);
 
-  useEffect(() => {
-    // Load interview context from localStorage
-    const jobPosting = localStorage.getItem('interviewJobPosting');
-    const cv = localStorage.getItem('interviewCv');
-    const companyInfo = localStorage.getItem('interviewCompanyInfo');
 
-    if (jobPosting && cv) {
-      setInterviewContext({
-        jobPosting,
-        userCv: cv,
-        companyInfo: companyInfo || 'Company information'
-      });
-    }
-  }, []);
 
-  // Check if we need to generate questions when interview starts
-  // Only generate if we don't have questions and interview has started
-  useEffect(() => {
-    if (interviewStarted && questions.length === 0 && interviewContext && !isGeneratingQuestions) {
-      generateInterviewFlow();
-    }
-  }, [interviewStarted, questions.length, interviewContext, isGeneratingQuestions]);
-
-  useEffect(() => {
-    if (questions.length > 0 && currentQuestionIndex < questions.length) {
-      setQuestion(questions[currentQuestionIndex]);
-    }
-  }, [currentQuestionIndex, questions]);
 
   const startInterview = async () => {
+    // Check if context is available first
     if (!interviewContext) {
       error('Interview context not available. Please return to the interview setup page.');
       return;
@@ -237,34 +246,81 @@ export default function InterviewSessionPage() {
 
     setIsLoading(true);
     setInterviewStarted(true);
-    setIsGeneratingQuestions(true); // Set the flag to show skeleton loader immediately
 
     try {
-      // Create an interview session in the database
-      if (user?.id) {
-        const sessionData = {
-          user_id: user.id,
-          job_posting: interviewContext.jobPosting,
-          company_info: interviewContext.companyInfo,
-          user_cv: interviewContext.userCv,
-          title: extractJobTitle(interviewContext.jobPosting),
-          total_questions: 5 // We're generating 5 questions
-        };
+      if (isPracticeMode && practiceQuestion) {
+        // In practice mode, we still need to create a session record for proper data tracking
+        if (user?.id) {
+          const sessionData = {
+            user_id: user.id,
+            job_posting: interviewContext.jobPosting,
+            company_info: interviewContext.companyInfo,
+            user_cv: interviewContext.userCv,
+            title: 'Practice Question Session',
+            total_questions: 1 // Just one practice question
+          };
 
-        const session = await createInterviewSession(sessionData);
+          const session = await createInterviewSession(sessionData);
 
-        if (session && session.id) {
-          setInterviewSessionId(session.id);
-        } else {
-          error('Failed to create interview session. Please try again.');
-          setInterviewStarted(false);
-          setIsGeneratingQuestions(false);
-          return;
+          if (session && session.id) {
+            setInterviewSessionId(session.id);
+          } else {
+            error('Failed to create practice session. Please try again.');
+            setInterviewStarted(false);
+            setIsLoading(false); // Reset loading state
+            return;
+          }
         }
-      }
 
-      // Generate the interview flow using Gemini API
-      await generateInterviewFlow();
+        // Set the single practice question
+        setQuestions([practiceQuestion]);
+        setQuestion(practiceQuestion);
+
+        // Create the question record in the database
+        if (interviewSessionId) {
+          const questionData = {
+            session_id: interviewSessionId,
+            question_text: practiceQuestion,
+            question_number: 1
+          };
+
+          try {
+            const result = await createInterviewQuestion(questionData);
+            if (!result) {
+              console.error('Failed to create practice question in database');
+            }
+          } catch (err) {
+            console.error('Error creating practice question:', err);
+          }
+        }
+      } else {
+        // Create an interview session in the database for normal mode
+        if (user?.id) {
+          const sessionData = {
+            user_id: user.id,
+            job_posting: interviewContext.jobPosting,
+            company_info: interviewContext.companyInfo,
+            user_cv: interviewContext.userCv,
+            title: extractJobTitle(interviewContext.jobPosting),
+            total_questions: 5 // We're generating 5 questions
+          };
+
+          const session = await createInterviewSession(sessionData);
+
+          if (session && session.id) {
+            setInterviewSessionId(session.id);
+          } else {
+            error('Failed to create interview session. Please try again.');
+            setInterviewStarted(false);
+            setIsLoading(false); // Reset loading state
+            return;
+          }
+        }
+
+        // Generate the interview flow using Gemini API for normal mode
+        setIsGeneratingQuestions(true); // Set the flag to show skeleton loader immediately
+        await generateInterviewFlow();
+      }
     } catch (err) {
       error('Failed to start interview. Please try again.');
       setInterviewStarted(false);
@@ -309,13 +365,13 @@ export default function InterviewSessionPage() {
         // Check if all questions were created successfully
         const successfulCreations = results.filter(result => result !== null);
       }
-    } catch (error: any) {
-      if (error.message?.includes('Free quota exceeded') || error.status === 402) {
+    } catch (err) {
+      if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // Handle payment required case
         error('You\'ve reached your free usage limit. Please purchase credits to continue.');
         // In a real app, redirect to payment page
         router.push('/dashboard');
-      } else if (error.message?.includes('Rate limit exceeded') || error.status === 429) {
+      } else if (err instanceof Error && (err.message?.includes('Rate limit exceeded') || (err as { status?: number }).status === 429)) {
         // Handle rate limit exceeded case
         error('Too many requests. Please wait before trying again.');
         // Optionally show a retry button or wait before retrying
@@ -349,19 +405,24 @@ export default function InterviewSessionPage() {
     newAnswers[currentQuestionIndex] = answer;
     setAnswers(newAnswers);
 
-    // Move to next question or complete interview
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setAnswer('');
-      // Generate next question if needed (for dynamic interviews)
-      if (currentQuestionIndex + 1 < questions.length) {
-        setQuestion(questions[currentQuestionIndex + 1]);
-      }
-    } else {
-      // All answers collected, now send for batch evaluation
+    // In practice mode, there's only one question, so complete immediately
+    if (isPracticeMode) {
       // Show notification about processing wait time
-      info('Your answers are being analyzed by our AI. Please be patient as this may take a moment...');
-      await completeInterviewWithBatchEvaluation(newAnswers);
+      info('Your answer is being analyzed by our AI. Please be patient as this may take a moment...');
+      await completePracticeQuestion(newAnswers);
+    } else {
+      // Move to next question or complete interview in normal mode
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        setAnswer('');
+        // Update the question to the next one
+        setQuestion(questions[currentQuestionIndex + 1]);
+      } else {
+        // All answers collected, now send for batch evaluation
+        // Show notification about processing wait time
+        info('Your answers are being analyzed by our AI. Please be patient as this may take a moment...');
+        await completeInterviewWithBatchEvaluation(newAnswers);
+      }
     }
   };
 
@@ -465,6 +526,10 @@ export default function InterviewSessionPage() {
       if (interviewSessionId && user?.id) {
         try {
           const success = await updateInterviewSession(interviewSessionId, { completed: true });
+
+          // Refresh cache for the session and user after AI feedback is submitted
+          await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+          await cacheRefreshService.refreshCacheForUser(user.id);
         } catch (dbError) {
           // Log error to console but don't show to user as it's a background operation
         }
@@ -473,8 +538,8 @@ export default function InterviewSessionPage() {
       // Update quota information in UI if needed
       if (batchAnalysis.remainingQuota !== undefined) {
       }
-    } catch (error: any) {
-      if (error.message?.includes('Free quota exceeded') || error.status === 402) {
+    } catch (err) {
+      if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // Handle payment required case
         error('You\'ve reached your free usage limit. Please purchase credits to continue.');
         // In a real app, redirect to payment page
@@ -592,6 +657,10 @@ export default function InterviewSessionPage() {
     if (interviewSessionId && user?.id) {
       try {
         const success = await updateInterviewSession(interviewSessionId, { completed: true });
+
+        // Refresh cache for the session and user after AI feedback is submitted
+        await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+        await cacheRefreshService.refreshCacheForUser(user.id);
       } catch (dbError) {
         // Log error to console but don't show to user as it's a background operation
       }
@@ -601,6 +670,114 @@ export default function InterviewSessionPage() {
     setTimeout(() => {
       router.push('/feedback');
     }, 1000); // Small delay to ensure user sees the processing completion
+  };
+
+  const completePracticeQuestion = async (allAnswers: string[]) => {
+    if (!interviewContext) return;
+
+    setIsLoading(true);
+
+    try {
+      // Analyze the single answer using Gemini
+      const analysis = await geminiService.analyzeAnswer(
+        interviewContext,
+        questions[0], // The practice question
+        allAnswers[0], // The user's answer
+        user?.id // Pass user ID for usage tracking
+      );
+
+      // Store the answer and its evaluation in the database
+      if (interviewSessionId) {
+        try {
+          // Get the actual question ID from the database
+          let question = await getQuestionBySessionAndNumber(interviewSessionId, 1);
+
+          if (!question) {
+            // Question might not be created yet, try to create it now
+            const questionData = {
+              session_id: interviewSessionId,
+              question_text: questions[0],
+              question_number: 1
+            };
+
+            const newQuestion = await createInterviewQuestion(questionData);
+            if (newQuestion && newQuestion.id) {
+              question = newQuestion;
+            } else {
+              // Log error to console but don't show to user as it's a background operation
+            }
+          }
+
+          if (question && question.id) {
+            const answerData = {
+              question_id: question.id,
+              session_id: interviewSessionId,
+              user_answer: allAnswers[0],
+              ai_feedback: analysis.aiFeedback,
+              improvement_suggestions: analysis.improvementSuggestions || [],
+              rating: analysis.rating || 0
+            };
+
+            await createInterviewAnswer(answerData);
+          } else {
+            // Log error to console but don't show to user as it's a background operation
+          }
+        } catch (dbError) {
+          // Fallback to localStorage if database storage fails
+          const feedbackItem = {
+            id: `feedback_${Date.now()}_0`,
+            question: questions[0],
+            answer: allAnswers[0],
+            feedback: analysis.aiFeedback,
+            suggestions: analysis.improvementSuggestions,
+            rating: analysis.rating || 0,
+            date: new Date().toISOString()
+          };
+
+          // Get existing feedback from localStorage
+          const existingFeedback = JSON.parse(localStorage.getItem('interviewFeedback') || '[]');
+          // Add new feedback and save back to localStorage
+          const updatedFeedback = [feedbackItem, ...existingFeedback];
+          localStorage.setItem('interviewFeedback', JSON.stringify(updatedFeedback));
+        }
+      }
+
+      // Since this is practice mode, redirect back to feedback instead of storing as a full interview
+      // Clean up practice mode flags
+      localStorage.removeItem('practiceMode');
+      localStorage.removeItem('practiceQuestion');
+
+      // Refresh cache for the session and user after AI feedback is submitted
+      if (interviewSessionId && user?.id) {
+        await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+        await cacheRefreshService.refreshCacheForUser(user.id);
+      }
+
+      // Redirect to feedback page after processing is complete
+      setTimeout(() => {
+        router.push('/feedback');
+      }, 1000); // Small delay to ensure user sees the processing completion
+    } catch (err) {
+      if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
+        // Handle payment required case
+        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
+        // In a real app, redirect to payment page
+        router.push('/dashboard');
+      } else {
+        error('Error processing your answer. Please try again.');
+
+        // Clean up practice mode flags
+        localStorage.removeItem('practiceMode');
+        localStorage.removeItem('practiceQuestion');
+
+        // Redirect to feedback page
+        setTimeout(() => {
+          router.push('/feedback');
+        }, 1000);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetInterview = () => {
@@ -669,7 +846,7 @@ export default function InterviewSessionPage() {
 
     // If we have interview context but interview hasn't started yet,
     // automatically start the interview (this happens when navigating from interview setup page)
-    if (interviewContext && !interviewStarted) {
+    if (interviewContext && !interviewStarted && !isLoading) {
       startInterview();
       return (
         <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
@@ -686,7 +863,9 @@ export default function InterviewSessionPage() {
                 <CardContent className="flex flex-col items-center py-12">
                   <div className="mb-8 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                    <p className="mt-4 text-gray-600 dark:text-gray-400">Starting your interview...</p>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">
+                      {isPracticeMode ? 'Preparing practice question...' : 'Starting your interview...'}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -832,10 +1011,10 @@ export default function InterviewSessionPage() {
                     AI Interview Session
                   </CardTitle>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Question {currentQuestionIndex + 1} of {questions.length}
+                    {isPracticeMode ? 'Practice Question' : `Question ${currentQuestionIndex + 1} of ${questions.length}`}
                   </div>
                 </div>
-                <Progress value={((currentQuestionIndex + 1) / questions.length) * 100} className="h-2" />
+                <Progress value={isPracticeMode ? 50 : ((currentQuestionIndex + 1) / questions.length) * 100} className="h-2" />
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -862,7 +1041,7 @@ export default function InterviewSessionPage() {
                   onClick={submitAnswer}
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Processing...' : 'Next Question'}
+                  {isLoading ? 'Processing...' : isPracticeMode ? 'Submit Answer' : 'Next Question'}
                 </Button>
               </div>
             </CardContent>

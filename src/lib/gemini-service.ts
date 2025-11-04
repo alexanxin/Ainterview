@@ -314,6 +314,53 @@ export class GeminiService {
       };
     }
   }
+
+  async generateSimilarQuestion(
+    context: InterviewContext,
+    originalQuestion: string,
+    userId?: string
+  ): Promise<string> {
+    try {
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "generateSimilarQuestion",
+          context,
+          question: originalQuestion,
+          userId: userId || "anonymous",
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 402) {
+          const errorData = await response.json();
+          const error = new Error(errorData.message || "Free quota exceeded");
+          (error as any).status = 402;
+          throw error;
+        }
+        if (response.status === 429) {
+          const errorData = await response.json();
+          const error = new Error(errorData.message || "Rate limit exceeded");
+          (error as any).status = 429;
+          throw error;
+        }
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.question || `Similar question to: ${originalQuestion}`;
+    } catch (error) {
+      console.error("Error generating similar question:", error);
+      if ((error as any).status === 402 || (error as any).status === 429) {
+        throw error;
+      }
+      // Return a fallback question if API call fails
+      return `Similar question based on: ${originalQuestion}`;
+    }
+  }
 }
 
 // Export a singleton instance

@@ -278,6 +278,20 @@ export async function POST(req: NextRequest) {
             );
           }
 
+        case "generateSimilarQuestion":
+          return NextResponse.json({
+            question:
+              "How would you approach a similar challenge in a different context?",
+            remainingQuota: -1, // Unlimited for free interview
+            quotaInfo: {
+              used: 0,
+              total: 1, // One free interview
+              resetTime: new Date(
+                new Date().setHours(24, 0, 0, 0)
+              ).toISOString(),
+            },
+          });
+
         default:
           return NextResponse.json(
             { error: "Invalid action" },
@@ -342,18 +356,12 @@ export async function POST(req: NextRequest) {
               model: "gemini-2.0-flash",
               contents: [
                 {
-                  role: "system",
-                  parts: [
-                    {
-                      text: "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.",
-                    },
-                  ],
-                },
-                {
                   role: "user",
                   parts: [
                     {
-                      text: questionPrompt,
+                      text:
+                        "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
+                        questionPrompt,
                     },
                   ],
                 },
@@ -433,18 +441,12 @@ export async function POST(req: NextRequest) {
               model: "gemini-2.0-flash",
               contents: [
                 {
-                  role: "system",
-                  parts: [
-                    {
-                      text: "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position. Provide questions as a numbered list, one per line.",
-                    },
-                  ],
-                },
-                {
                   role: "user",
                   parts: [
                     {
-                      text: flowPrompt,
+                      text:
+                        "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position. Provide questions as a numbered list, one per line.\n\n" +
+                        flowPrompt,
                     },
                   ],
                 },
@@ -547,18 +549,12 @@ export async function POST(req: NextRequest) {
               model: "gemini-2.0-flash",
               contents: [
                 {
-                  role: "system",
-                  parts: [
-                    {
-                      text: "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on interview answers. Evaluate responses based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role.",
-                    },
-                  ],
-                },
-                {
                   role: "user",
                   parts: [
                     {
-                      text: analysisPrompt,
+                      text:
+                        "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on interview answers. Evaluate responses based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role.\n\n" +
+                        analysisPrompt,
                     },
                   ],
                 },
@@ -720,18 +716,12 @@ export async function POST(req: NextRequest) {
               model: "gemini-2.0-flash",
               contents: [
                 {
-                  role: "system",
-                  parts: [
-                    {
-                      text: "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on multiple interview answers. Evaluate each response based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role. Format your response according to the specified format with Q1_FEEDBACK, Q1_SUGGESTIONS, Q1_RATING, etc.",
-                    },
-                  ],
-                },
-                {
                   role: "user",
                   parts: [
                     {
-                      text: batchPrompt,
+                      text:
+                        "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on multiple interview answers. Evaluate each response based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role. Format your response according to the specified format with Q1_FEEDBACK, Q1_SUGGESTIONS, Q1_RATING, etc.\n\n" +
+                        batchPrompt,
                     },
                   ],
                 },
@@ -819,6 +809,103 @@ export async function POST(req: NextRequest) {
 
           return NextResponse.json(
             { error: "Failed to perform batch evaluation" },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case "generateSimilarQuestion":
+        if (!context || !question) {
+          return NextResponse.json(
+            {
+              error:
+                "Context and original question are required for generating a similar question",
+            },
+            { status: 400 }
+          );
+        }
+
+        const typedContextSimilar = context as InterviewContext;
+        if (
+          !typedContextSimilar.jobPosting ||
+          !typedContextSimilar.companyInfo
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "Job posting and company info are required for generating a similar question",
+            },
+            { status: 400 }
+          );
+        }
+
+        const similarQuestionPrompt = `
+          Based on the following job posting, company information, and the original interview question provided,
+          generate a similar but different interview question that focuses on the same topic/skill area.
+          
+          Job Posting: ${typedContextSimilar.jobPosting}
+          
+          Company Info: ${typedContextSimilar.companyInfo}
+          
+          Original Question: ${question}
+          
+          Please generate a single, specific interview question that is similar in nature to the original question
+          but phrased differently or focuses on a related aspect of the same topic.
+          Make sure the question is specific to the role and company.
+        `;
+
+        try {
+          const similarQuestionResult = await withRateLimitHandling(
+            async () => {
+              return await model.generateContent({
+                model: "gemini-2.0-flash",
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      {
+                        text:
+                          "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions similar to a given question but with different phrasing or focus. Focus on maintaining the same skill area or topic while changing the specific wording or angle. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
+                          similarQuestionPrompt,
+                      },
+                    ],
+                  },
+                ],
+              });
+            },
+            rateLimitKey
+          );
+          const similarQuestionText = similarQuestionResult.text || "";
+
+          // Clean up the response to extract just the question
+          const cleanedSimilarQuestion = similarQuestionText
+            .trim()
+            .replace(/^["']|["']$/g, "");
+
+          result = { question: cleanedSimilarQuestion };
+        } catch (geminiError) {
+          console.error(
+            "Error generating similar question with Gemini:",
+            geminiError
+          );
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
+          return NextResponse.json(
+            { error: "Failed to generate similar interview question" },
             { status: 500 }
           );
         }

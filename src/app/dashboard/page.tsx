@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { getInterviewSessionsByUser, InterviewSession } from '@/lib/database';
+import { getInterviewSessionsByUser, InterviewSession, getAnswersBySession, InterviewAnswer } from '@/lib/database';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -14,8 +14,60 @@ export default function DashboardPage() {
   const [interviews, setInterviews] = useState<InterviewSession[]>([]);
   const [completedInterviewsCount, setCompletedInterviewsCount] = useState(0);
   const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
+  const [avgConfidenceScore, setAvgConfidenceScore] = useState(0);
+  const [feedbackInsights, setFeedbackInsights] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  
+
+  // Load interviews from database on component mount
+  useEffect(() => {
+    const loadInterviews = async () => {
+      if (user) {
+        try {
+          setIsLoading(true);
+          const userInterviews = await getInterviewSessionsByUser(user.id);
+          setInterviews(userInterviews);
+
+          // Calculate stats
+          const completedCount = userInterviews.filter(i => i.completed).length;
+          setCompletedInterviewsCount(completedCount);
+
+          // Calculate actual confidence score and feedback insights from answers
+          let totalRating = 0;
+          let ratingCount = 0;
+          let feedbackCount = 0;
+
+          for (const session of userInterviews) {
+            const answers = await getAnswersBySession(session.id!);
+            for (const answer of answers) {
+              if (answer.rating !== undefined && answer.rating > 0) {
+                totalRating += answer.rating;
+                ratingCount++;
+              }
+              if (answer.ai_feedback && answer.ai_feedback.trim() !== '') {
+                feedbackCount++;
+              }
+            }
+          }
+
+          const avgRating = ratingCount > 0 ? Math.round(totalRating / ratingCount) : 0;
+          // Ensure the confidence score is within 0-100 range
+          const calculatedConfidenceScore = Math.min(100, Math.max(0, avgRating));
+
+          // Update the state values for confidence and feedback
+          setAvgConfidenceScore(calculatedConfidenceScore);
+          setFeedbackInsights(feedbackCount);
+        } catch (error) {
+          console.error('Error loading interviews:', error);
+          setInterviews([]);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadInterviews();
+  }, [user]);
+
   // Show loading state while checking auth
   if (loading) {
     return (
@@ -38,34 +90,7 @@ export default function DashboardPage() {
     return null;
   }
 
-  // Load interviews from database on component mount
-  useEffect(() => {
-    const loadInterviews = async () => {
-      if (user) {
-        try {
-          setIsLoading(true);
-          const userInterviews = await getInterviewSessionsByUser(user.id);
-          setInterviews(userInterviews);
-          
-          // Calculate stats
-          const completedCount = userInterviews.filter(i => i.completed).length;
-          setCompletedInterviewsCount(completedCount);
-        } catch (error) {
-          console.error('Error loading interviews:', error);
-          setInterviews([]);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
 
-    loadInterviews();
-  }, [user]);
-
-  // Calculate dynamic stats based on actual data
-  const avgConfidenceScore = Math.min(100, Math.floor(65 + (completedInterviewsCount * 5)));
-  const feedbackInsights = Math.min(100, completedInterviewsCount * 10);
-  
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
@@ -98,14 +123,14 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Card className="dark:bg-gray-800 border-green-200 dark:border-green-900/30">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">Interviews</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <p className="text-3xl font-bold text-green-600">{completedInterviewsCount}</p>
                 <p className="text-gray-600 dark:text-gray-400">Completed</p>
-                <Button 
-                  className="mt-4 w-full bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90" 
+                <Button
+                  className="mt-4 w-full bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90"
                   onClick={() => router.push('/interview')}
                 >
                   Practice Again
@@ -114,15 +139,15 @@ export default function DashboardPage() {
             </Card>
 
             <Card className="dark:bg-gray-800 border-green-200 dark:border-green-900/30">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">Confidence</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <p className="text-3xl font-bold text-green-600">{avgConfidenceScore}%</p>
                 <p className="text-gray-600 dark:text-gray-400">Average Score</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4 w-full" 
+                <Button
+                  variant="outline"
+                  className="mt-4 w-full"
                   onClick={() => router.push('/profile')}
                 >
                   View Profile
@@ -131,15 +156,15 @@ export default function DashboardPage() {
             </Card>
 
             <Card className="dark:bg-gray-800 border-green-200 dark:border-green-900/30">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">Feedback</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <p className="text-3xl font-bold text-green-600">{feedbackInsights}</p>
                 <p className="text-gray-600 dark:text-gray-400">Insights Received</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4 w-full" 
+                <Button
+                  variant="outline"
+                  className="mt-4 w-full"
                   onClick={() => router.push('/feedback')}
                 >
                   View Feedback
@@ -150,47 +175,56 @@ export default function DashboardPage() {
 
           <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="dark:bg-gray-800">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">Recent Interview Sessions</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="p-6">
+                <div className="max-h-80 overflow-y-auto pr-2">
                   {interviews.length > 0 ? (
                     interviews.map((interview) => (
-                      <div key={interview.id} className="flex items-center justify-between border-b pb-3 dark:border-gray-700 last:border-0">
-                        <div>
-                          <h3 className="font-medium text-gray-900 dark:text-white">
-                            {interview.title || 'Interview Session'} at {interview.company_info || 'Company'}
+                      <div
+                        key={interview.id}
+                        className="p-3 rounded-lg cursor-pointer transition-colors bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-10 dark:hover:bg-gray-700 mb-2 last:mb-0"
+                        onClick={() => router.push(`/feedback#${interview.id}`)}
+                      >
+                        <div className="flex items-center">
+                          <h3 className="font-medium text-gray-900 dark:text-white truncate flex-grow">
+                            {interview.title || 'Interview Session'}
                           </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Completed on {new Date(interview.created_at || '').toLocaleDateString()}
-                          </p>
+                          {(interview.total_questions === 1) ? (
+                            <span className="ml-2 px-2 py-1 text-xs bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-full">
+                              Question
+                            </span>
+                          ) : (
+                            <span className="ml-2 px-2 py-1 text-xs bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-full">
+                              Interview
+                            </span>
+                          )}
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => router.push('/feedback')}
-                        >
-                          Review
-                        </Button>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {interview.company_info || 'Company'} • {new Date(interview.created_at || '').toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {interview.total_questions || 0} questions
+                        </p>
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center py-8 text-gray-50 dark:text-gray-400">
                       No interview sessions yet. Complete an interview to see it here.
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="dark:bg-gray-800">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">AI Usage</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="space-y-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                  <div className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                     <h3 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center">
                       <span className="mr-2">ℹ️</span>
                       Usage Information
@@ -199,7 +233,7 @@ export default function DashboardPage() {
                       Your first complete interview is free! After that, you get 2 additional AI interactions per day.
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Daily Quota</span>
                     <span className="font-medium text-gray-900 dark:text-white">0/2 used</span>
@@ -210,7 +244,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                     You have 2 free AI interactions remaining for today.
                   </p>
-                  <Button 
+                  <Button
                     className="w-full mt-4 bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90"
                     onClick={() => router.push('/interview')}
                   >
@@ -220,14 +254,14 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-          
+
           {/* Progress Tips */}
           <div className="mt-8">
             <Card className="dark:bg-gray-800 border-green-200 dark:border-green-900/30">
-              <CardHeader>
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-gray-900 dark:text-white">Your Progress Tips</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">🎯 Focus Area</h3>
@@ -235,7 +269,7 @@ export default function DashboardPage() {
                       Based on your recent interviews, focus on providing more specific examples in your answers.
                     </p>
                   </div>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="p-4 bg-blue-500 dark:bg-blue-900/20 rounded-lg">
                     <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">📚 Recommended</h3>
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       Practice behavioral questions to improve your storytelling skills for the next interview.
@@ -244,7 +278,7 @@ export default function DashboardPage() {
                   <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                     <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">🏆 Achievement</h3>
                     <p className="text-sm text-purple-700 dark:text-purple-300">
-                      Great job! You've completed {completedInterviewsCount} interview{completedInterviewsCount !== 1 ? 's' : ''}. Keep practicing!
+                      Great job! You&apos;ve completed {completedInterviewsCount} interview{completedInterviewsCount !== 1 ? 's' : ''}. Keep practicing!
                     </p>
                   </div>
                 </div>

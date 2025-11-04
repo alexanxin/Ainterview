@@ -496,12 +496,12 @@ export default function InterviewPage() {
       <main className="flex-1 p-4">
         <div className="container mx-auto max-w-4xl py-8">
           <Card className="shadow-xl dark:bg-gray-800">
-            <CardHeader>
+            <CardHeader className="border-b border-gray-200 dark:border-gray-700">
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
                 AI Interview Preparation
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="p-6 space-y-6">
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <h3 className="font-semibold text-green-800 dark:text-green-200 flex items-center">
                   <span className="mr-2">🎁</span>
@@ -644,7 +644,7 @@ export default function InterviewPage() {
 
                 {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
                 {profileIncomplete && (
-                  <div id="linkedin-import-section" className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div id="linkedin-import-section" className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                     <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
                       <span className="mr-2">📄</span>
                       Import from LinkedIn PDF
@@ -683,7 +683,7 @@ export default function InterviewPage() {
               </div>
 
               {/* CV Information Card */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h3 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center">
                   <span className="mr-2">📄</span>
                   CV Information

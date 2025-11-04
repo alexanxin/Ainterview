@@ -1,0 +1,300 @@
+import {
+  InterviewSession,
+  InterviewQuestion,
+  InterviewAnswer,
+  UserProfile,
+  UsageRecord,
+} from "./database";
+
+// Cache entry interface with timestamp for expiration
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiry: number; // milliseconds until expiry
+}
+
+// Cache storage for different data types
+interface CacheStorage {
+  userProfiles: Map<string, CacheEntry<UserProfile | null>>;
+  interviewSessions: Map<string, CacheEntry<InterviewSession[]>>;
+  interviewSessionById: Map<string, CacheEntry<InterviewSession | null>>;
+  interviewQuestions: Map<string, CacheEntry<InterviewQuestion[]>>;
+  interviewAnswers: Map<string, CacheEntry<InterviewAnswer[]>>;
+  usageRecords: Map<string, CacheEntry<UsageRecord[]>>;
+}
+
+// Initialize cache storage
+const cacheStorage: CacheStorage = {
+  userProfiles: new Map(),
+  interviewSessions: new Map(),
+  interviewSessionById: new Map(),
+  interviewQuestions: new Map(),
+  interviewAnswers: new Map(),
+  usageRecords: new Map(),
+};
+
+// Cache configuration
+const CACHE_CONFIG = {
+  userProfile: 5 * 60 * 1000, // 5 minutes
+  interviewSessions: 2 * 60 * 1000, // 2 minutes
+  interviewSessionById: 10 * 60 * 1000, // 10 minutes
+  interviewQuestions: 5 * 60 * 1000, // 5 minutes
+  interviewAnswers: 5 * 60 * 1000, // 5 minutes
+  usageRecords: 1 * 60 * 1000, // 1 minute (more volatile)
+};
+
+// Check if a cache entry is expired
+function isExpired<T>(entry: CacheEntry<T>): boolean {
+  return Date.now() - entry.timestamp > entry.expiry;
+}
+
+// Clean expired entries from a cache map
+function cleanExpired<T>(cacheMap: Map<string, CacheEntry<T>>): void {
+  for (const [key, entry] of cacheMap.entries()) {
+    if (isExpired(entry)) {
+      cacheMap.delete(key);
+    }
+  }
+}
+
+// Cache service implementation
+export const cacheService = {
+  // User Profile caching
+  getUserProfile: (userId: string): UserProfile | null | undefined => {
+    const entry = cacheStorage.userProfiles.get(userId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.userProfiles.delete(userId);
+    }
+    return undefined; // undefined means not in cache, null means cached null result
+  },
+
+  setUserProfile: (userId: string, profile: UserProfile | null): void => {
+    const entry: CacheEntry<UserProfile | null> = {
+      data: profile,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.userProfile,
+    };
+    cacheStorage.userProfiles.set(userId, entry);
+  },
+
+  invalidateUserProfile: (userId: string): void => {
+    cacheStorage.userProfiles.delete(userId);
+  },
+
+  // Interview Sessions caching
+  getUserInterviewSessions: (
+    userId: string
+  ): InterviewSession[] | undefined => {
+    const entry = cacheStorage.interviewSessions.get(userId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.interviewSessions.delete(userId);
+    }
+    return undefined;
+  },
+
+  setUserInterviewSessions: (
+    userId: string,
+    sessions: InterviewSession[]
+  ): void => {
+    const entry: CacheEntry<InterviewSession[]> = {
+      data: sessions,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessions,
+    };
+    cacheStorage.interviewSessions.set(userId, entry);
+  },
+
+  invalidateUserInterviewSessions: (userId: string): void => {
+    cacheStorage.interviewSessions.delete(userId);
+  },
+
+  // Single Interview Session caching
+  getInterviewSessionById: (
+    sessionId: string
+  ): InterviewSession | null | undefined => {
+    const entry = cacheStorage.interviewSessionById.get(sessionId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.interviewSessionById.delete(sessionId);
+    }
+    return undefined;
+  },
+
+  setInterviewSessionById: (
+    sessionId: string,
+    session: InterviewSession | null
+  ): void => {
+    const entry: CacheEntry<InterviewSession | null> = {
+      data: session,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessionById,
+    };
+    cacheStorage.interviewSessionById.set(sessionId, entry);
+  },
+
+  invalidateInterviewSessionById: (sessionId: string): void => {
+    cacheStorage.interviewSessionById.delete(sessionId);
+  },
+
+  // Interview Questions caching
+  getInterviewQuestions: (
+    sessionId: string
+  ): InterviewQuestion[] | undefined => {
+    const entry = cacheStorage.interviewQuestions.get(sessionId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.interviewQuestions.delete(sessionId);
+    }
+    return undefined;
+  },
+
+  setInterviewQuestions: (
+    sessionId: string,
+    questions: InterviewQuestion[]
+  ): void => {
+    const entry: CacheEntry<InterviewQuestion[]> = {
+      data: questions,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewQuestions,
+    };
+    cacheStorage.interviewQuestions.set(sessionId, entry);
+  },
+
+  invalidateInterviewQuestions: (sessionId: string): void => {
+    cacheStorage.interviewQuestions.delete(sessionId);
+  },
+
+  // Interview Answers caching
+  getInterviewAnswers: (sessionId: string): InterviewAnswer[] | undefined => {
+    const entry = cacheStorage.interviewAnswers.get(sessionId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.interviewAnswers.delete(sessionId);
+    }
+    return undefined;
+  },
+
+  setInterviewAnswers: (
+    sessionId: string,
+    answers: InterviewAnswer[]
+  ): void => {
+    const entry: CacheEntry<InterviewAnswer[]> = {
+      data: answers,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewAnswers,
+    };
+    cacheStorage.interviewAnswers.set(sessionId, entry);
+  },
+
+  invalidateInterviewAnswers: (sessionId: string): void => {
+    cacheStorage.interviewAnswers.delete(sessionId);
+  },
+
+  // Usage Records caching
+  getUserUsage: (userId: string, since?: string): UsageRecord[] | undefined => {
+    const key = since ? `${userId}_${since}` : userId;
+    const entry = cacheStorage.usageRecords.get(key);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.usageRecords.delete(key);
+    }
+    return undefined;
+  },
+
+  setUserUsage: (
+    userId: string,
+    usage: UsageRecord[],
+    since?: string
+  ): void => {
+    const key = since ? `${userId}_${since}` : userId;
+    const entry: CacheEntry<UsageRecord[]> = {
+      data: usage,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.usageRecords,
+    };
+    cacheStorage.usageRecords.set(key, entry);
+  },
+
+  invalidateUserUsage: (userId: string, since?: string): void => {
+    const key = since ? `${userId}_${since}` : userId;
+    cacheStorage.usageRecords.delete(key);
+  },
+
+  // Clear all caches
+  clearAll: (): void => {
+    cacheStorage.userProfiles.clear();
+    cacheStorage.interviewSessions.clear();
+    cacheStorage.interviewSessionById.clear();
+    cacheStorage.interviewQuestions.clear();
+    cacheStorage.interviewAnswers.clear();
+    cacheStorage.usageRecords.clear();
+  },
+
+  // Clean expired entries from all caches
+  cleanExpired: (): void => {
+    cleanExpired(cacheStorage.userProfiles);
+    cleanExpired(cacheStorage.interviewSessions);
+    cleanExpired(cacheStorage.interviewSessionById);
+    cleanExpired(cacheStorage.interviewQuestions);
+    cleanExpired(cacheStorage.interviewAnswers);
+    cleanExpired(cacheStorage.usageRecords);
+  },
+
+  // Get cache statistics
+  getStats: (): { [key: string]: number } => {
+    return {
+      userProfiles: cacheStorage.userProfiles.size,
+      interviewSessions: cacheStorage.interviewSessions.size,
+      interviewSessionById: cacheStorage.interviewSessionById.size,
+      interviewQuestions: cacheStorage.interviewQuestions.size,
+      interviewAnswers: cacheStorage.interviewAnswers.size,
+      usageRecords: cacheStorage.usageRecords.size,
+    };
+  },
+};
+
+// Cache decorator utility for async functions
+export function cachedAsync<T>(
+  cacheKey: (args: unknown[]) => string,
+  cacheGetter: (key: string) => T | undefined,
+  cacheSetter: (key: string, value: T) => void,
+  expiryTime: number = 5 * 60 * 1000 // 5 minutes default
+) {
+  return function (
+    target: object,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = async function (...args: unknown[]) {
+      const key = cacheKey(args);
+      const cachedResult = cacheGetter(key);
+
+      if (cachedResult !== undefined) {
+        return cachedResult;
+      }
+
+      const result = await originalMethod.apply(this, args);
+      cacheSetter(key, result);
+
+      return result;
+    };
+
+    return descriptor;
+  };
+}

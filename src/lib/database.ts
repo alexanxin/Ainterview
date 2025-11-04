@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 import { supabaseServer } from "./supabase-server";
+import { cacheService } from "./cache-service";
+import { localStorageCacheService } from "./local-storage-cache";
 
 // Type definitions
 export interface UserProfile {
@@ -62,6 +64,22 @@ export interface UsageRecord {
 export async function getUserProfile(
   userId: string
 ): Promise<UserProfile | null> {
+  // First check in-memory cache
+  const cachedProfile = cacheService.getUserProfile(userId);
+  if (cachedProfile !== undefined) {
+    return cachedProfile;
+  }
+
+  // Then check localStorage cache
+  const cachedProfileLS = localStorageCacheService.getUserProfile(userId);
+  if (cachedProfileLS !== undefined) {
+    if (cachedProfileLS !== null) {
+      // Update in-memory cache with localStorage data
+      cacheService.setUserProfile(userId, cachedProfileLS);
+    }
+    return cachedProfileLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -70,17 +88,25 @@ export async function getUserProfile(
     return null;
   }
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", userId);
+    .eq("id", userId)
+    .single();
 
-  if (error) {
-    console.error("Error fetching user profile:", error);
+  if (result.error) {
+    console.error("Error fetching user profile:", result.error);
+    // Cache the null result to avoid repeated failed requests
+    cacheService.setUserProfile(userId, null);
+    localStorageCacheService.setUserProfile(userId, null);
     return null;
   }
 
-  return data && data.length > 0 ? data[0] : null;
+  // Cache the result in both memory and localStorage
+  cacheService.setUserProfile(userId, result.data);
+  localStorageCacheService.setUserProfile(userId, result.data);
+
+  return result.data;
 }
 
 export async function updateUserProfile(
@@ -98,35 +124,45 @@ export async function updateUserProfile(
   }
 
   // First try to update existing profile
-  const { error: updateError, data: updateData } = await supabase
+  const updateResult = await supabase
     .from("profiles")
     .update(profileData)
     .eq("id", userId)
     .select();
 
-  console.log("Update attempt result:", { updateError, updateData });
+  console.log("Update attempt result:", {
+    updateError: updateResult.error,
+    updateData: updateResult.data,
+  });
 
   // If update succeeded but no rows were affected (profile doesn't exist), try insert
-  if (!updateError && (!updateData || updateData.length === 0)) {
+  if (
+    updateResult.error === null &&
+    (!updateResult.data || updateResult.data.length === 0)
+  ) {
     console.log("No existing profile found, trying insert...");
     // If update fails, try to insert new profile
     const data = { id: userId, ...profileData };
     console.log("Inserting data:", data);
-    const { error: insertError, data: insertData } = await supabase
-      .from("profiles")
-      .insert(data)
-      .select();
+    const insertResult = await supabase.from("profiles").insert(data).select();
 
-    console.log("Insert attempt result:", { insertError, insertData });
+    console.log("Insert attempt result:", {
+      insertError: insertResult.error,
+      insertData: insertResult.data,
+    });
 
-    if (insertError) {
-      console.error("Error inserting user profile:", insertError);
+    if (insertResult.error) {
+      console.error("Error inserting user profile:", insertResult.error);
       return false;
     }
-  } else if (updateError) {
-    console.error("Error updating user profile:", updateError);
+  } else if (updateResult.error) {
+    console.error("Error updating user profile:", updateResult.error);
     return false;
   }
+
+  // Invalidate cache since we updated the profile
+  cacheService.invalidateUserProfile(userId);
+  localStorageCacheService.remove(`cache_user_profile_${userId}`);
 
   return true;
 }
@@ -153,7 +189,11 @@ export async function createInterviewSession(
 
   if (error) {
     console.error("Error creating interview session:", error);
-    console.error("Error details:", { message: error.message, code: error.code, details: error.details });
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+    });
     return null;
   }
 
@@ -163,6 +203,23 @@ export async function createInterviewSession(
 export async function getInteviewSessionById(
   sessionId: string
 ): Promise<InterviewSession | null> {
+  // First check in-memory cache
+  const cachedSession = cacheService.getInterviewSessionById(sessionId);
+  if (cachedSession !== undefined) {
+    return cachedSession;
+  }
+
+  // Then check localStorage cache
+  const cachedSessionLS =
+    localStorageCacheService.getInterviewSessionById(sessionId);
+  if (cachedSessionLS !== undefined) {
+    if (cachedSessionLS !== null) {
+      // Update in-memory cache with localStorage data
+      cacheService.setInterviewSessionById(sessionId, cachedSessionLS);
+    }
+    return cachedSessionLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -171,23 +228,47 @@ export async function getInteviewSessionById(
     return null;
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_sessions")
     .select("*")
     .eq("id", sessionId)
     .single();
 
-  if (error) {
-    console.error("Error fetching interview session:", error);
+  if (result.error) {
+    console.error("Error fetching interview session:", result.error);
+    // Cache the null result to avoid repeated failed requests
+    cacheService.setInterviewSessionById(sessionId, null);
+    localStorageCacheService.setInterviewSessionById(sessionId, null);
     return null;
   }
 
-  return data;
+  // Cache the result in both memory and localStorage
+  cacheService.setInterviewSessionById(sessionId, result.data);
+  localStorageCacheService.setInterviewSessionById(sessionId, result.data);
+
+  return result.data;
 }
 
 export async function getInterviewSessionsByUser(
   userId: string
 ): Promise<InterviewSession[]> {
+  // First check in-memory cache
+  const cachedSessions = cacheService.getUserInterviewSessions(userId);
+  if (cachedSessions !== undefined) {
+    return cachedSessions;
+  }
+
+  // Then check localStorage cache
+  const cachedSessionsLS =
+    localStorageCacheService.getUserInterviewSessions(userId);
+  if (cachedSessionsLS !== undefined) {
+    if (cachedSessionsLS.length > 0) {
+      // Update in-memory cache with localStorage data
+      cacheService.setUserInterviewSessions(userId, cachedSessionsLS);
+    }
+    return cachedSessionsLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -196,18 +277,25 @@ export async function getInterviewSessionsByUser(
     return [];
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_sessions")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching interview sessions:", error);
+  if (result.error) {
+    console.error("Error fetching interview sessions:", result.error);
+    // Cache the empty result to avoid repeated failed requests
+    cacheService.setUserInterviewSessions(userId, []);
+    localStorageCacheService.setUserInterviewSessions(userId, []);
     return [];
   }
 
-  return data || [];
+  // Cache the result in both memory and localStorage
+  cacheService.setUserInterviewSessions(userId, result.data);
+  localStorageCacheService.setUserInterviewSessions(userId, result.data);
+
+  return result.data || [];
 }
 
 export async function updateInterviewSession(
@@ -222,14 +310,26 @@ export async function updateInterviewSession(
     return false;
   }
 
-  const { error } = await (supabase as any)
+  const result = await supabase
     .from("interview_sessions")
     .update(sessionData)
     .eq("id", sessionId);
 
-  if (error) {
-    console.error("Error updating interview session:", error);
+  if (result.error) {
+    console.error("Error updating interview session:", result.error);
     return false;
+  }
+
+  // Invalidate cache since we updated the session
+  cacheService.invalidateInterviewSessionById(sessionId);
+  localStorageCacheService.remove(`cache_interview_session_${sessionId}`);
+
+  // If user_id is in the session data, we should also invalidate the user's session list
+  if (sessionData.user_id) {
+    cacheService.invalidateUserInterviewSessions(sessionData.user_id);
+    localStorageCacheService.remove(
+      `cache_interview_sessions_${sessionData.user_id}`
+    );
   }
 
   return true;
@@ -247,23 +347,48 @@ export async function createInterviewQuestion(
     return null;
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_questions")
     .insert([questionData])
     .select()
     .single();
 
-  if (error) {
-    console.error("Error creating interview question:", error);
+  if (result.error) {
+    console.error("Error creating interview question:", result.error);
     return null;
   }
 
-  return data;
+  // Invalidate cache for the session's questions since we added a new one
+  if (questionData.session_id) {
+    cacheService.invalidateInterviewQuestions(questionData.session_id);
+    localStorageCacheService.remove(
+      `cache_interview_questions_${questionData.session_id}`
+    );
+  }
+
+  return result.data;
 }
 
 export async function getQuestionsBySession(
   sessionId: string
 ): Promise<InterviewQuestion[]> {
+  // First check in-memory cache
+  const cachedQuestions = cacheService.getInterviewQuestions(sessionId);
+  if (cachedQuestions !== undefined) {
+    return cachedQuestions;
+  }
+
+  // Then check localStorage cache
+  const cachedQuestionsLS =
+    localStorageCacheService.getInterviewQuestions(sessionId);
+  if (cachedQuestionsLS !== undefined) {
+    if (cachedQuestionsLS.length > 0) {
+      // Update in-memory cache with localStorage data
+      cacheService.setInterviewQuestions(sessionId, cachedQuestionsLS);
+    }
+    return cachedQuestionsLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -272,24 +397,38 @@ export async function getQuestionsBySession(
     return [];
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_questions")
     .select("*")
     .eq("session_id", sessionId)
     .order("question_number", { ascending: true });
 
-  if (error) {
-    console.error("Error fetching questions:", error);
+  if (result.error) {
+    console.error("Error fetching questions:", result.error);
+    // Cache the empty result to avoid repeated failed requests
+    cacheService.setInterviewQuestions(sessionId, []);
+    localStorageCacheService.setInterviewQuestions(sessionId, []);
     return [];
   }
 
-  return data || [];
+  // Cache the result in both memory and localStorage
+  cacheService.setInterviewQuestions(sessionId, result.data);
+  localStorageCacheService.setInterviewQuestions(sessionId, result.data);
+
+  return result.data || [];
 }
 
 export async function getQuestionBySessionAndNumber(
   sessionId: string,
   questionNumber: number
 ): Promise<InterviewQuestion | null> {
+  // Create a composite key for caching
+  const cacheKey = `${sessionId}_${questionNumber}`;
+
+  // First check in-memory cache
+  // Note: We don't have a specific cache method for this, so we'll skip for now
+  // The main benefit will come from the questions list being cached
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -298,17 +437,19 @@ export async function getQuestionBySessionAndNumber(
     return null;
   }
 
-  const result = await (supabase as any)
+  const result = await supabase
     .from("interview_questions")
     .select("*")
     .eq("session_id", sessionId)
     .eq("question_number", questionNumber)
     .single();
 
-  if (result && "error" in result && result.error) {
+  if (result.error) {
     // If the error is because no rows were returned (PGRST116), that's not necessarily an error
-    if (result.error.code === 'PGRST116') {
-      console.warn(`No question found for session ${sessionId} and question number ${questionNumber}`);
+    if (result.error.code === "PGRST116") {
+      console.warn(
+        `No question found for session ${sessionId} and question number ${questionNumber}`
+      );
     } else {
       console.error(
         "Error fetching question by session and number:",
@@ -318,7 +459,7 @@ export async function getQuestionBySessionAndNumber(
     return null;
   }
 
-  return result?.data || null;
+  return result.data || null;
 }
 
 // Answer operations
@@ -333,23 +474,48 @@ export async function createInterviewAnswer(
     return null;
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_answers")
     .insert([answerData])
     .select()
     .single();
 
-  if (error) {
-    console.error("Error creating interview answer:", error);
+  if (result.error) {
+    console.error("Error creating interview answer:", result.error);
     return null;
   }
 
-  return data;
+  // Invalidate cache for the session's answers since we added a new one
+  if (answerData.session_id) {
+    cacheService.invalidateInterviewAnswers(answerData.session_id);
+    localStorageCacheService.remove(
+      `cache_interview_answers_${answerData.session_id}`
+    );
+  }
+
+  return result.data;
 }
 
 export async function getAnswersBySession(
   sessionId: string
 ): Promise<InterviewAnswer[]> {
+  // First check in-memory cache
+  const cachedAnswers = cacheService.getInterviewAnswers(sessionId);
+  if (cachedAnswers !== undefined) {
+    return cachedAnswers;
+  }
+
+  // Then check localStorage cache
+  const cachedAnswersLS =
+    localStorageCacheService.getInterviewAnswers(sessionId);
+  if (cachedAnswersLS !== undefined) {
+    if (cachedAnswersLS.length > 0) {
+      // Update in-memory cache with localStorage data
+      cacheService.setInterviewAnswers(sessionId, cachedAnswersLS);
+    }
+    return cachedAnswersLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -358,18 +524,25 @@ export async function getAnswersBySession(
     return [];
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_answers")
     .select("*")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error("Error fetching answers:", error);
+  if (result.error) {
+    console.error("Error fetching answers:", result.error);
+    // Cache the empty result to avoid repeated failed requests
+    cacheService.setInterviewAnswers(sessionId, []);
+    localStorageCacheService.setInterviewAnswers(sessionId, []);
     return [];
   }
 
-  return data || [];
+  // Cache the result in both memory and localStorage
+  cacheService.setInterviewAnswers(sessionId, result.data);
+  localStorageCacheService.setInterviewAnswers(sessionId, result.data);
+
+  return result.data || [];
 }
 
 // Usage tracking operations
@@ -400,6 +573,22 @@ export async function getUserUsage(
   userId: string,
   since?: string
 ): Promise<UsageRecord[]> {
+  // First check in-memory cache
+  const cachedUsage = cacheService.getUserUsage(userId, since);
+  if (cachedUsage !== undefined) {
+    return cachedUsage;
+  }
+
+  // Then check localStorage cache
+  const cachedUsageLS = localStorageCacheService.getUserUsage(userId, since);
+  if (cachedUsageLS !== undefined) {
+    if (cachedUsageLS.length > 0) {
+      // Update in-memory cache with localStorage data
+      cacheService.setUserUsage(userId, cachedUsageLS, since);
+    }
+    return cachedUsageLS;
+  }
+
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -408,7 +597,7 @@ export async function getUserUsage(
     return [];
   }
 
-  let query = (supabase as any)
+  let query = supabase
     .from("usage_tracking")
     .select("*")
     .eq("user_id", userId)
@@ -418,14 +607,21 @@ export async function getUserUsage(
     query = query.gte("created_at", since);
   }
 
-  const { data, error } = await query;
+  const result = await query;
 
-  if (error) {
-    console.error("Error fetching user usage:", error);
+  if (result.error) {
+    console.error("Error fetching user usage:", result.error);
+    // Cache the empty result to avoid repeated failed requests
+    cacheService.setUserUsage(userId, [], since);
+    localStorageCacheService.setUserUsage(userId, [], since);
     return [];
   }
 
-  return data || [];
+  // Cache the result in both memory and localStorage
+  cacheService.setUserUsage(userId, result.data, since);
+  localStorageCacheService.setUserUsage(userId, result.data, since);
+
+  return result.data || [];
 }
 
 // Get daily usage count for a user
@@ -433,7 +629,7 @@ export async function getDailyUsageCount(
   userId: string,
   date: string
 ): Promise<number> {
-  const { data, error } = await supabase
+  const result = await supabase
     .from("usage_tracking")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
@@ -443,12 +639,12 @@ export async function getDailyUsageCount(
       new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000).toISOString()
     );
 
-  if (error) {
-    console.error("Error getting daily usage count:", error);
+  if (result.error) {
+    console.error("Error getting daily usage count:", result.error);
     return 0;
   }
 
-  return data ? data.length : 0;
+  return result.count ? result.count : 0;
 }
 
 // Get interview completion count for a user
@@ -463,16 +659,16 @@ export async function getUserInterviewsCompleted(
     return 0;
   }
 
-  const { data, error } = await (supabase as any)
+  const result = await supabase
     .from("interview_sessions")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
     .eq("completed", true);
 
-  if (error) {
-    console.error("Error getting completed interviews count:", error);
+  if (result.error) {
+    console.error("Error getting completed interviews count:", result.error);
     return 0;
   }
 
-  return data ? data.length : 0;
+  return result.count ? result.count : 0;
 }

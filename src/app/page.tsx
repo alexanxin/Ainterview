@@ -205,7 +205,7 @@ export default function Home() {
           
           {/* CTA Section */}
           <Card className="bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-800 dark:to-gray-900 border-green-200 dark:border-green-900/50">
-            <CardHeader className="text-center">
+            <CardHeader className="text-center border-b border-gray-200 dark:border-gray-700">
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
                 Ready to Transform Your Interview Game?
               </CardTitle>
@@ -213,7 +213,7 @@ export default function Home() {
                 Join thousands of job seekers who've boosted their confidence with Ainterview
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <CardContent className="p-6 flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button 
                 className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90" 
                 onClick={() => router.push('/interview')}
