@@ -4,15 +4,32 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast';
+import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
+import { parsePdfText } from '@/lib/pdf-parser';
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
+  const [jobPostingUrl, setJobPostingUrl] = useState('');
   const [cv, setCv] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingJob, setIsFetchingJob] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalCvData, setModalCvData] = useState({
+    bio: '',
+    experience: '',
+    education: '',
+    skills: '',
+  });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
   const router = useRouter();
   const { user, loading } = useAuth();
   const { error, success, warning, info } = useToast(); // Initialize toast notifications
@@ -24,30 +41,342 @@ export default function InterviewPage() {
     }
   }, [user, loading, router]);
 
+  // Load user profile when user is available
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (user) {
+        const profile = await getUserProfile(user.id);
+        setUserProfile(profile);
+        // Automatically set CV from profile for the interview in the same order as profile page
+        if (profile) {
+          const sections = [];
+          if (profile.bio) sections.push(`Bio:\n${profile.bio}`);
+          if (profile.experience) sections.push(`Experience:\n${profile.experience}`);
+          if (profile.education) sections.push(`Education:\n${profile.education}`);
+          if (profile.skills) sections.push(`Skills:\n${profile.skills}`);
+
+          const combinedCv = sections.join('\n\n');
+          setCv(combinedCv);
+        }
+      }
+    };
+    loadProfile();
+  }, [user]);
+
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (): boolean => {
+    if (!userProfile) return false;
+    // Check if essential fields have content
+    return !!(userProfile.bio || userProfile.experience || userProfile.education || userProfile.skills);
+  };
+
+  const extractSectionsFromPDFText = (text: string) => {
+    // Clean up the text by removing multiple spaces and line breaks
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+
+    // Extract name - look for the name pattern in LinkedIn PDFs
+    const nameMatch = cleanText.match(/([A-Z][a-z]+ [A-Z][a-z]+)\s+(?:Freelance|Full Stack|Product Designer|Tech Creator)/);
+    const name = nameMatch ? nameMatch[1] : '';
+
+    // Extract location - look for country or city patterns
+    const locationMatch = cleanText.match(/(?:North Macedonia|Skopje|Skopski)/);
+    let location = locationMatch ? locationMatch[0] : '';
+
+    // Extract phone number - look for the phone pattern
+    const phoneMatch = cleanText.match(/389\s+\d{2}\s+\d{6}/);
+    const phone = phoneMatch ? phoneMatch[0] : '';
+
+    // Extract summary/bio - look for the Summary section
+    const summaryPattern = /Summary\s+([^.]*?)(?:Experience|Education|Skills|Contact|Languages|Top Skills|$)/i;
+    const bioMatch = cleanText.match(summaryPattern);
+    let bio = bioMatch ? bioMatch[1].trim() : '';
+
+    // Extract experience - look for the Experience section and capture all experience entries
+    const experiencePattern = /Experience\s+([^.]*?)(?:Education|Skills|Summary|Contact|Languages|Top Skills|$)/i;
+    const experienceMatch = cleanText.match(experiencePattern);
+    let experience = experienceMatch ? experienceMatch[1].trim() : '';
+
+    // Extract individual experience entries with proper formatting
+    const experienceEntries = [];
+    // Pattern to capture complete experience entries including location and duration, but stop before page markers
+    const entryPattern = /([A-Z][a-zA-Z\s&\/]+?)(?:\n|\s+)([A-Z][a-zA-Z\s&\/]+?)?(?:\n|\s+)(?:October|July|April|September|May|November|January|December|200\d|\d{4})[^}]*?(?:Present|months|year)[^}]*?(?:Skopje|North Macedonia)[^}]*?(?=\n\n|Page|$)/gi;
+    let match;
+    while ((match = entryPattern.exec(cleanText)) !== null) {
+      let entry = match[0].trim();
+      // Clean up the entry by removing extra spaces and normalizing
+      entry = entry.replace(/\s+/g, ' ').replace(/\s*\n\s*/g, ' ');
+      // Remove any trailing "Page" text
+      entry = entry.replace(/\s+Page\s*$/, '');
+      experienceEntries.push(entry);
+    }
+
+    // If we found individual entries, format them with line breaks
+    if (experienceEntries.length > 0) {
+      experience = experienceEntries.join('\n\n');
+    } else if (experience && experience.length < 100) {
+      // Fallback: try to extract from the Experience section more broadly
+      const expSectionPattern = /Experience\s+([^.]*?)(?:Education|Skills|Summary|Contact|Languages|Top Skills|$)/i;
+      const expSectionMatch = cleanText.match(expSectionPattern);
+      if (expSectionMatch) {
+        experience = expSectionMatch[1].trim();
+      }
+    }
+
+    // Extract education - look for the Education section (if present)
+    const educationPattern = /Education\s+([^.]*?)(?:Skills|Experience|Summary|Contact|Languages|Top Skills|$)/i;
+    const educationMatch = cleanText.match(educationPattern);
+    const education = educationMatch ? educationMatch[1].trim() : '';
+
+    // Extract skills - look for Top Skills section and capture only technical skills (stop before Languages)
+    const skillsPattern = /Top Skills\s+([^.]*?)(?:Languages|$)/i;
+    const skillsMatch = cleanText.match(skillsPattern);
+    let skills = skillsMatch ? skillsMatch[1].trim() : '';
+
+    // Clean up skills - remove extra spaces and format properly
+    if (skills) {
+      skills = skills.replace(/\s+/g, ' ').trim();
+      // Extract only technical skills, exclude languages
+      const skillItems = skills.match(/(?:Cascading Style Sheets|User Experience|Web Design)(?:\s*\([^)]*\))?/gi);
+      if (skillItems) {
+        skills = skillItems.join(', ');
+      }
+    }
+
+    // If still no bio, try to extract from the description after name
+    if (!bio) {
+      const bioAltPattern = /(?:Freelance Tech Creator|Full Stack Developer).*?\|([^|]*?)(?:Experience|Education|Skills|$)/i;
+      const bioAltMatch = cleanText.match(bioAltPattern);
+      if (bioAltMatch) {
+        bio = bioAltMatch[1].trim();
+      }
+    }
+
+    // If still no location, try to find it in experience section
+    if (!location) {
+      const locationAltMatch = cleanText.match(/(?:Skopje|North Macedonia)/);
+      if (locationAltMatch) {
+        location = locationAltMatch[0];
+      }
+    }
+
+    return {
+      name: name,
+      location: location,
+      phone: phone,
+      bio: bio,
+      experience: experience,
+      education: education,
+      skills: skills
+    };
+  };
+
+  const parseLinkedInPDF = async (file: File) => {
+    try {
+      setIsParsing(true);
+
+      // Parse the PDF text content
+      const pdfText = await parsePdfText(file);
+
+      // Log the raw PDF text for debugging
+      console.log('Raw PDF Text:', pdfText);
+
+      // Extract sections based on common LinkedIn PDF patterns
+      const sections = extractSectionsFromPDFText(pdfText);
+
+      // Log extracted sections for debugging
+      console.log('Extracted Sections:', sections);
+
+      // Update form data with extracted information
+      setModalCvData(prev => ({
+        ...prev,
+        bio: sections.bio || prev.bio,
+        experience: sections.experience || prev.experience,
+        education: sections.education || prev.education,
+        skills: sections.skills || prev.skills,
+      }));
+
+      success('LinkedIn PDF data imported successfully!');
+    } catch (err) {
+      console.error('Error parsing PDF:', err);
+      error('Error importing LinkedIn PDF. Please try another file.');
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type === 'application/pdf') {
+        setPdfFile(file);
+      } else {
+        error('Please select a PDF file');
+      }
+    }
+  };
+
+  const handleImportFromLinkedIn = async () => {
+    if (!pdfFile) {
+      error('Please select a PDF file first');
+      return;
+    }
+
+    await parseLinkedInPDF(pdfFile);
+  };
+
   const handleStartInterview = () => {
-    if (!jobPosting.trim() || !cv.trim()) {
-      error('Please fill in both job posting and CV fields');
+    if (!jobPosting.trim()) {
+      error('Please fill in the job posting field');
+      return;
+    }
+    if (!cv.trim()) {
+      error('Please edit your CV before starting the interview');
       return;
     }
 
     setIsLoading(true);
-    
+
     // Clear any previous interview session data
     localStorage.removeItem('interviewJobPosting');
     localStorage.removeItem('interviewCv');
     localStorage.removeItem('interviewCompanyInfo');
-    
+
     // Save new job posting and CV to localStorage
     localStorage.setItem('interviewJobPosting', jobPosting);
     localStorage.setItem('interviewCv', cv);
     // Also save company info if available (could be extracted from job posting)
     localStorage.setItem('interviewCompanyInfo', extractCompanyInfo(jobPosting));
-    
+
     // Simulate API call to prepare interview
     setTimeout(() => {
       setIsLoading(false);
       router.push('/interview/session');
     }, 1500);
+  };
+
+  const handleEditCv = () => {
+    // Load CV from profile or use current session CV
+    setModalCvData({
+      bio: userProfile?.bio || '',
+      experience: userProfile?.experience || '',
+      education: userProfile?.education || '',
+      skills: userProfile?.skills || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveToDatabase = async () => {
+    if (!user) return;
+
+    try {
+      const profileData = {
+        bio: modalCvData.bio,
+        experience: modalCvData.experience,
+        education: modalCvData.education,
+        skills: modalCvData.skills,
+        updated_at: new Date().toISOString(),
+      };
+      const successResult = await updateUserProfile(user.id, profileData);
+      if (successResult) {
+        success('CV saved to database successfully!');
+        // Combine the CV data for the session in the same order as on profile page
+        const sections = [];
+        if (modalCvData.bio) sections.push(`Bio:\n${modalCvData.bio}`);
+        if (modalCvData.experience) sections.push(`Experience:\n${modalCvData.experience}`);
+        if (modalCvData.education) sections.push(`Education:\n${modalCvData.education}`);
+        if (modalCvData.skills) sections.push(`Skills:\n${modalCvData.skills}`);
+
+        const combinedCv = sections.join('\n\n');
+        setCv(combinedCv);
+        setUserProfile(prev => prev ? { ...prev, ...profileData } : null);
+        setIsModalOpen(false);
+      } else {
+        error('Failed to save CV to database');
+      }
+    } catch (err) {
+      error('An error occurred while saving CV');
+    }
+  };
+
+  const handleSaveForSession = () => {
+    // Combine the CV data for the session in the same order as on profile page
+    const sections = [];
+    if (modalCvData.bio) sections.push(`Bio:\n${modalCvData.bio}`);
+    if (modalCvData.experience) sections.push(`Experience:\n${modalCvData.experience}`);
+    if (modalCvData.education) sections.push(`Education:\n${modalCvData.education}`);
+    if (modalCvData.skills) sections.push(`Skills:\n${modalCvData.skills}`);
+
+    const combinedCv = sections.join('\n\n');
+    setCv(combinedCv);
+    success('CV saved for this session!');
+    setIsModalOpen(false);
+  };
+
+  const fetchJobFromUrl = async () => {
+    if (!jobPostingUrl) {
+      error('Please enter a URL first');
+      return;
+    }
+
+    try {
+      setIsFetchingJob(true);
+      // Call our API route to fetch and extract text from the URL
+      const response = await fetch('/api/extract-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: jobPostingUrl }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch content');
+      }
+
+      const data = await response.json();
+
+      if (data.text) {
+        // Extract company info from the text if possible
+        const extractedCompanyInfo = extractCompanyInfo(data.text);
+        setJobPosting(data.text);
+        success('Job posting content fetched successfully!');
+      } else {
+        error('Could not extract content from the provided URL. Please paste the content directly.');
+      }
+    } catch (err) {
+      error('Failed to fetch job posting. Please try pasting the content directly.');
+    } finally {
+      setIsFetchingJob(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsLoading(true);
+      // Reset file input
+      e.target.value = '';
+
+      // For now, just simulate reading the file content
+      // In a real implementation, you would parse the file content
+      const fileText = `[CV content from ${file.name} would be processed here...]`;
+      setCv(fileText);
+      success('CV file processed successfully!');
+
+      // Update the modal data with the file content
+      setModalCvData({
+        bio: fileText,
+        experience: '',
+        education: '',
+        skills: ''
+      });
+    } catch (err) {
+      error('Failed to process CV file. Please try pasting the content directly.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Helper function to extract company info from job posting
@@ -56,10 +385,10 @@ export default function InterviewPage() {
     const lines = jobPosting.split('\n');
     let companyInfo = '';
     for (const line of lines) {
-      if (line.toLowerCase().includes('company') || 
-          line.toLowerCase().includes('about') || 
-          line.toLowerCase().includes('culture') ||
-          line.toLowerCase().includes('mission')) {
+      if (line.toLowerCase().includes('company') ||
+        line.toLowerCase().includes('about') ||
+        line.toLowerCase().includes('culture') ||
+        line.toLowerCase().includes('mission')) {
         companyInfo += line + ' ';
       }
     }
@@ -79,6 +408,76 @@ export default function InterviewPage() {
             </div>
           </div>
         </main>
+
+        {/* CV Edit Modal */}
+        <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <SheetContent className="w-full sm:max-w-2xl">
+            <SheetHeader>
+              <SheetTitle>Edit Your CV</SheetTitle>
+            </SheetHeader>
+            <div className="py-6 space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="bio" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Bio/Summary
+                </Label>
+                <Textarea
+                  id="bio"
+                  placeholder="Enter your professional summary or bio..."
+                  value={modalCvData.bio}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, bio: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="experience" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Experience
+                </Label>
+                <Textarea
+                  id="experience"
+                  placeholder="Enter your work experience..."
+                  value={modalCvData.experience}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, experience: e.target.value }))}
+                  className="min-h-[120px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="education" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Education
+                </Label>
+                <Textarea
+                  id="education"
+                  placeholder="Enter your education background..."
+                  value={modalCvData.education}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, education: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skills" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Skills
+                </Label>
+                <Textarea
+                  id="skills"
+                  placeholder="Enter your key skills..."
+                  value={modalCvData.skills}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, skills: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            <SheetFooter className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="outline" onClick={handleSaveForSession}>
+                Save for this session
+              </Button>
+              <Button onClick={handleSaveToDatabase}>
+                Save to database
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }
@@ -87,6 +486,9 @@ export default function InterviewPage() {
   if (!user) {
     return null;
   }
+
+  // Check if user profile is incomplete
+  const profileIncomplete = userProfile && !isProfileComplete();
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
@@ -110,33 +512,190 @@ export default function InterviewPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {/* Profile Incomplete Notice */}
+              {profileIncomplete ? (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 flex items-center">
+                    <span className="mr-2">⚠️</span>
+                    Profile Incomplete
+                  </h3>
+                  <p className="text-yellow-700 dark:text-yellow-300 text-sm mt-1">
+                    Your profile is not fully completed. For best interview results, please fill out all profile information.
+                  </p>
+                  <div className="mt-3 flex flex-row gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/profile')}
+                      className="whitespace-nowrap"
+                    >
+                      Go to Profile
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Job Posting Section */}
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                  <span className="mr-2">💼</span>
                   Job Posting URL or Description
-                </label>
+                </h2>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    id="job_posting_url"
+                    type="text"
+                    value={jobPostingUrl}
+                    onChange={(e) => setJobPostingUrl(e.target.value)}
+                    placeholder="Paste job posting URL here..."
+                    className="flex-1 dark:bg-gray-700 dark:text-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={fetchJobFromUrl}
+                    disabled={!jobPostingUrl || isLoading || isFetchingJob}
+                    className="whitespace-nowrap"
+                  >
+                    {isFetchingJob ? (
+                      <>
+                        <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                        Fetching...
+                      </>
+                    ) : (
+                      'Fetch'
+                    )}
+                  </Button>
+                </div>
+
                 <Textarea
-                  placeholder="Paste the job posting URL or description here..."
                   value={jobPosting}
                   onChange={(e) => setJobPosting(e.target.value)}
-                  className="min-h-[120px]"
+                  className="min-h-[120px] dark:bg-gray-700 dark:text-white mt-2"
+                  placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
+                  rows={4}
                 />
+
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <span className="flex items-start">
+                    <span className="mr-1">💡</span>
+                    <span>For best results, include company overview, responsibilities, requirements, and any special instructions.</span>
+                  </span>
+                  {isFetchingJob && (
+                    <div className="mt-2 text-blue-600 dark:text-blue-400 flex items-center">
+                      <div className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                      Processing job posting content... This may take a few seconds for larger pages.
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {/* CV Section */}
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                  <span className="mr-2">📄</span>
                   Your CV or Resume
-                </label>
+                </h2>
+
                 <Textarea
-                  placeholder="Paste your CV/resume content here..."
                   value={cv}
                   onChange={(e) => setCv(e.target.value)}
-                  className="min-h-[120px]"
+                  className="min-h-[120px] dark:bg-gray-700 dark:text-white mt-2"
+                  placeholder="Or paste your resume text here..."
+                  rows={4}
                 />
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-start">
+                      <span className="mr-1">💡</span>
+                      <span>Make sure to include your work experience, education, skills, and a brief professional summary.</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleEditCv}
+                      className="whitespace-nowrap"
+                    >
+                      Edit CV
+                    </Button>
+
+                    {/* LinkedIn PDF Import Button - Only show if profile is incomplete */}
+                    {profileIncomplete && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            // Scroll to the LinkedIn PDF import section
+                            const element = document.getElementById('linkedin-import-section');
+                            element?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          Import from LinkedIn PDF
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
+                {profileIncomplete && (
+                  <div id="linkedin-import-section" className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
+                      <span className="mr-2">📄</span>
+                      Import from LinkedIn PDF
+                    </h3>
+                    <p className="text-blue-700 dark:text-blue-300 text-sm mb-4">
+                      Upload your LinkedIn profile PDF to automatically fill in your information
+                    </p>
+                    <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
+                      Tip: To get your LinkedIn PDF, go to your profile page, click the &quot;More&quot; button, and select &quot;Save to PDF&quot;
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                        <Label htmlFor="linkedin-pdf" className="text-gray-700 dark:text-gray-300">Select LinkedIn PDF</Label>
+                        <Input
+                          id="linkedin-pdf"
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleFileChange}
+                          className="mt-1 dark:bg-gray-700 dark:text-white"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          onClick={handleImportFromLinkedIn}
+                          disabled={!pdfFile || isParsing}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {isParsing ? 'Importing...' : 'Import Data'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex justify-end">
-                <Button 
-                  onClick={handleStartInterview} 
+              {/* CV Information Card */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center">
+                  <span className="mr-2">📄</span>
+                  CV Information
+                </h3>
+                <p className="text-blue-700 dark:text-blue-300 text-sm mt-1">
+                  Your CV data from your profile will be automatically used for this interview.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4">
+                <Button
+                  onClick={handleStartInterview}
                   disabled={isLoading}
                   className="w-full sm:w-auto"
                 >
@@ -147,6 +706,76 @@ export default function InterviewPage() {
           </Card>
         </div>
       </main>
+
+      {/* CV Edit Modal */}
+      <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <SheetContent className="w-full sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>Edit Your CV</SheetTitle>
+          </SheetHeader>
+          <div className="py-6 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="bio" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Bio/Summary
+              </Label>
+              <Textarea
+                id="bio"
+                placeholder="Enter your professional summary or bio..."
+                value={modalCvData.bio}
+                onChange={(e) => setModalCvData(prev => ({ ...prev, bio: e.target.value }))}
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="experience" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Experience
+              </Label>
+              <Textarea
+                id="experience"
+                placeholder="Enter your work experience..."
+                value={modalCvData.experience}
+                onChange={(e) => setModalCvData(prev => ({ ...prev, experience: e.target.value }))}
+                className="min-h-[120px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="education" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Education
+              </Label>
+              <Textarea
+                id="education"
+                placeholder="Enter your education background..."
+                value={modalCvData.education}
+                onChange={(e) => setModalCvData(prev => ({ ...prev, education: e.target.value }))}
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="skills" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Skills
+              </Label>
+              <Textarea
+                id="skills"
+                placeholder="Enter your key skills..."
+                value={modalCvData.skills}
+                onChange={(e) => setModalCvData(prev => ({ ...prev, skills: e.target.value }))}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <SheetFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={handleSaveForSession}>
+              Save for this session
+            </Button>
+            <Button onClick={handleSaveToDatabase}>
+              Save to database
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

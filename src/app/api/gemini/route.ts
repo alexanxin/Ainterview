@@ -1,6 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
-import { getUserUsage, getDailyUsageCount, getUserInterviewsCompleted, recordUsage } from '@/lib/database';
+import {
+  getUserUsage,
+  getDailyUsageCount,
+  getUserInterviewsCompleted,
+  recordUsage,
+} from "@/lib/database";
+import {
+  rateLimiter,
+  withExponentialBackoff,
+  withRateLimitHandling,
+} from "@/lib/rate-limiter";
 
 interface InterviewContext {
   jobPosting: string;
@@ -13,6 +23,7 @@ interface QuestionResponse {
   userAnswer: string;
   aiFeedback: string;
   improvementSuggestions: string[];
+  rating?: number;
 }
 
 interface ApiResult {
@@ -25,6 +36,16 @@ interface ApiResult {
   [key: string]: unknown;
 }
 
+interface BatchEvaluationRequest {
+  questions: string[];
+  answers: string[];
+  context: InterviewContext;
+}
+
+interface BatchEvaluationResponse {
+  evaluations: QuestionResponse[];
+}
+
 // Define free quota for users
 const FREE_INTERVIEWS = 1; // 1 complete interview free (all questions in an interview session)
 const FREE_INTERACTIONS_PER_DAY = 2; // Additional individual interactions per day after free interview is used
@@ -32,16 +53,21 @@ const FREE_INTERACTIONS_PER_DAY = 2; // Additional individual interactions per d
 async function checkUsage(
   userId: string,
   action: string
-): Promise<{ allowed: boolean; remaining: number; cost: number; freeInterviewUsed: boolean }> {
+): Promise<{
+  allowed: boolean;
+  remaining: number;
+  cost: number;
+  freeInterviewUsed: boolean;
+}> {
   const cost = 1; // Each action costs 1
-  
+
   if (!userId || userId === "anonymous") {
     // For anonymous users, only allow basic usage with no personalization
     return {
       allowed: true,
       remaining: -1, // Indicate unlimited for anonymous
       cost,
-      freeInterviewUsed: false
+      freeInterviewUsed: false,
     };
   }
 
@@ -55,24 +81,35 @@ async function checkUsage(
       allowed: true,
       remaining: -1, // Indicate unlimited for free interview
       cost,
-      freeInterviewUsed: false
+      freeInterviewUsed: false,
     };
   }
 
   // If free interview is used, check daily limit
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const dailyUsageCount = await getDailyUsageCount(userId, `${today}T00:00:00Z`);
-  const remainingDaily = Math.max(0, FREE_INTERACTIONS_PER_DAY - dailyUsageCount);
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const dailyUsageCount = await getDailyUsageCount(
+    userId,
+    `${today}T00:00:00Z`
+  );
+  const remainingDaily = Math.max(
+    0,
+    FREE_INTERACTIONS_PER_DAY - dailyUsageCount
+  );
 
   return {
     allowed: remainingDaily >= cost,
     remaining: remainingDaily,
     cost,
-    freeInterviewUsed: true
+    freeInterviewUsed: true,
   };
 }
 
-async function recordUsageWithDatabase(userId: string, action: string, cost: number, freeInterviewAlreadyUsed: boolean) {
+async function recordUsageWithDatabase(
+  userId: string,
+  action: string,
+  cost: number,
+  freeInterviewAlreadyUsed: boolean
+) {
   if (!userId || userId === "anonymous") {
     // Don't record usage for anonymous users
     return;
@@ -80,7 +117,8 @@ async function recordUsageWithDatabase(userId: string, action: string, cost: num
 
   // Calculate interviews completed based on action type
   let interviewsCompleted = 0;
-  if (action === 'generateFlow') { // This indicates a complete interview session
+  if (action === "generateFlow") {
+    // This indicates a complete interview session
     interviewsCompleted = await getUserInterviewsCompleted(userId);
     interviewsCompleted += 1;
   }
@@ -91,11 +129,11 @@ async function recordUsageWithDatabase(userId: string, action: string, cost: num
     action,
     cost,
     free_interview_used: freeInterviewAlreadyUsed,
-    interviews_completed: interviewsCompleted
+    interviews_completed: interviewsCompleted,
   };
 
   const success = await recordUsage(usageRecord);
-  
+
   if (success) {
     console.log(
       `Recorded usage in database: user=${userId}, action=${action}, cost=${cost}, freeInterviewUsed=${freeInterviewAlreadyUsed}`
@@ -116,6 +154,8 @@ export async function POST(req: NextRequest) {
       answer,
       numQuestions = 5,
       userId,
+      questions,
+      answers,
     } = await req.json();
 
     if (!action) {
@@ -128,13 +168,13 @@ export async function POST(req: NextRequest) {
     // Check if user has exceeded their free quota
     // Temporarily disabled for testing
     const usageCheck = await checkUsage(userId || "anonymous", action);
-    
+
     if (!usageCheck.allowed) {
       return NextResponse.json(
         {
           error: "Free quota exceeded",
           needsPayment: true,
-          message: usageCheck.freeInterviewUsed 
+          message: usageCheck.freeInterviewUsed
             ? `You've used all ${FREE_INTERACTIONS_PER_DAY} free AI interactions for today. Please purchase credits to continue.`
             : `You've used your free interview. Please purchase credits to continue practicing.`,
         },
@@ -204,6 +244,40 @@ export async function POST(req: NextRequest) {
             },
           });
 
+        case "batchEvaluate":
+          // Mock response for batch evaluation
+          if (questions && answers && questions.length === answers.length) {
+            const evaluations = questions.map((q: string, i: number) => ({
+              question: q,
+              userAnswer: answers[i],
+              aiFeedback: `Feedback for answer to question: ${q}`,
+              improvementSuggestions: [
+                "Consider adding more specific examples",
+                "Relate your experience to the job requirements",
+              ],
+              rating: 7,
+            }));
+            return NextResponse.json({
+              evaluations,
+              remainingQuota: -1,
+              quotaInfo: {
+                used: 0,
+                total: 1, // One free interview
+                resetTime: new Date(
+                  new Date().setHours(24, 0, 0, 0)
+                ).toISOString(),
+              },
+            });
+          } else {
+            return NextResponse.json(
+              {
+                error:
+                  "Questions and answers arrays must be provided and of equal length",
+              },
+              { status: 400 }
+            );
+          }
+
         default:
           return NextResponse.json(
             { error: "Invalid action" },
@@ -223,6 +297,11 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Create a rate limiting key based on the user ID and action
+    const rateLimitKey = userId
+      ? `gemini_${userId}_${action}`
+      : `gemini_anonymous_${action}`;
 
     let result: ApiResult;
 
@@ -258,10 +337,12 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const questionResult = await model.generateContent({
-            model: "gemini-2.0-flash-001",
-            contents: questionPrompt,
-          });
+          const questionResult = await withRateLimitHandling(async () => {
+            return await model.generateContent({
+              model: "gemini-2.0-flash",
+              contents: questionPrompt,
+            });
+          }, rateLimitKey);
           const questionText = questionResult.text || "";
 
           // Clean up the response to extract just the question
@@ -272,6 +353,22 @@ export async function POST(req: NextRequest) {
           result = { question: cleanedQuestion };
         } catch (geminiError) {
           console.error("Error generating question with Gemini:", geminiError);
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
           return NextResponse.json(
             { error: "Failed to generate interview question" },
             { status: 500 }
@@ -314,10 +411,12 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const flowResult = await model.generateContent({
-            model: "gemini-2.0-flash-001",
-            contents: flowPrompt,
-          });
+          const flowResult = await withRateLimitHandling(async () => {
+            return await model.generateContent({
+              model: "gemini-2.0-flash",
+              contents: flowPrompt,
+            });
+          }, rateLimitKey);
           const flowText = flowResult.text || "";
 
           // Extract questions from the response more safely
@@ -336,6 +435,22 @@ export async function POST(req: NextRequest) {
           result = { questions: flowQuestions.slice(0, numQuestions) };
         } catch (geminiError) {
           console.error("Error generating flow with Gemini:", geminiError);
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
           return NextResponse.json(
             { error: "Failed to generate interview flow" },
             { status: 500 }
@@ -393,10 +508,12 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const analysisResult = await model.generateContent({
-            model: "gemini-2.0-flash-001",
-            contents: analysisPrompt,
-          });
+          const analysisResult = await withRateLimitHandling(async () => {
+            return await model.generateContent({
+              model: "gemini-2.0-flash",
+              contents: analysisPrompt,
+            });
+          }, rateLimitKey);
           const analysisText = analysisResult.text || "";
 
           // Parse the response more safely
@@ -443,8 +560,197 @@ export async function POST(req: NextRequest) {
           };
         } catch (geminiError) {
           console.error("Error analyzing answer with Gemini:", geminiError);
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
           return NextResponse.json(
             { error: "Failed to analyze answer" },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case "batchEvaluate":
+        if (!context || !questions || !answers) {
+          return NextResponse.json(
+            {
+              error:
+                "Context, questions, and answers are required for batch evaluation",
+            },
+            { status: 400 }
+          );
+        }
+
+        if (questions.length !== answers.length) {
+          return NextResponse.json(
+            {
+              error: "Questions and answers arrays must be of equal length",
+            },
+            { status: 400 }
+          );
+        }
+
+        const typedContextBatch = context as InterviewContext;
+        if (
+          !typedContextBatch.jobPosting ||
+          !typedContextBatch.companyInfo ||
+          !typedContextBatch.userCv
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "Job posting, company info, and user CV are required for batch evaluation",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Create a comprehensive prompt for batch evaluation
+        const batchPrompt = `
+          Act as an experienced interviewer. Analyze the following answers to the interview questions based on the job posting and company information.
+          
+          Job Posting: ${typedContextBatch.jobPosting}
+          
+          Company Info: ${typedContextBatch.companyInfo}
+          
+          User CV: ${typedContextBatch.userCv}
+          
+          Evaluate each question-answer pair and provide feedback:
+          
+          ${questions
+            .map(
+              (q: string, i: number) =>
+                `Question ${i + 1}: ${q}\nAnswer ${i + 1}: ${answers[i]}\n`
+            )
+            .join("\n")}
+          
+          For each question-answer pair, provide:
+          1. Constructive feedback on the answer
+          2. 2-3 specific suggestions for improvement
+          3. Rate how well the answer aligns with the job requirements (1-10)
+          
+          Format your response as:
+          Q1_FEEDBACK: [Your feedback for question 1 here]
+          Q1_SUGGESTIONS: [Suggestion 1]; [Suggestion 2]; [Suggestion 3]
+          Q1_RATING: [Number 1-10]
+          
+          Q2_FEEDBACK: [Your feedback for question 2 here]
+          Q2_SUGGESTIONS: [Suggestion 1]; [Suggestion 2]; [Suggestion 3]
+          Q2_RATING: [Number 1-10]
+          
+          ${questions
+            .map(
+              (_: string, i: number) =>
+                `Q${i + 1}_FEEDBACK: [Your feedback for question ${i + 1} here]
+            Q${
+              i + 1
+            }_SUGGESTIONS: [Suggestion 1]; [Suggestion 2]; [Suggestion 3]
+            Q${i + 1}_RATING: [Number 1-10]`
+            )
+            .join("\n\n")}
+        `;
+
+        try {
+          const batchResult = await withRateLimitHandling(async () => {
+            return await model.generateContent({
+              model: "gemini-2.0-flash",
+              contents: batchPrompt,
+            });
+          }, rateLimitKey);
+          const batchText = batchResult.text || "";
+
+          // Parse the batch response
+          const evaluations: QuestionResponse[] = [];
+
+          for (let i = 0; i < questions.length; i++) {
+            const questionIndex = i + 1;
+
+            // Extract feedback
+            const feedbackMatch = batchText.match(
+              new RegExp(
+                `Q${questionIndex}_FEEDBACK:\\s*(.*?)(?=Q${
+                  questionIndex + 1
+                }_FEEDBACK:|$|Q${questionIndex}_SUGGESTIONS:)`,
+                "s"
+              )
+            );
+
+            // Extract suggestions
+            const suggestionsMatch = batchText.match(
+              new RegExp(
+                `Q${questionIndex}_SUGGESTIONS:\\s*(.*?)(?=Q${
+                  questionIndex + 1
+                }_SUGGESTIONS:|$|Q${questionIndex}_RATING:)`,
+                "s"
+              )
+            );
+
+            // Extract rating
+            const ratingMatch = batchText.match(
+              new RegExp(`Q${questionIndex}_RATING:\\s*(\\d+)`)
+            );
+
+            const feedback = feedbackMatch
+              ? feedbackMatch[1].trim()
+              : "No feedback provided";
+
+            const suggestions = suggestionsMatch
+              ? suggestionsMatch[1]
+                  .split(";")
+                  .map((s) => s.trim())
+                  .filter((s) => s)
+              : ["No suggestions provided"];
+
+            const rating = ratingMatch
+              ? Math.min(10, Math.max(1, parseInt(ratingMatch[1], 10)))
+              : 5;
+
+            evaluations.push({
+              question: questions[i],
+              userAnswer: answers[i],
+              aiFeedback: feedback,
+              improvementSuggestions: suggestions,
+              rating,
+            });
+          }
+
+          result = { evaluations };
+        } catch (geminiError) {
+          console.error(
+            "Error with batch evaluation using Gemini:",
+            geminiError
+          );
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
+          return NextResponse.json(
+            { error: "Failed to perform batch evaluation" },
             { status: 500 }
           );
         }
@@ -455,8 +761,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Record usage after successful processing
-    // Temporarily disabled for testing
-    await recordUsage(userId || "anonymous", action, usageCheck.cost, usageCheck.freeInterviewUsed);
+    // Using the dedicated function that handles server-side authentication
+    await recordUsageWithDatabase(
+      userId || "anonymous",
+      action,
+      usageCheck.cost,
+      usageCheck.freeInterviewUsed
+    );
 
     // Get the updated remaining quota
     const updatedUsageCheck = await checkUsage(userId || "anonymous", action);
@@ -464,13 +775,17 @@ export async function POST(req: NextRequest) {
     // Add remaining quota information to the response
     result.remainingQuota = updatedUsageCheck.remaining;
     result.quotaInfo = {
-      used: updatedUsageCheck.freeInterviewUsed 
-        ? FREE_INTERACTIONS_PER_DAY - updatedUsageCheck.remaining 
-        : (updatedUsageCheck.freeInterviewUsed ? 0 : 1),
-      total: updatedUsageCheck.freeInterviewUsed 
-        ? FREE_INTERACTIONS_PER_DAY 
-        : (updatedUsageCheck.freeInterviewUsed ? 0 : 1),
-      resetTime: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(), // Reset at next midnight
+      used: updatedUsageCheck.freeInterviewUsed
+        ? FREE_INTERACTIONS_PER_DAY - updatedUsageCheck.remaining
+        : updatedUsageCheck.freeInterviewUsed
+        ? 0
+        : 1,
+      total: updatedUsageCheck.freeInterviewUsed
+        ? FREE_INTERACTIONS_PER_DAY
+        : updatedUsageCheck.freeInterviewUsed
+        ? 0
+        : 1,
+      resetTime: new Date(new Date().setHours(24, 0, 0)).toISOString(), // Reset at next midnight
     };
 
     return NextResponse.json(result);

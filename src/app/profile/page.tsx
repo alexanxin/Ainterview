@@ -121,7 +121,9 @@ export default function ProfilePage() {
       };
 
       // Save to database
+      console.log('Saving profile data:', profileData);
       const successResult = await updateUserProfile(user.id, profileData);
+      console.log('Update result:', successResult);
 
       if (successResult) {
         success('Profile updated successfully!');
@@ -168,7 +170,40 @@ export default function ProfilePage() {
     const bioMatch = cleanText.match(summaryPattern);
     let bio = bioMatch ? bioMatch[1].trim() : '';
 
-    // Extract experience - look for the Experience section and stop at Education
+    // Extract education first to prevent it from being included in experience
+    const educationPattern = /(?:Education|Education Background)\s+([^]*?)(?:Page|Skills|Experience|Work Experience|Summary|Contact|Languages|Top Skills|$)/i;
+    const educationMatch = cleanText.match(educationPattern);
+    let education = educationMatch ? educationMatch[1].trim() : '';
+
+    // Clean up education - remove "Education" prefix and page numbers
+    education = education.replace(/^(?:Education|Education Background)\s*/i, '').trim();
+    education = education.replace(/Page\s+\d+\s+of\s+\d+$/gi, '').trim();
+
+    // Extract only the education entries with more flexible patterns
+    const educationEntries = education.match(/([A-Z][a-zA-Z\s&\/,()]+\s+(?:University|College|Institute|School|Academy|Gymnasium|Faculty|Универзитет|Колеџ|Факултет))[^.]*?(?:\d{4}|Present|months|year)[^.]*?(?=\n\n|Page|$)/gi);
+    if (educationEntries) {
+      education = educationEntries.join('\n\n');
+    }
+
+    // Add line breaks after the year ranges for better formatting
+    education = education.replace(/(\(\d{4}\s*-\s*\d{4}\))\s+/g, '$1\n\n');
+
+    // If education section exists but is empty, try to find education entries
+    if (!education) {
+      // Look for education-related entries that might be in other sections
+      const eduEntries = cleanText.match(/(?:University|College|School|Institute|Academy|Faculty|Универзитет|Колеџ|Факултет)[^.]*?(?:Degree|GPA|Course|Major|Minor|Bachelor|Master|PhD|Graduated|Graduation|200\d|\d{4}|Present|months|year)[^.]*?(?=\n\n|Page|$)/gi);
+      if (eduEntries) {
+        education = eduEntries.join('\n').trim();
+      }
+    }
+
+    // Clean up education formatting - remove extra spaces and normalize
+    if (education) {
+      education = education.replace(/\s+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+    }
+
+    // Extract experience - look for the Experience section, making sure we stop before Education
+    // First, let's find the full experience section, but exclude anything that comes after the Education section
     const experiencePattern = /Experience\s+([^]*?)(?:Education|$)/i;
     const experienceMatch = cleanText.match(experiencePattern);
     let experience = experienceMatch ? experienceMatch[1].trim() : '';
@@ -199,38 +234,6 @@ export default function ProfilePage() {
 
       // Join with double line breaks for better readability
       experience = cleanedLines.join('\n\n');
-    }
-
-    // Extract education - look for the Education section (if present)
-    const educationPattern = /Education\s+([^]*?)(?:Page|Skills|Experience|Summary|Contact|Languages|Top Skills|$)/i;
-    const educationMatch = cleanText.match(educationPattern);
-    let education = educationMatch ? educationMatch[1].trim() : '';
-
-    // Clean up education - remove "Education" prefix and page numbers
-    education = education.replace(/^Education\s*/i, '').trim();
-    education = education.replace(/Page\s+\d+\s+of\s+\d+$/gi, '').trim();
-
-    // Extract only the education entries, not the experience data that might be mixed in
-    const educationEntries = education.match(/(?:Faculty|УСО)[^·]*(?:·\s*\([^)]*\))?/g);
-    if (educationEntries) {
-      education = educationEntries.join('\n\n');
-    }
-
-    // Add line breaks after the year ranges for better formatting
-    education = education.replace(/(\(\d{4}\s*-\s*\d{4}\))\s+/g, '$1\n\n');
-
-    // If education section exists but is empty, try to find education entries
-    if (!education) {
-      // Look for education-related entries that might be in the experience section
-      const eduEntries = cleanText.match(/(?:University|College|School|Institute|Academy|Faculty|УСО)[^.]*?(?:\d{4}|\n\n|$)/gi);
-      if (eduEntries) {
-        education = eduEntries.join('\n').trim();
-      }
-    }
-
-    // Clean up education formatting - remove extra spaces and normalize
-    if (education) {
-      education = education.replace(/\s+/g, ' ').trim();
     }
 
     // Extract skills - look for Top Skills section and capture only technical skills (stop before Languages)
@@ -292,9 +295,10 @@ export default function ProfilePage() {
       // Log extracted sections for debugging
       console.log('Extracted Sections:', sections);
 
-      // Update form data with extracted information
+      // Update form data with extracted information, ensuring user ID is preserved
       setFormData(prev => ({
         ...prev,
+        id: user?.id || prev.id, // Preserve user ID
         full_name: sections.name || prev.full_name,
         location: sections.location || prev.location,
         bio: sections.bio || prev.bio,
@@ -481,6 +485,7 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </form>
+
             </CardContent>
           </Card>
         </div>

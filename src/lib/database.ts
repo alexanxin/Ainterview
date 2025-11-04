@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { supabaseServer } from "./supabase-server";
 
 // Type definitions
 export interface UserProfile {
@@ -61,6 +62,14 @@ export interface UsageRecord {
 export async function getUserProfile(
   userId: string
 ): Promise<UserProfile | null> {
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -78,13 +87,44 @@ export async function updateUserProfile(
   userId: string,
   profileData: Partial<UserProfile>
 ): Promise<boolean> {
-  const { error } = await supabase
+  console.log("updateUserProfile called with:", { userId, profileData });
+
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  // First try to update existing profile
+  const { error: updateError, data: updateData } = await supabase
     .from("profiles")
     .update(profileData)
-    .eq("id", userId);
+    .eq("id", userId)
+    .select();
 
-  if (error) {
-    console.error("Error updating user profile:", error);
+  console.log("Update attempt result:", { updateError, updateData });
+
+  // If update succeeded but no rows were affected (profile doesn't exist), try insert
+  if (!updateError && (!updateData || updateData.length === 0)) {
+    console.log("No existing profile found, trying insert...");
+    // If update fails, try to insert new profile
+    const data = { id: userId, ...profileData };
+    console.log("Inserting data:", data);
+    const { error: insertError, data: insertData } = await supabase
+      .from("profiles")
+      .insert(data)
+      .select();
+
+    console.log("Insert attempt result:", { insertError, insertData });
+
+    if (insertError) {
+      console.error("Error inserting user profile:", insertError);
+      return false;
+    }
+  } else if (updateError) {
+    console.error("Error updating user profile:", updateError);
     return false;
   }
 
@@ -95,7 +135,17 @@ export async function updateUserProfile(
 export async function createInterviewSession(
   sessionData: Omit<InterviewSession, "id" | "created_at" | "updated_at">
 ): Promise<InterviewSession | null> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  const { data, error } = await supabaseClient
     .from("interview_sessions")
     .insert([sessionData])
     .select()
@@ -103,6 +153,7 @@ export async function createInterviewSession(
 
   if (error) {
     console.error("Error creating interview session:", error);
+    console.error("Error details:", { message: error.message, code: error.code, details: error.details });
     return null;
   }
 
@@ -112,7 +163,15 @@ export async function createInterviewSession(
 export async function getInteviewSessionById(
   sessionId: string
 ): Promise<InterviewSession | null> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_sessions")
     .select("*")
     .eq("id", sessionId)
@@ -129,7 +188,15 @@ export async function getInteviewSessionById(
 export async function getInterviewSessionsByUser(
   userId: string
 ): Promise<InterviewSession[]> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return [];
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_sessions")
     .select("*")
     .eq("user_id", userId)
@@ -147,7 +214,15 @@ export async function updateInterviewSession(
   sessionId: string,
   sessionData: Partial<InterviewSession>
 ): Promise<boolean> {
-  const { error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const { error } = await (supabase as any)
     .from("interview_sessions")
     .update(sessionData)
     .eq("id", sessionId);
@@ -164,7 +239,15 @@ export async function updateInterviewSession(
 export async function createInterviewQuestion(
   questionData: Omit<InterviewQuestion, "id" | "created_at">
 ): Promise<InterviewQuestion | null> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_questions")
     .insert([questionData])
     .select()
@@ -181,7 +264,15 @@ export async function createInterviewQuestion(
 export async function getQuestionsBySession(
   sessionId: string
 ): Promise<InterviewQuestion[]> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return [];
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_questions")
     .select("*")
     .eq("session_id", sessionId)
@@ -195,11 +286,54 @@ export async function getQuestionsBySession(
   return data || [];
 }
 
+export async function getQuestionBySessionAndNumber(
+  sessionId: string,
+  questionNumber: number
+): Promise<InterviewQuestion | null> {
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const result = await (supabase as any)
+    .from("interview_questions")
+    .select("*")
+    .eq("session_id", sessionId)
+    .eq("question_number", questionNumber)
+    .single();
+
+  if (result && "error" in result && result.error) {
+    // If the error is because no rows were returned (PGRST116), that's not necessarily an error
+    if (result.error.code === 'PGRST116') {
+      console.warn(`No question found for session ${sessionId} and question number ${questionNumber}`);
+    } else {
+      console.error(
+        "Error fetching question by session and number:",
+        result.error
+      );
+    }
+    return null;
+  }
+
+  return result?.data || null;
+}
+
 // Answer operations
 export async function createInterviewAnswer(
   answerData: Omit<InterviewAnswer, "id" | "created_at">
 ): Promise<InterviewAnswer | null> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_answers")
     .insert([answerData])
     .select()
@@ -216,7 +350,15 @@ export async function createInterviewAnswer(
 export async function getAnswersBySession(
   sessionId: string
 ): Promise<InterviewAnswer[]> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return [];
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_answers")
     .select("*")
     .eq("session_id", sessionId)
@@ -234,10 +376,20 @@ export async function getAnswersBySession(
 export async function recordUsage(
   usageData: Omit<UsageRecord, "id" | "created_at">
 ): Promise<boolean> {
-  const { error } = await supabase.from("usage_tracking").insert([usageData]);
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
 
-  if (error) {
-    console.error("Error recording usage:", error);
+  const result = await supabaseServer
+    .from("usage_tracking")
+    .insert([usageData]);
+
+  if (result && "error" in result && result.error) {
+    console.error("Error recording usage:", result.error);
     return false;
   }
 
@@ -248,7 +400,15 @@ export async function getUserUsage(
   userId: string,
   since?: string
 ): Promise<UsageRecord[]> {
-  let query = supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return [];
+  }
+
+  let query = (supabase as any)
     .from("usage_tracking")
     .select("*")
     .eq("user_id", userId)
@@ -295,7 +455,15 @@ export async function getDailyUsageCount(
 export async function getUserInterviewsCompleted(
   userId: string
 ): Promise<number> {
-  const { data, error } = await supabase
+  // Check if supabase client is the mock (when env vars aren't set)
+  if (!("from" in supabase)) {
+    console.warn(
+      "Supabase client not initialized - missing environment variables"
+    );
+    return 0;
+  }
+
+  const { data, error } = await (supabase as any)
     .from("interview_sessions")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
