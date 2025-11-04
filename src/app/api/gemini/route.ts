@@ -340,7 +340,24 @@ export async function POST(req: NextRequest) {
           const questionResult = await withRateLimitHandling(async () => {
             return await model.generateContent({
               model: "gemini-2.0-flash",
-              contents: questionPrompt,
+              contents: [
+                {
+                  role: "system",
+                  parts: [
+                    {
+                      text: "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.",
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: questionPrompt,
+                    },
+                  ],
+                },
+              ],
             });
           }, rateLimitKey);
           const questionText = questionResult.text || "";
@@ -414,7 +431,24 @@ export async function POST(req: NextRequest) {
           const flowResult = await withRateLimitHandling(async () => {
             return await model.generateContent({
               model: "gemini-2.0-flash",
-              contents: flowPrompt,
+              contents: [
+                {
+                  role: "system",
+                  parts: [
+                    {
+                      text: "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position. Provide questions as a numbered list, one per line.",
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: flowPrompt,
+                    },
+                  ],
+                },
+              ],
             });
           }, rateLimitKey);
           const flowText = flowResult.text || "";
@@ -511,7 +545,24 @@ export async function POST(req: NextRequest) {
           const analysisResult = await withRateLimitHandling(async () => {
             return await model.generateContent({
               model: "gemini-2.0-flash",
-              contents: analysisPrompt,
+              contents: [
+                {
+                  role: "system",
+                  parts: [
+                    {
+                      text: "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on interview answers. Evaluate responses based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role.",
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: analysisPrompt,
+                    },
+                  ],
+                },
+              ],
             });
           }, rateLimitKey);
           const analysisText = analysisResult.text || "";
@@ -667,7 +718,24 @@ export async function POST(req: NextRequest) {
           const batchResult = await withRateLimitHandling(async () => {
             return await model.generateContent({
               model: "gemini-2.0-flash",
-              contents: batchPrompt,
+              contents: [
+                {
+                  role: "system",
+                  parts: [
+                    {
+                      text: "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on multiple interview answers. Evaluate each response based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role. Format your response according to the specified format with Q1_FEEDBACK, Q1_SUGGESTIONS, Q1_RATING, etc.",
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: batchPrompt,
+                    },
+                  ],
+                },
+              ],
             });
           }, rateLimitKey);
           const batchText = batchResult.text || "";

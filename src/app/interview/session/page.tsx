@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { geminiService, InterviewContext } from '@/lib/gemini-service';
@@ -220,8 +221,6 @@ export default function InterviewSessionPage() {
   useEffect(() => {
     if (questions.length > 0 && currentQuestionIndex < questions.length) {
       setQuestion(questions[currentQuestionIndex]);
-    } else if (questions.length > 0 && currentQuestionIndex >= questions.length) {
-      setInterviewCompleted(true);
     }
   }, [currentQuestionIndex, questions]);
 
@@ -238,6 +237,7 @@ export default function InterviewSessionPage() {
 
     setIsLoading(true);
     setInterviewStarted(true);
+    setIsGeneratingQuestions(true); // Set the flag to show skeleton loader immediately
 
     try {
       // Create an interview session in the database
@@ -258,6 +258,7 @@ export default function InterviewSessionPage() {
         } else {
           error('Failed to create interview session. Please try again.');
           setInterviewStarted(false);
+          setIsGeneratingQuestions(false);
           return;
         }
       }
@@ -267,6 +268,7 @@ export default function InterviewSessionPage() {
     } catch (err) {
       error('Failed to start interview. Please try again.');
       setInterviewStarted(false);
+      setIsGeneratingQuestions(false);
     } finally {
       setIsLoading(false);
     }
@@ -319,7 +321,7 @@ export default function InterviewSessionPage() {
         // Optionally show a retry button or wait before retrying
         setTimeout(() => {
           generateInterviewFlow(); // Attempt to retry after a delay
-        }, 3000); // Retry after 30 seconds
+        }, 300); // Retry after 30 seconds
       } else {
         // Fallback to mock questions if API fails
         setQuestions([
@@ -332,7 +334,7 @@ export default function InterviewSessionPage() {
       }
     } finally {
       setIsLoading(false);
-      setIsGeneratingQuestions(false); // Reset the flag
+      setIsGeneratingQuestions(false); // Reset the flag when done
     }
   };
 
@@ -357,6 +359,8 @@ export default function InterviewSessionPage() {
       }
     } else {
       // All answers collected, now send for batch evaluation
+      // Show notification about processing wait time
+      info('Your answers are being analyzed by our AI. Please be patient as this may take a moment...');
       await completeInterviewWithBatchEvaluation(newAnswers);
     }
   };
@@ -483,6 +487,11 @@ export default function InterviewSessionPage() {
       }
     } finally {
       setIsLoading(false);
+
+      // Redirect to feedback page after processing is complete
+      setTimeout(() => {
+        router.push('/feedback');
+      }, 1000); // Small delay to ensure user sees the processing completion
     }
   };
 
@@ -587,6 +596,11 @@ export default function InterviewSessionPage() {
         // Log error to console but don't show to user as it's a background operation
       }
     }
+
+    // Redirect to feedback page after processing is complete
+    setTimeout(() => {
+      router.push('/feedback');
+    }, 1000); // Small delay to ensure user sees the processing completion
   };
 
   const resetInterview = () => {
@@ -714,36 +728,88 @@ export default function InterviewSessionPage() {
     );
   }
 
-  if (interviewCompleted) {
+  // Don't show completion UI - redirect happens automatically after processing
+  // if (interviewCompleted) {
+  //   return (
+  //     <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+  //       <Navigation />
+  //       <main className="flex-1 p-4">
+  //         <div className="container mx-auto max-w-2xl py-8">
+  //           <Card className="shadow-xl dark:bg-gray-800">
+  //             <CardHeader className="text-center">
+  //               <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
+  //                 Interview Complete!
+  //               </CardTitle>
+  //               <Progress value={100} className="h-2 mt-4" />
+  //             </CardHeader>
+  //             <CardContent className="flex flex-col items-center py-12">
+  //               <div className="mb-8 text-center">
+  //                 <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-20">
+  //                   Great job completing the interview!
+  //                 </h3>
+  //                 <p className="mt-2 text-gray-600 dark:text-gray-400">
+  //                   You've completed the AI-powered interview simulation.
+  //                   Your responses have been analyzed and feedback is being prepared.
+  //                 </p>
+  //               </div>
+  //               <div className="flex gap-4">
+  //                 <Button onClick={() => router.push('/dashboard')} variant="outline">
+  //                   View Results
+  //                 </Button>
+  //                 <Button onClick={resetInterview}>
+  //                   Practice Again
+  //               </div>
+  //             </CardContent>
+  //           </Card>
+  //         </div>
+  //       </main>
+  //     </div>
+  //   );
+  // }
+
+  // Show skeleton loader when questions are being generated
+  if (interviewStarted && questions.length === 0 && isGeneratingQuestions) {
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
         <Navigation />
         <main className="flex-1 p-4">
-          <div className="container mx-auto max-w-2xl py-8">
+          <div className="container mx-auto max-w-3xl py-8">
             <Card className="shadow-xl dark:bg-gray-800">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
-                  Interview Complete!
-                </CardTitle>
-                <Progress value={100} className="h-2 mt-4" />
-              </CardHeader>
-              <CardContent className="flex flex-col items-center py-12">
-                <div className="mb-8 text-center">
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                    Great job completing the interview!
-                  </h3>
-                  <p className="mt-2 text-gray-600 dark:text-gray-400">
-                    You've completed the AI-powered interview simulation.
-                    Your responses have been analyzed and feedback is being prepared.
-                  </p>
+              <CardHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
+                      AI Interview Session
+                    </CardTitle>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Generating questions...
+                    </div>
+                  </div>
+                  <Progress value={0} className="h-2" />
                 </div>
-                <div className="flex gap-4">
-                  <Button onClick={() => router.push('/dashboard')} variant="outline">
-                    View Results
-                  </Button>
-                  <Button onClick={resetInterview}>
-                    Practice Again
-                  </Button>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="bg-green-500 p-4 rounded-lg dark:bg-green-900/20">
+                    <Skeleton className="h-6 w-full bg-green-200 dark:bg-green-800/30" />
+                    <Skeleton className="h-6 w-4/5 mt-2 bg-green-200 dark:bg-green-800/30" />
+                    <Skeleton className="h-6 w-3/5 mt-2 bg-green-200 dark:bg-green-800/30" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24 bg-gray-200 dark:bg-gray-700" />
+                    <Skeleton className="h-32 w-full bg-gray-200 dark:bg-gray-700" />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Skeleton className="h-10 w-32 bg-gray-200 dark:bg-gray-700" />
+                  </div>
+                </div>
+
+                <div className="text-center py-4">
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Generating personalized interview questions based on your job posting and CV...
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -773,7 +839,7 @@ export default function InterviewSessionPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-green-50 p-4 rounded-lg dark:bg-green-900/20">
+              <div className="bg-green-500 p-4 rounded-lg dark:bg-green-900/20">
                 <p className="text-lg font-medium text-green-700 dark:text-green-300">
                   {question}
                 </p>

@@ -256,21 +256,21 @@ export default function FeedbackPage() {
                             <CardContent>
                               <div className="space-y-4">
                                 <div>
-                                  <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Your Answer:</h4>
+                                  <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Your Answer:</h4>
                                   <p className="text-gray-900 dark:text-gray-200 bg-gray-50 dark:bg-gray-600/50 p-3 rounded-md">
                                     {item.answer}
                                   </p>
                                 </div>
 
                                 <div>
-                                  <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">AI Feedback:</h4>
+                                  <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-1">AI Feedback:</h4>
                                   <p className="text-gray-900 dark:text-gray-200 bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
                                     {item.feedback}
                                   </p>
                                 </div>
 
                                 <div>
-                                  <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">Improvement Suggestions:</h4>
+                                  <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Improvement Suggestions:</h4>
                                   <ul className="list-disc pl-5 space-y-1">
                                     {item.suggestions.map((suggestion, idx) => (
                                       <li key={idx} className="text-gray-900 dark:text-gray-200">
