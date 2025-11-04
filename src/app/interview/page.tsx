@@ -492,212 +492,243 @@ export default function InterviewPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+      {/* Animated gradient overlay */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
+        <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
+      </div>
+
       <Navigation />
-      <main className="flex-1 p-4">
+      <main className="flex-1 p-4 relative z-10">
         <div className="container mx-auto max-w-4xl py-8">
-          <Card className="shadow-xl dark:bg-gray-800">
+          <div className="text-center mb-8">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white mx-auto">
+              <span className="text-2xl font-bold">AI</span>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              AI Interview <span className="text-green-600">Preparation</span>
+            </h1>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Personalize your interview experience with AI-powered practice
+            </p>
+          </div>
+
+          <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg">
             <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-              <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-                AI Interview Preparation
+              <CardTitle className="text-gray-900 dark:text-white flex items-center">
+                <span className="mr-2">🎯</span>
+                Setup Your Interview Session
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                <h3 className="font-semibold text-green-800 dark:text-green-200 flex items-center">
-                  <span className="mr-2">🎁</span>
-                  Free Usage Policy
-                </h3>
-                <p className="text-green-700 dark:text-green-300 text-sm mt-1">
-                  Your first complete interview is completely free! After that, you'll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
-                </p>
-              </div>
+              <Card className="dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <CardContent className="p-4">
+                  <p className="text-green-700 dark:text-green-300 font-bold text-sm"><span className="mr-2">🎁</span>
+                    Free Usage Policy</p>
+                  <p className="text-green-700 dark:text-green-300 text-sm">
+                    Your first complete interview is completely free! After that, you&apos;ll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
+                  </p>
+                </CardContent>
+              </Card>
 
               {/* Profile Incomplete Notice */}
               {profileIncomplete ? (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 flex items-center">
-                    <span className="mr-2">⚠️</span>
-                    Profile Incomplete
-                  </h3>
-                  <p className="text-yellow-700 dark:text-yellow-300 text-sm mt-1">
-                    Your profile is not fully completed. For best interview results, please fill out all profile information.
-                  </p>
-                  <div className="mt-3 flex flex-row gap-2 flex-wrap">
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push('/profile')}
-                      className="whitespace-nowrap"
-                    >
-                      Go to Profile
-                    </Button>
-                  </div>
-                </div>
+                <Card className="dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                  <CardHeader className="border-b border-yellow-200 dark:border-yellow-800">
+                    <CardTitle className="text-yellow-800 dark:text-yellow-200 flex items-center text-lg">
+                      <span className="mr-2">⚠️</span>
+                      Profile Incomplete
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    <p className="text-yellow-700 dark:text-yellow-300 mb-3">
+                      Your profile is not fully completed. For best interview results, please fill out all profile information.
+                    </p>
+                    <div className="flex flex-row gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push('/profile')}
+                        className="whitespace-nowrap"
+                      >
+                        Go to Profile
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               ) : null}
 
-              {/* Job Posting Section */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                  <span className="mr-2">💼</span>
-                  Job Posting URL or Description
-                </h2>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    id="job_posting_url"
-                    type="text"
-                    value={jobPostingUrl}
-                    onChange={(e) => setJobPostingUrl(e.target.value)}
-                    placeholder="Paste job posting URL here..."
-                    className="flex-1 dark:bg-gray-700 dark:text-white"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={fetchJobFromUrl}
-                    disabled={!jobPostingUrl || isLoading || isFetchingJob}
-                    className="whitespace-nowrap"
-                  >
-                    {isFetchingJob ? (
-                      <>
-                        <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
-                        Fetching...
-                      </>
-                    ) : (
-                      'Fetch'
-                    )}
-                  </Button>
-                </div>
-
-                <Textarea
-                  value={jobPosting}
-                  onChange={(e) => setJobPosting(e.target.value)}
-                  className="min-h-[120px] dark:bg-gray-700 dark:text-white mt-2"
-                  placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
-                  rows={4}
-                />
-
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  <span className="flex items-start">
-                    <span className="mr-1">💡</span>
-                    <span>For best results, include company overview, responsibilities, requirements, and any special instructions.</span>
-                  </span>
-                  {isFetchingJob && (
-                    <div className="mt-2 text-blue-600 dark:text-blue-400 flex items-center">
-                      <div className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
-                      Processing job posting content... This may take a few seconds for larger pages.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* CV Section */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                  <span className="mr-2">📄</span>
-                  Your CV or Resume
-                </h2>
-
-                <Textarea
-                  value={cv}
-                  onChange={(e) => setCv(e.target.value)}
-                  className="min-h-[120px] dark:bg-gray-700 dark:text-white mt-2"
-                  placeholder="Or paste your resume text here..."
-                  rows={4}
-                />
-
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    <span className="flex items-start">
-                      <span className="mr-1">💡</span>
-                      <span>Make sure to include your work experience, education, skills, and a brief professional summary.</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
+              <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                <CardHeader className="border-b border-gray-200 dark:border-gray-600">
+                  <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
+                    <span className="mr-2">💼</span>
+                    Job Posting URL or Description
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      id="job_posting_url"
+                      type="text"
+                      value={jobPostingUrl}
+                      onChange={(e) => setJobPostingUrl(e.target.value)}
+                      placeholder="Paste job posting URL here..."
+                      className="flex-1 dark:bg-gray-700 dark:text-white"
+                    />
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleEditCv}
+                      onClick={fetchJobFromUrl}
+                      disabled={!jobPostingUrl || isLoading || isFetchingJob}
                       className="whitespace-nowrap"
                     >
-                      Edit CV
+                      {isFetchingJob ? (
+                        <>
+                          <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                          Fetching...
+                        </>
+                      ) : (
+                        'Fetch'
+                      )}
                     </Button>
+                  </div>
 
-                    {/* LinkedIn PDF Import Button - Only show if profile is incomplete */}
-                    {profileIncomplete && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            // Scroll to the LinkedIn PDF import section
-                            const element = document.getElementById('linkedin-import-section');
-                            element?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          className="whitespace-nowrap"
-                        >
-                          Import from LinkedIn PDF
-                        </Button>
-                      </>
+                  <Textarea
+                    value={jobPosting}
+                    onChange={(e) => setJobPosting(e.target.value)}
+                    className="min-h-[120px] dark:bg-gray-700 dark:text-white"
+                    placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
+                    rows={4}
+                  />
+
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-start">
+                      <span className="mr-1">💡</span>
+                      <span>For best results, include company overview, responsibilities, requirements, and any special instructions.</span>
+                    </span>
+                    {isFetchingJob && (
+                      <div className="mt-2 text-blue-600 dark:text-blue-400 flex items-center">
+                        <div className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                        Processing job posting content... This may take a few seconds for larger pages.
+                      </div>
                     )}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
-                {profileIncomplete && (
-                  <div id="linkedin-import-section" className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
-                      <span className="mr-2">📄</span>
-                      Import from LinkedIn PDF
-                    </h3>
-                    <p className="text-blue-700 dark:text-blue-300 text-sm mb-4">
-                      Upload your LinkedIn profile PDF to automatically fill in your information
-                    </p>
-                    <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
-                      Tip: To get your LinkedIn PDF, go to your profile page, click the &quot;More&quot; button, and select &quot;Save to PDF&quot;
-                    </p>
+              <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                <CardHeader className="border-b border-gray-200 dark:border-gray-600">
+                  <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
+                    <span className="mr-2">📄</span>
+                    Your CV or Resume
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  <Textarea
+                    value={cv}
+                    onChange={(e) => setCv(e.target.value)}
+                    className="min-h-[120px] dark:bg-gray-700 dark:text-white"
+                    placeholder="Or paste your resume text here..."
+                    rows={4}
+                  />
 
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1">
-                        <Label htmlFor="linkedin-pdf" className="text-gray-700 dark:text-gray-300">Select LinkedIn PDF</Label>
-                        <Input
-                          id="linkedin-pdf"
-                          type="file"
-                          accept=".pdf"
-                          onChange={handleFileChange}
-                          className="mt-1 dark:bg-gray-700 dark:text-white"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          onClick={handleImportFromLinkedIn}
-                          disabled={!pdfFile || isParsing}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          {isParsing ? 'Importing...' : 'Import Data'}
-                        </Button>
-                      </div>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className="flex items-start">
+                        <span className="mr-1">💡</span>
+                        <span>Make sure to include your work experience, education, skills, and a brief professional summary.</span>
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleEditCv}
+                        className="whitespace-nowrap"
+                      >
+                        Edit CV
+                      </Button>
+
+                      {/* LinkedIn PDF Import Button - Only show if profile is incomplete */}
+                      {profileIncomplete && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              // Scroll to the LinkedIn PDF import section
+                              const element = document.getElementById('linkedin-import-section');
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="whitespace-nowrap"
+                          >
+                            Import from LinkedIn PDF
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* CV Information Card */}
-              <div className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center">
-                  <span className="mr-2">📄</span>
-                  CV Information
-                </h3>
-                <p className="text-blue-700 dark:text-blue-300 text-sm mt-1">
-                  Your CV data from your profile will be automatically used for this interview.
-                </p>
-              </div>
+                  {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
+                  {profileIncomplete && (
+                    <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <CardHeader className="border-b border-blue-200 dark:border-blue-800">
+                        <CardTitle className="text-blue-800 dark:text-blue-200 flex items-center">
+                          <span className="mr-2">📄</span>
+                          Import from LinkedIn PDF
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <p className="text-blue-700 dark:text-blue-300 mb-2">
+                          Upload your LinkedIn profile PDF to automatically fill in your information
+                        </p>
+                        <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
+                          Tip: To get your LinkedIn PDF, go to your profile page, click the &quot;More&quot; button, and select &quot;Save to PDF&quot;
+                        </p>
 
-              <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <div className="flex-1">
+                            <Label htmlFor="linkedin-pdf" className="text-gray-700 dark:text-gray-300">Select LinkedIn PDF</Label>
+                            <Input
+                              id="linkedin-pdf"
+                              type="file"
+                              accept=".pdf"
+                              onChange={handleFileChange}
+                              className="mt-1 dark:bg-gray-700 dark:text-white"
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <Button
+                              type="button"
+                              onClick={handleImportFromLinkedIn}
+                              disabled={!pdfFile || isParsing}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              {isParsing ? 'Importing...' : 'Import Data'}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+
+                <CardContent className="p-4">
+                  <p className="text-blue-700 dark:text-blue-300 font-bold text-sm"><span className="mr-2">📄</span>
+                    CV Information</p>
+                  <p className="text-blue-700 dark:text-blue-300 text-sm">
+                    Your CV data from your profile will be automatically used for this interview.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-4">
                 <Button
                   onClick={handleStartInterview}
                   disabled={isLoading}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                 >
                   {isLoading ? 'Preparing Interview...' : 'Start AI Interview'}
                 </Button>
