@@ -21,6 +21,7 @@ interface CacheStorage {
   interviewQuestions: Map<string, CacheEntry<InterviewQuestion[]>>;
   interviewAnswers: Map<string, CacheEntry<InterviewAnswer[]>>;
   usageRecords: Map<string, CacheEntry<UsageRecord[]>>;
+  userCredits: Map<string, CacheEntry<number>>;
 }
 
 // Initialize cache storage
@@ -31,6 +32,7 @@ const cacheStorage: CacheStorage = {
   interviewQuestions: new Map(),
   interviewAnswers: new Map(),
   usageRecords: new Map(),
+  userCredits: new Map(),
 };
 
 // Cache configuration
@@ -254,6 +256,31 @@ export const cacheService = {
     cleanExpired(cacheStorage.usageRecords);
   },
 
+  // User Credits caching
+  getUserCredits: (userId: string): number | undefined => {
+    const entry = cacheStorage.userCredits.get(userId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.userCredits.delete(userId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setUserCredits: (userId: string, credits: number): void => {
+    const entry: CacheEntry<number> = {
+      data: credits,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.userProfile, // Use same expiry as profiles (5 min)
+    };
+    cacheStorage.userCredits.set(userId, entry);
+  },
+
+  invalidateUserCredits: (userId: string): void => {
+    cacheStorage.userCredits.delete(userId);
+  },
+
   // Get cache statistics
   getStats: (): { [key: string]: number } => {
     return {
@@ -263,6 +290,7 @@ export const cacheService = {
       interviewQuestions: cacheStorage.interviewQuestions.size,
       interviewAnswers: cacheStorage.interviewAnswers.size,
       usageRecords: cacheStorage.usageRecords.size,
+      userCredits: cacheStorage.userCredits.size,
     };
   },
 };

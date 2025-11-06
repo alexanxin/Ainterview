@@ -1,5 +1,4 @@
 import { cacheService } from "./cache-service";
-import { localStorageCacheService } from "./local-storage-cache";
 
 // Service to handle cache refresh logic when new AI feedback is submitted
 export class CacheRefreshService {
@@ -8,14 +7,11 @@ export class CacheRefreshService {
     try {
       // Invalidate the specific session in cache
       cacheService.invalidateInterviewSessionById(sessionId);
-      localStorageCacheService.remove(`cache_interview_session_${sessionId}`);
 
       // Invalidate questions and answers for this session
       cacheService.invalidateInterviewQuestions(sessionId);
-      localStorageCacheService.remove(`cache_interview_questions_${sessionId}`);
 
       cacheService.invalidateInterviewAnswers(sessionId);
-      localStorageCacheService.remove(`cache_interview_answers_${sessionId}`);
 
       console.log(`Cache refreshed for session: ${sessionId}`);
     } catch (error) {
@@ -28,11 +24,9 @@ export class CacheRefreshService {
     try {
       // Invalidate user profile cache
       cacheService.invalidateUserProfile(userId);
-      localStorageCacheService.remove(`cache_user_profile_${userId}`);
 
       // Invalidate user's interview sessions list
       cacheService.invalidateUserInterviewSessions(userId);
-      localStorageCacheService.remove(`cache_interview_sessions_${userId}`);
 
       console.log(`Cache refreshed for user: ${userId}`);
     } catch (error) {
@@ -48,8 +42,6 @@ export class CacheRefreshService {
     try {
       // Invalidate user usage cache
       cacheService.invalidateUserUsage(userId, since);
-      const cacheKey = since ? `${userId}_${since}` : userId;
-      localStorageCacheService.remove(`cache_usage_records_${cacheKey}`);
 
       console.log(`Usage cache refreshed for user: ${userId}`);
     } catch (error) {
@@ -61,7 +53,6 @@ export class CacheRefreshService {
   static async refreshAllCaches(): Promise<void> {
     try {
       cacheService.clearAll();
-      localStorageCacheService.clearAll();
 
       console.log("All caches refreshed");
     } catch (error) {

@@ -45,17 +45,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
-
+        // Use server-side client with service role key to bypass RLS
         const { data: session, error } = await supabaseServer
           .from("interview_sessions")
           .insert([
@@ -100,17 +90,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
-
+        // Use server-side client with service role key to bypass RLS
         const { data: question, error } = await supabaseServer
           .from("interview_questions")
           .insert([
@@ -125,6 +105,11 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error("Error creating interview question:", error);
+          console.error("Error details:", {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          });
           return NextResponse.json(
             { error: "Failed to create interview question" },
             { status: 500 }
@@ -154,17 +139,13 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
+        // Validate rating to ensure it's within the acceptable range (1-10)
+        let validatedRating = rating;
+        if (rating !== undefined && rating !== null) {
+          validatedRating = Math.min(10, Math.max(1, parseInt(rating)));
         }
 
+        // Use server-side client with service role key to bypass RLS
         const { data: answer, error } = await supabaseServer
           .from("interview_answers")
           .insert([
@@ -174,7 +155,7 @@ export async function POST(req: NextRequest) {
               user_answer,
               ai_feedback,
               improvement_suggestions,
-              rating,
+              rating: validatedRating,
             },
           ])
           .select()
@@ -182,6 +163,11 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error("Error creating interview answer:", error);
+          console.error("Error details:", {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          });
           return NextResponse.json(
             { error: "Failed to create interview answer" },
             { status: 500 }
@@ -201,25 +187,9 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
+        const success = await dbUpdateInterviewSession(session_id, updateData);
 
-        const result = await supabaseServer
-          .from("interview_sessions")
-          .update(updateData)
-          .eq("id", session_id);
-
-        // Check if result has error property (normal Supabase response) or is a mock response
-        if ("error" in result && result.error) {
-          console.error("Error updating interview session:", result.error);
+        if (!success) {
           return NextResponse.json(
             { error: "Failed to update interview session" },
             { status: 500 }
@@ -239,25 +209,9 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
+        const sessions = await getInterviewSessionsByUser(user_id);
 
-        const { data: sessions, error } = await supabaseServer
-          .from("interview_sessions")
-          .select("*")
-          .eq("user_id", user_id)
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          console.error("Error fetching interview sessions:", error);
+        if (!sessions) {
           return NextResponse.json(
             { error: "Failed to fetch interview sessions" },
             { status: 500 }
@@ -305,52 +259,12 @@ export async function GET(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
+        const question = await dbGetQuestionBySessionAndNumber(
+          sessionId,
+          parseInt(questionNumber)
+        );
 
-        // Check if it's the real Supabase client vs mock client
-        if (typeof supabaseServer.from === "function") {
-          // It's the real client
-          const result = await supabaseServer
-            .from("interview_questions")
-            .select("*")
-            .eq("session_id", sessionId)
-            .eq("question_number", parseInt(questionNumber))
-            .single();
-
-          // Check if result has error property (normal Supabase response)
-          if ("error" in result && result.error) {
-            if (result.error.code === "PGRST116") {
-              // Row not found
-              return NextResponse.json({ question: null }, { status: 200 });
-            }
-            console.error(
-              "Error fetching question by session and number:",
-              result.error
-            );
-            return NextResponse.json(
-              { error: "Failed to fetch question" },
-              { status: 500 }
-            );
-          }
-
-          return NextResponse.json({ question: result.data }, { status: 200 });
-        } else {
-          // It's the mock client, use the original database function
-          const question = await dbGetQuestionBySessionAndNumber(
-            sessionId,
-            parseInt(questionNumber)
-          );
-          return NextResponse.json({ question }, { status: 200 });
-        }
+        return NextResponse.json({ question }, { status: 200 });
       }
 
       case "getQuestionsBySession": {
@@ -361,41 +275,9 @@ export async function GET(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
+        const questions = await dbGetQuestionsBySession(sessionId);
 
-        // Check if it's the real Supabase client vs mock client
-        if (typeof supabaseServer.from === "function") {
-          // It's the real client
-          const result = await supabaseServer
-            .from("interview_questions")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("question_number", { ascending: true });
-
-          // Check if result has error property (normal Supabase response)
-          if ("error" in result && result.error) {
-            console.error("Error fetching questions by session:", result.error);
-            return NextResponse.json(
-              { error: "Failed to fetch questions" },
-              { status: 500 }
-            );
-          }
-
-          return NextResponse.json({ questions: result.data }, { status: 200 });
-        } else {
-          // It's the mock client, use the original database function
-          const questions = await dbGetQuestionsBySession(sessionId);
-          return NextResponse.json({ questions }, { status: 200 });
-        }
+        return NextResponse.json({ questions }, { status: 200 });
       }
 
       case "getAnswersBySession": {
@@ -406,41 +288,9 @@ export async function GET(req: NextRequest) {
           );
         }
 
-        // Use server-side client for direct database operations
-        if (!("from" in supabaseServer)) {
-          console.warn(
-            "Supabase server client not initialized - missing environment variables"
-          );
-          return NextResponse.json(
-            { error: "Database connection not available" },
-            { status: 500 }
-          );
-        }
+        const answers = await dbGetAnswersBySession(sessionId);
 
-        // Check if it's the real Supabase client vs mock client
-        if (typeof supabaseServer.from === "function") {
-          // It's the real client
-          const result = await supabaseServer
-            .from("interview_answers")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("created_at", { ascending: true });
-
-          // Check if result has error property (normal Supabase response)
-          if ("error" in result && result.error) {
-            console.error("Error fetching answers by session:", result.error);
-            return NextResponse.json(
-              { error: "Failed to fetch answers" },
-              { status: 500 }
-            );
-          }
-
-          return NextResponse.json({ answers: result.data }, { status: 200 });
-        } else {
-          // It's the mock client, use the original database function
-          const answers = await dbGetAnswersBySession(sessionId);
-          return NextResponse.json({ answers }, { status: 200 });
-        }
+        return NextResponse.json({ answers }, { status: 200 });
       }
 
       default:

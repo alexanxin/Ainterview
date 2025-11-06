@@ -1,16 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { Logger } from "@/lib/logger";
+import { validateInterviewContext, sanitizeInput } from "@/lib/validations";
+import { getX402PaymentResponse } from "@/lib/x402-utils";
+import { withRateLimitHandling } from "@/lib/rate-limiter";
 import {
-  getUserUsage,
-  getDailyUsageCount,
-  getUserInterviewsCompleted,
-  recordUsage,
-} from "@/lib/database";
-import {
-  rateLimiter,
-  withExponentialBackoff,
-  withRateLimitHandling,
-} from "@/lib/rate-limiter";
+  checkUsage,
+  checkUsageAfterProcessing,
+  recordUsageWithDatabase,
+  FREE_INTERACTIONS_PER_DAY,
+  UsageCheckResult,
+} from "@/lib/usage-and-payment";
 
 interface InterviewContext {
   jobPosting: string;
@@ -36,115 +36,6 @@ interface ApiResult {
   [key: string]: unknown;
 }
 
-interface BatchEvaluationRequest {
-  questions: string[];
-  answers: string[];
-  context: InterviewContext;
-}
-
-interface BatchEvaluationResponse {
-  evaluations: QuestionResponse[];
-}
-
-// Define free quota for users
-const FREE_INTERVIEWS = 1; // 1 complete interview free (all questions in an interview session)
-const FREE_INTERACTIONS_PER_DAY = 2; // Additional individual interactions per day after free interview is used
-
-async function checkUsage(
-  userId: string,
-  action: string
-): Promise<{
-  allowed: boolean;
-  remaining: number;
-  cost: number;
-  freeInterviewUsed: boolean;
-}> {
-  const cost = 1; // Each action costs 1
-
-  if (!userId || userId === "anonymous") {
-    // For anonymous users, only allow basic usage with no personalization
-    return {
-      allowed: true,
-      remaining: -1, // Indicate unlimited for anonymous
-      cost,
-      freeInterviewUsed: false,
-    };
-  }
-
-  // Check if user has completed their free interview
-  const interviewsCompleted = await getUserInterviewsCompleted(userId);
-  const freeInterviewUsed = interviewsCompleted >= 1;
-
-  // If user hasn't used their free interview yet, allow it
-  if (!freeInterviewUsed) {
-    return {
-      allowed: true,
-      remaining: -1, // Indicate unlimited for free interview
-      cost,
-      freeInterviewUsed: false,
-    };
-  }
-
-  // If free interview is used, check daily limit
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const dailyUsageCount = await getDailyUsageCount(
-    userId,
-    `${today}T00:00:00Z`
-  );
-  const remainingDaily = Math.max(
-    0,
-    FREE_INTERACTIONS_PER_DAY - dailyUsageCount
-  );
-
-  return {
-    allowed: remainingDaily >= cost,
-    remaining: remainingDaily,
-    cost,
-    freeInterviewUsed: true,
-  };
-}
-
-async function recordUsageWithDatabase(
-  userId: string,
-  action: string,
-  cost: number,
-  freeInterviewAlreadyUsed: boolean
-) {
-  if (!userId || userId === "anonymous") {
-    // Don't record usage for anonymous users
-    return;
-  }
-
-  // Calculate interviews completed based on action type
-  let interviewsCompleted = 0;
-  if (action === "generateFlow") {
-    // This indicates a complete interview session
-    interviewsCompleted = await getUserInterviewsCompleted(userId);
-    interviewsCompleted += 1;
-  }
-
-  // Record the usage in the database
-  const usageRecord = {
-    user_id: userId,
-    action,
-    cost,
-    free_interview_used: freeInterviewAlreadyUsed,
-    interviews_completed: interviewsCompleted,
-  };
-
-  const success = await recordUsage(usageRecord);
-
-  if (success) {
-    console.log(
-      `Recorded usage in database: user=${userId}, action=${action}, cost=${cost}, freeInterviewUsed=${freeInterviewAlreadyUsed}`
-    );
-  } else {
-    console.error(
-      `Failed to record usage in database: user=${userId}, action=${action}, cost=${cost}`
-    );
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const {
@@ -158,35 +49,77 @@ export async function POST(req: NextRequest) {
       answers,
     } = await req.json();
 
+    // Validate required fields
     if (!action) {
+      Logger.error("Action is required");
       return NextResponse.json(
         { error: "Action is required" },
         { status: 400 }
       );
     }
 
-    // Check if user has exceeded their free quota
-    // Temporarily disabled for testing
-    const usageCheck = await checkUsage(userId || "anonymous", action);
+    // Validate and sanitize context if provided
+    if (context) {
+      try {
+        validateInterviewContext(context);
+      } catch (validationError) {
+        Logger.error("Invalid context provided", { validationError, userId });
+        return NextResponse.json(
+          { error: "Invalid context provided" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Check if user has sufficient credits or if payment is provided
+    const usageCheck = await checkUsage(userId || "anonymous", action, req);
 
     if (!usageCheck.allowed) {
-      return NextResponse.json(
+      Logger.warn("User has insufficient credits", {
+        userId,
+        action,
+        creditsAvailable: usageCheck.creditsAvailable,
+        cost: usageCheck.cost,
+      });
+
+      // Get x402 payment response with standardized format
+      const x402Response = getX402PaymentResponse(usageCheck.paymentRequired!);
+
+      // Return HTTP 402 with detailed x402 protocol information
+      const response = NextResponse.json(
         {
-          error: "Free quota exceeded",
+          error: "Payment Required",
           needsPayment: true,
-          message: usageCheck.freeInterviewUsed
-            ? `You've used all ${FREE_INTERACTIONS_PER_DAY} free AI interactions for today. Please purchase credits to continue.`
-            : `You've used your free interview. Please purchase credits to continue practicing.`,
+          creditsAvailable: usageCheck.creditsAvailable,
+          cost: usageCheck.cost,
+          message:
+            "Insufficient credits. Please purchase more to continue using AI services.",
+          action: action, // Include the action that was requested
+          question: question, // Include the question if available for context
+          answer: answer, // Include the answer if available for context
+          paymentRequired: usageCheck.paymentRequired, // Include payment details
+          paymentOptions: {
+            url: `${
+              process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+            }/payment`,
+            supportedTokens: ["USDC", "USDT", "CASH"],
+            blockchain: "solana",
+          },
+          ...x402Response.body, // Include the x402 standard response body
         },
-        { status: 402 } // Payment Required
+        {
+          status: x402Response.status, // Use the standard 402 status
+        }
       );
+
+      return response;
     }
-    // const usageCheck = { allowed: true, remaining: FREE_QUOTA, cost: 1 };
 
     const API_KEY = process.env.GEMINI_API_KEY;
     if (!API_KEY) {
-      console.warn(
-        "GEMINI_API_KEY environment variable is not set. Using mock responses."
+      Logger.warn(
+        "GEMINI_API_KEY environment variable is not set. Using mock responses.",
+        { userId, action }
       );
 
       // For testing purposes, use mock responses when API key is not available
@@ -206,12 +139,16 @@ export async function POST(req: NextRequest) {
           });
 
         case "generateFlow":
+          // Generate mock questions based on the requested number
+          const mockQuestions = Array.from(
+            { length: numQuestions },
+            (_, i) =>
+              `Mock question ${
+                i + 1
+              } for the interview based on the job posting.`
+          );
           return NextResponse.json({
-            questions: [
-              "Can you tell me about your experience with React and TypeScript?",
-              "How do you optimize React application performance?",
-              "What is your experience with state management in React applications?",
-            ],
+            questions: mockQuestions,
             remainingQuota: -1, // Unlimited for free interview
             quotaInfo: {
               used: 0,
@@ -248,9 +185,11 @@ export async function POST(req: NextRequest) {
           // Mock response for batch evaluation
           if (questions && answers && questions.length === answers.length) {
             const evaluations = questions.map((q: string, i: number) => ({
-              question: q,
-              userAnswer: answers[i],
-              aiFeedback: `Feedback for answer to question: ${q}`,
+              question: sanitizeInput(q),
+              userAnswer: sanitizeInput(answers[i]),
+              aiFeedback: `Feedback for answer to question: ${sanitizeInput(
+                q
+              )}`,
               improvementSuggestions: [
                 "Consider adding more specific examples",
                 "Relate your experience to the job requirements",
@@ -305,7 +244,7 @@ export async function POST(req: NextRequest) {
       ai = new GoogleGenAI({ apiKey: API_KEY });
       model = ai.models;
     } catch (error) {
-      console.error("Error initializing Gemini AI:", error);
+      Logger.error("Error initializing Gemini AI:", { error, userId, action });
       return NextResponse.json(
         { error: "Failed to initialize AI service" },
         { status: 500 }
@@ -322,6 +261,10 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case "generateQuestion":
         if (!context) {
+          Logger.error("Context is required for generating a question", {
+            userId,
+            action,
+          });
           return NextResponse.json(
             { error: "Context is required for generating a question" },
             { status: 400 }
@@ -330,6 +273,10 @@ export async function POST(req: NextRequest) {
 
         const typedContext = context as InterviewContext;
         if (!typedContext.jobPosting || !typedContext.companyInfo) {
+          Logger.error(
+            "Job posting and company info required for generating a question",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -342,9 +289,9 @@ export async function POST(req: NextRequest) {
         const questionPrompt = `
           Based on the following job posting and company information, generate a relevant interview question:
           
-          Job Posting: ${typedContext.jobPosting}
+          Job Posting: ${sanitizeInput(typedContext.jobPosting)}
           
-          Company Info: ${typedContext.companyInfo}
+          Company Info: ${sanitizeInput(typedContext.companyInfo)}
           
           Please generate a single, specific interview question that would be relevant for this position.
           Make sure the question is specific to the role and company.
@@ -377,7 +324,14 @@ export async function POST(req: NextRequest) {
 
           result = { question: cleanedQuestion };
         } catch (geminiError) {
-          console.error("Error generating question with Gemini:", geminiError);
+          Logger.error("Error generating question with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
 
           // Check if this is a rate limit error
           if (
@@ -403,6 +357,10 @@ export async function POST(req: NextRequest) {
 
       case "generateFlow":
         if (!context) {
+          Logger.error("Context is required for generating interview flow", {
+            userId,
+            action,
+          });
           return NextResponse.json(
             { error: "Context is required for generating interview flow" },
             { status: 400 }
@@ -411,6 +369,10 @@ export async function POST(req: NextRequest) {
 
         const typedContextFlow = context as InterviewContext;
         if (!typedContextFlow.jobPosting || !typedContextFlow.companyInfo) {
+          Logger.error(
+            "Job posting and company info required for generating interview flow",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -423,9 +385,9 @@ export async function POST(req: NextRequest) {
         const flowPrompt = `
           Based on the following job posting and company information, generate ${numQuestions} interview questions for the position.
           
-          Job Posting: ${typedContextFlow.jobPosting}
+          Job Posting: ${sanitizeInput(typedContextFlow.jobPosting)}
           
-          Company Info: ${typedContextFlow.companyInfo}
+          Company Info: ${sanitizeInput(typedContextFlow.companyInfo)}
           
           Please provide the questions as a numbered list, one per line, focusing on:
           1. Technical skills relevant to the role
@@ -458,19 +420,70 @@ export async function POST(req: NextRequest) {
           // Extract questions from the response more safely
           let flowQuestions: string[] = [];
           try {
+            // Split by newlines and clean up the format
+            const lines = flowText
+              .split("\n")
+              .map((line) => line.replace(/^\d+\.\s*/, "").trim()) // Remove numbered prefixes like "1. ", "2. ", etc.
+              .filter((line) => line.length > 0); // Keep only non-empty lines
+
+            // Identify potential questions using more general criteria
+            flowQuestions = lines
+              .filter(
+                (line) =>
+                  // Lines ending with question mark are most likely questions
+                  line.includes("?") ||
+                  // Common interview question starters
+                  line.toLowerCase().startsWith("tell me") ||
+                  line.toLowerCase().startsWith("explain") ||
+                  line.toLowerCase().startsWith("describe") ||
+                  line.toLowerCase().startsWith("how") ||
+                  line.toLowerCase().startsWith("why") ||
+                  line.toLowerCase().startsWith("what") ||
+                  line.toLowerCase().startsWith("when") ||
+                  line.toLowerCase().startsWith("where") ||
+                  // Behavioral question patterns
+                  line.toLowerCase().includes("describe a time") ||
+                  line.toLowerCase().includes("give me an example") ||
+                  line.toLowerCase().includes("tell me about a time") ||
+                  // Experience/qualification patterns
+                  line.toLowerCase().includes("experience with") ||
+                  line.toLowerCase().includes("familiar with") ||
+                  line.toLowerCase().includes("worked with") ||
+                  line.toLowerCase().includes("used") ||
+                  line.toLowerCase().includes("your experience") ||
+                  line.toLowerCase().includes("your background") ||
+                  // Other question patterns that are typically questions
+                  line.toLowerCase().includes("do you") ||
+                  line.toLowerCase().includes("did you") ||
+                  line.toLowerCase().includes("can you") ||
+                  line.toLowerCase().includes("have you")
+              )
+              .slice(0, numQuestions); // Limit to the requested number of questions
+
+            // If we still don't have enough questions, use all non-empty lines as fallback
+            if (flowQuestions.length < numQuestions) {
+              flowQuestions = lines.slice(0, numQuestions);
+            }
+          } catch (extractionError) {
+            Logger.error("Error extracting questions:", { extractionError });
+            // Fallback to basic extraction - just split and take first numQuestions non-empty lines
             flowQuestions = flowText
               .split("\n")
-              .map((line) => line.replace(/^\d+\.\s*/, "").trim())
-              .filter((line) => line.length > 0 && line.includes("?"));
-          } catch (extractionError) {
-            console.error("Error extracting questions:", extractionError);
-            // Fallback to basic extraction
-            flowQuestions = [];
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+              .slice(0, numQuestions);
           }
 
-          result = { questions: flowQuestions.slice(0, numQuestions) };
+          result = { questions: flowQuestions };
         } catch (geminiError) {
-          console.error("Error generating flow with Gemini:", geminiError);
+          Logger.error("Error generating flow with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
 
           // Check if this is a rate limit error
           if (
@@ -496,6 +509,10 @@ export async function POST(req: NextRequest) {
 
       case "analyzeAnswer":
         if (!context || !question || !answer) {
+          Logger.error(
+            "Context, question, and answer are required for analysis",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error: "Context, question, and answer are required for analysis",
@@ -510,6 +527,10 @@ export async function POST(req: NextRequest) {
           !typedContextAnalysis.companyInfo ||
           !typedContextAnalysis.userCv
         ) {
+          Logger.error(
+            "Job posting, company info, and user CV are required for analyzing an answer",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -522,15 +543,15 @@ export async function POST(req: NextRequest) {
         const analysisPrompt = `
           Act as an experienced interviewer. Analyze the following answer to the interview question based on the job posting and company information.
           
-          Job Posting: ${typedContextAnalysis.jobPosting}
+          Job Posting: ${sanitizeInput(typedContextAnalysis.jobPosting)}
           
-          Company Info: ${typedContextAnalysis.companyInfo}
+          Company Info: ${sanitizeInput(typedContextAnalysis.companyInfo)}
           
-          User CV: ${typedContextAnalysis.userCv}
+          User CV: ${sanitizeInput(typedContextAnalysis.userCv)}
           
-          Question: ${question}
+          Question: ${sanitizeInput(question)}
           
-          Answer: ${answer}
+          Answer: ${sanitizeInput(answer)}
           
           Provide:
           1. Constructive feedback on the answer
@@ -570,7 +591,7 @@ export async function POST(req: NextRequest) {
 
           try {
             const feedbackMatch = analysisText.match(
-              /FEEDBACK:\s*(.*?)(?=SUGGESTIONS:|$|RATIONING:)/s
+              /FEEDBACK:\s*(.*?)(?=SUGGESTIONS:|$|RATING:)/s
             );
             const suggestionsMatch = analysisText.match(
               /SUGGESTIONS:\s*(.*?)(?=RATING:|$)/s
@@ -588,10 +609,10 @@ export async function POST(req: NextRequest) {
               : ["No suggestions provided"];
             rating = ratingMatch ? parseInt(ratingMatch[1], 10) : 5;
 
-            // Ensure rating is within valid range
+            // Ensure rating is within valid range (1-10)
             rating = Math.min(10, Math.max(1, rating || 5));
           } catch (parseError) {
-            console.error("Error parsing AI response:", parseError);
+            Logger.error("Error parsing AI response:", { parseError });
             feedback = "Feedback available but could not be parsed properly";
             suggestions = [
               "Please review your answer with the job requirements",
@@ -606,7 +627,14 @@ export async function POST(req: NextRequest) {
             rating,
           };
         } catch (geminiError) {
-          console.error("Error analyzing answer with Gemini:", geminiError);
+          Logger.error("Error analyzing answer with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
 
           // Check if this is a rate limit error
           if (
@@ -617,7 +645,6 @@ export async function POST(req: NextRequest) {
               {
                 error: "Rate limit exceeded",
                 message: "Too many requests. Please try again later.",
-                retryAfter: 60, // Suggest retry after 60 seconds
               },
               { status: 429 }
             );
@@ -632,6 +659,10 @@ export async function POST(req: NextRequest) {
 
       case "batchEvaluate":
         if (!context || !questions || !answers) {
+          Logger.error(
+            "Context, questions, and answers are required for batch evaluation",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -642,6 +673,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (questions.length !== answers.length) {
+          Logger.error("Questions and answers arrays must be of equal length", {
+            userId,
+            action,
+          });
           return NextResponse.json(
             {
               error: "Questions and answers arrays must be of equal length",
@@ -656,6 +691,10 @@ export async function POST(req: NextRequest) {
           !typedContextBatch.companyInfo ||
           !typedContextBatch.userCv
         ) {
+          Logger.error(
+            "Job posting, company info, and user CV are required for batch evaluation",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -669,18 +708,20 @@ export async function POST(req: NextRequest) {
         const batchPrompt = `
           Act as an experienced interviewer. Analyze the following answers to the interview questions based on the job posting and company information.
           
-          Job Posting: ${typedContextBatch.jobPosting}
+          Job Posting: ${sanitizeInput(typedContextBatch.jobPosting)}
           
-          Company Info: ${typedContextBatch.companyInfo}
+          Company Info: ${sanitizeInput(typedContextBatch.companyInfo)}
           
-          User CV: ${typedContextBatch.userCv}
+          User CV: ${sanitizeInput(typedContextBatch.userCv)}
           
           Evaluate each question-answer pair and provide feedback:
           
           ${questions
             .map(
               (q: string, i: number) =>
-                `Question ${i + 1}: ${q}\nAnswer ${i + 1}: ${answers[i]}\n`
+                `Question ${i + 1}: ${sanitizeInput(q)}\nAnswer ${
+                  i + 1
+                }: ${sanitizeInput(answers[i])}\n`
             )
             .join("\n")}
           
@@ -772,9 +813,10 @@ export async function POST(req: NextRequest) {
                   .filter((s) => s)
               : ["No suggestions provided"];
 
-            const rating = ratingMatch
-              ? Math.min(10, Math.max(1, parseInt(ratingMatch[1], 10)))
-              : 5;
+            const rating = Math.min(
+              10,
+              Math.max(1, ratingMatch ? parseInt(ratingMatch[1], 10) : 5)
+            );
 
             evaluations.push({
               question: questions[i],
@@ -787,10 +829,14 @@ export async function POST(req: NextRequest) {
 
           result = { evaluations };
         } catch (geminiError) {
-          console.error(
-            "Error with batch evaluation using Gemini:",
-            geminiError
-          );
+          Logger.error("Error with batch evaluation using Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
 
           // Check if this is a rate limit error
           if (
@@ -816,6 +862,10 @@ export async function POST(req: NextRequest) {
 
       case "generateSimilarQuestion":
         if (!context || !question) {
+          Logger.error(
+            "Context and original question are required for generating a similar question",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -830,6 +880,10 @@ export async function POST(req: NextRequest) {
           !typedContextSimilar.jobPosting ||
           !typedContextSimilar.companyInfo
         ) {
+          Logger.error(
+            "Job posting and company info are required for generating a similar question",
+            { userId, action }
+          );
           return NextResponse.json(
             {
               error:
@@ -843,11 +897,11 @@ export async function POST(req: NextRequest) {
           Based on the following job posting, company information, and the original interview question provided,
           generate a similar but different interview question that focuses on the same topic/skill area.
           
-          Job Posting: ${typedContextSimilar.jobPosting}
+          Job Posting: ${sanitizeInput(typedContextSimilar.jobPosting)}
           
-          Company Info: ${typedContextSimilar.companyInfo}
+          Company Info: ${sanitizeInput(typedContextSimilar.companyInfo)}
           
-          Original Question: ${question}
+          Original Question: ${sanitizeInput(question)}
           
           Please generate a single, specific interview question that is similar in nature to the original question
           but phrased differently or focuses on a related aspect of the same topic.
@@ -884,10 +938,14 @@ export async function POST(req: NextRequest) {
 
           result = { question: cleanedSimilarQuestion };
         } catch (geminiError) {
-          console.error(
-            "Error generating similar question with Gemini:",
-            geminiError
-          );
+          Logger.error("Error generating similar question with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
 
           // Check if this is a rate limit error
           if (
@@ -912,40 +970,78 @@ export async function POST(req: NextRequest) {
         break;
 
       default:
+        Logger.error("Invalid action provided", { action, userId });
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
     // Record usage after successful processing
     // Using the dedicated function that handles server-side authentication
-    await recordUsageWithDatabase(
+    // If payment was just verified in this request, we should not deduct credits again
+    const wasPaymentJustVerified = !!req && !!req.headers.get("X-PAYMENT");
+    const usageRecorded = await recordUsageWithDatabase(
       userId || "anonymous",
       action,
       usageCheck.cost,
-      usageCheck.freeInterviewUsed
+      usageCheck.freeInterviewUsed,
+      wasPaymentJustVerified
     );
 
-    // Get the updated remaining quota
-    const updatedUsageCheck = await checkUsage(userId || "anonymous", action);
+    if (!usageRecorded) {
+      Logger.warn("Usage recording failed, but continuing with request");
+      // Don't fail the entire request just because usage recording failed
+      // The core functionality (generating response) worked correctly
+    }
+
+    // Get the updated remaining quota (without payment verification)
+    // Since this is after processing, we just need to get current status
+    const updatedUsageCheck = await checkUsageAfterProcessing(
+      userId || "anonymous",
+      action
+    );
 
     // Add remaining quota information to the response
     result.remainingQuota = updatedUsageCheck.remaining;
     result.quotaInfo = {
       used: updatedUsageCheck.freeInterviewUsed
         ? FREE_INTERACTIONS_PER_DAY - updatedUsageCheck.remaining
-        : updatedUsageCheck.freeInterviewUsed
-        ? 0
-        : 1,
+        : 0, // If free interview is not used, usage is 0 for the first one
       total: updatedUsageCheck.freeInterviewUsed
         ? FREE_INTERACTIONS_PER_DAY
-        : updatedUsageCheck.freeInterviewUsed
-        ? 0
-        : 1,
+        : 1, // Total is 1 for the free interview, or FREE_INTERACTIONS_PER_DAY after
       resetTime: new Date(new Date().setHours(24, 0, 0)).toISOString(), // Reset at next midnight
     };
 
-    return NextResponse.json(result);
+    // Create a response object to potentially add X-PAYMENT-RESPONSE header
+    const response = NextResponse.json(result);
+
+    // If this was a payment verification request that succeeded, add the X-PAYMENT-RESPONSE header
+    if (req) {
+      const paymentHeader = req.headers.get("X-PAYMENT");
+      if (paymentHeader) {
+        // In a real implementation, we would include transaction details in the response header
+        // For now, we'll simulate this with a base64 encoded JSON response
+        const paymentResponse = {
+          success: true,
+          txHash: "simulated_tx_hash_" + Date.now(), // In a real implementation, this would be the actual transaction signature
+          networkId: "solana",
+          explorerUrl: `https://explorer.solana.com/tx/simulated_tx_hash_${Date.now()}`,
+        };
+
+        const encodedPaymentResponse = btoa(JSON.stringify(paymentResponse));
+        response.headers.set("X-PAYMENT-RESPONSE", encodedPaymentResponse);
+      }
+    }
+
+    Logger.info("Successfully processed Gemini API request", {
+      userId,
+      action,
+    });
+    return response;
   } catch (error) {
-    console.error("Error in Gemini API route:", error);
+    Logger.error("Error in Gemini API route:", {
+      error: error instanceof Error ? error.message : String(error),
+      url: req.url,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

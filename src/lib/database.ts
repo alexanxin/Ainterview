@@ -1,7 +1,6 @@
 import { supabase } from "./supabase";
 import { supabaseServer } from "./supabase-server";
 import { cacheService } from "./cache-service";
-import { localStorageCacheService } from "./local-storage-cache";
 
 // Type definitions
 export interface UserProfile {
@@ -70,16 +69,6 @@ export async function getUserProfile(
     return cachedProfile;
   }
 
-  // Then check localStorage cache
-  const cachedProfileLS = localStorageCacheService.getUserProfile(userId);
-  if (cachedProfileLS !== undefined) {
-    if (cachedProfileLS !== null) {
-      // Update in-memory cache with localStorage data
-      cacheService.setUserProfile(userId, cachedProfileLS);
-    }
-    return cachedProfileLS;
-  }
-
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -98,13 +87,11 @@ export async function getUserProfile(
     console.error("Error fetching user profile:", result.error);
     // Cache the null result to avoid repeated failed requests
     cacheService.setUserProfile(userId, null);
-    localStorageCacheService.setUserProfile(userId, null);
     return null;
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setUserProfile(userId, result.data);
-  localStorageCacheService.setUserProfile(userId, result.data);
 
   return result.data;
 }
@@ -123,8 +110,10 @@ export async function updateUserProfile(
     return false;
   }
 
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
   // First try to update existing profile
-  const updateResult = await supabase
+  const updateResult = await supabaseClient
     .from("profiles")
     .update(profileData)
     .eq("id", userId)
@@ -144,7 +133,10 @@ export async function updateUserProfile(
     // If update fails, try to insert new profile
     const data = { id: userId, ...profileData };
     console.log("Inserting data:", data);
-    const insertResult = await supabase.from("profiles").insert(data).select();
+    const insertResult = await supabaseClient
+      .from("profiles")
+      .insert(data)
+      .select();
 
     console.log("Insert attempt result:", {
       insertError: insertResult.error,
@@ -162,7 +154,6 @@ export async function updateUserProfile(
 
   // Invalidate cache since we updated the profile
   cacheService.invalidateUserProfile(userId);
-  localStorageCacheService.remove(`cache_user_profile_${userId}`);
 
   return true;
 }
@@ -209,17 +200,6 @@ export async function getInteviewSessionById(
     return cachedSession;
   }
 
-  // Then check localStorage cache
-  const cachedSessionLS =
-    localStorageCacheService.getInterviewSessionById(sessionId);
-  if (cachedSessionLS !== undefined) {
-    if (cachedSessionLS !== null) {
-      // Update in-memory cache with localStorage data
-      cacheService.setInterviewSessionById(sessionId, cachedSessionLS);
-    }
-    return cachedSessionLS;
-  }
-
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -238,13 +218,11 @@ export async function getInteviewSessionById(
     console.error("Error fetching interview session:", result.error);
     // Cache the null result to avoid repeated failed requests
     cacheService.setInterviewSessionById(sessionId, null);
-    localStorageCacheService.setInterviewSessionById(sessionId, null);
     return null;
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setInterviewSessionById(sessionId, result.data);
-  localStorageCacheService.setInterviewSessionById(sessionId, result.data);
 
   return result.data;
 }
@@ -256,17 +234,6 @@ export async function getInterviewSessionsByUser(
   const cachedSessions = cacheService.getUserInterviewSessions(userId);
   if (cachedSessions !== undefined) {
     return cachedSessions;
-  }
-
-  // Then check localStorage cache
-  const cachedSessionsLS =
-    localStorageCacheService.getUserInterviewSessions(userId);
-  if (cachedSessionsLS !== undefined) {
-    if (cachedSessionsLS.length > 0) {
-      // Update in-memory cache with localStorage data
-      cacheService.setUserInterviewSessions(userId, cachedSessionsLS);
-    }
-    return cachedSessionsLS;
   }
 
   // Check if supabase client is the mock (when env vars aren't set)
@@ -287,13 +254,11 @@ export async function getInterviewSessionsByUser(
     console.error("Error fetching interview sessions:", result.error);
     // Cache the empty result to avoid repeated failed requests
     cacheService.setUserInterviewSessions(userId, []);
-    localStorageCacheService.setUserInterviewSessions(userId, []);
     return [];
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setUserInterviewSessions(userId, result.data);
-  localStorageCacheService.setUserInterviewSessions(userId, result.data);
 
   return result.data || [];
 }
@@ -310,7 +275,9 @@ export async function updateInterviewSession(
     return false;
   }
 
-  const result = await supabase
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  const result = await supabaseClient
     .from("interview_sessions")
     .update(sessionData)
     .eq("id", sessionId);
@@ -322,14 +289,10 @@ export async function updateInterviewSession(
 
   // Invalidate cache since we updated the session
   cacheService.invalidateInterviewSessionById(sessionId);
-  localStorageCacheService.remove(`cache_interview_session_${sessionId}`);
 
   // If user_id is in the session data, we should also invalidate the user's session list
   if (sessionData.user_id) {
     cacheService.invalidateUserInterviewSessions(sessionData.user_id);
-    localStorageCacheService.remove(
-      `cache_interview_sessions_${sessionData.user_id}`
-    );
   }
 
   return true;
@@ -361,9 +324,6 @@ export async function createInterviewQuestion(
   // Invalidate cache for the session's questions since we added a new one
   if (questionData.session_id) {
     cacheService.invalidateInterviewQuestions(questionData.session_id);
-    localStorageCacheService.remove(
-      `cache_interview_questions_${questionData.session_id}`
-    );
   }
 
   return result.data;
@@ -376,17 +336,6 @@ export async function getQuestionsBySession(
   const cachedQuestions = cacheService.getInterviewQuestions(sessionId);
   if (cachedQuestions !== undefined) {
     return cachedQuestions;
-  }
-
-  // Then check localStorage cache
-  const cachedQuestionsLS =
-    localStorageCacheService.getInterviewQuestions(sessionId);
-  if (cachedQuestionsLS !== undefined) {
-    if (cachedQuestionsLS.length > 0) {
-      // Update in-memory cache with localStorage data
-      cacheService.setInterviewQuestions(sessionId, cachedQuestionsLS);
-    }
-    return cachedQuestionsLS;
   }
 
   // Check if supabase client is the mock (when env vars aren't set)
@@ -407,13 +356,11 @@ export async function getQuestionsBySession(
     console.error("Error fetching questions:", result.error);
     // Cache the empty result to avoid repeated failed requests
     cacheService.setInterviewQuestions(sessionId, []);
-    localStorageCacheService.setInterviewQuestions(sessionId, []);
     return [];
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setInterviewQuestions(sessionId, result.data);
-  localStorageCacheService.setInterviewQuestions(sessionId, result.data);
 
   return result.data || [];
 }
@@ -437,7 +384,9 @@ export async function getQuestionBySessionAndNumber(
     return null;
   }
 
-  const result = await supabase
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  const result = await supabaseClient
     .from("interview_questions")
     .select("*")
     .eq("session_id", sessionId)
@@ -488,9 +437,6 @@ export async function createInterviewAnswer(
   // Invalidate cache for the session's answers since we added a new one
   if (answerData.session_id) {
     cacheService.invalidateInterviewAnswers(answerData.session_id);
-    localStorageCacheService.remove(
-      `cache_interview_answers_${answerData.session_id}`
-    );
   }
 
   return result.data;
@@ -503,17 +449,6 @@ export async function getAnswersBySession(
   const cachedAnswers = cacheService.getInterviewAnswers(sessionId);
   if (cachedAnswers !== undefined) {
     return cachedAnswers;
-  }
-
-  // Then check localStorage cache
-  const cachedAnswersLS =
-    localStorageCacheService.getInterviewAnswers(sessionId);
-  if (cachedAnswersLS !== undefined) {
-    if (cachedAnswersLS.length > 0) {
-      // Update in-memory cache with localStorage data
-      cacheService.setInterviewAnswers(sessionId, cachedAnswersLS);
-    }
-    return cachedAnswersLS;
   }
 
   // Check if supabase client is the mock (when env vars aren't set)
@@ -534,13 +469,11 @@ export async function getAnswersBySession(
     console.error("Error fetching answers:", result.error);
     // Cache the empty result to avoid repeated failed requests
     cacheService.setInterviewAnswers(sessionId, []);
-    localStorageCacheService.setInterviewAnswers(sessionId, []);
     return [];
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setInterviewAnswers(sessionId, result.data);
-  localStorageCacheService.setInterviewAnswers(sessionId, result.data);
 
   return result.data || [];
 }
@@ -579,16 +512,6 @@ export async function getUserUsage(
     return cachedUsage;
   }
 
-  // Then check localStorage cache
-  const cachedUsageLS = localStorageCacheService.getUserUsage(userId, since);
-  if (cachedUsageLS !== undefined) {
-    if (cachedUsageLS.length > 0) {
-      // Update in-memory cache with localStorage data
-      cacheService.setUserUsage(userId, cachedUsageLS, since);
-    }
-    return cachedUsageLS;
-  }
-
   // Check if supabase client is the mock (when env vars aren't set)
   if (!("from" in supabase)) {
     console.warn(
@@ -597,7 +520,9 @@ export async function getUserUsage(
     return [];
   }
 
-  let query = supabase
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  let query = supabaseClient
     .from("usage_tracking")
     .select("*")
     .eq("user_id", userId)
@@ -613,13 +538,11 @@ export async function getUserUsage(
     console.error("Error fetching user usage:", result.error);
     // Cache the empty result to avoid repeated failed requests
     cacheService.setUserUsage(userId, [], since);
-    localStorageCacheService.setUserUsage(userId, [], since);
     return [];
   }
 
   // Cache the result in both memory and localStorage
   cacheService.setUserUsage(userId, result.data, since);
-  localStorageCacheService.setUserUsage(userId, result.data, since);
 
   return result.data || [];
 }
@@ -629,7 +552,9 @@ export async function getDailyUsageCount(
   userId: string,
   date: string
 ): Promise<number> {
-  const result = await supabase
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  const result = await supabaseClient
     .from("usage_tracking")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
@@ -659,7 +584,9 @@ export async function getUserInterviewsCompleted(
     return 0;
   }
 
-  const result = await supabase
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+  const result = await supabaseClient
     .from("interview_sessions")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
@@ -671,4 +598,102 @@ export async function getUserInterviewsCompleted(
   }
 
   return result.count ? result.count : 0;
+}
+
+// Credit management operations
+export async function getUserCredits(userId: string): Promise<number> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return 0;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  const result = await supabaseServerClient
+    .from("user_credits")
+    .select("credits")
+    .eq("user_id", userId)
+    .single();
+
+  if (result.error && result.error.code !== "PGRST116") {
+    console.error("Error fetching user credits:", result.error);
+    return 0;
+  }
+
+  // If no record is found (PGRST116), return 0 credits
+  return result.data?.credits ?? 0;
+}
+
+export async function addUserCredits(
+  userId: string,
+  amount: number
+): Promise<boolean> {
+  if (amount <= 0) {
+    console.warn("Attempted to add non-positive amount of credits:", amount);
+    return false;
+  }
+
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("rpc" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  // Use an RPC call to safely update the credits (upsert and increment)
+  const { error } = await supabaseServerClient.rpc("add_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+  });
+
+  if (error) {
+    console.error("Error adding user credits via RPC:", error);
+    return false;
+  }
+
+  return true;
+}
+
+export async function deductUserCredits(
+  userId: string,
+  amount: number
+): Promise<boolean> {
+  if (amount <= 0) {
+    console.warn("Attempted to deduct non-positive amount of credits:", amount);
+    return false;
+  }
+
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("rpc" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  // Use an RPC call to safely deduct the credits (decrement with check)
+  const { data, error } = await supabaseServerClient.rpc("deduct_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+  });
+
+  if (error) {
+    console.error("Error deducting user credits via RPC:", error);
+    return false;
+  }
+
+  // The RPC should return true if deduction was successful (i.e., sufficient credits)
+  // Log the data to debug the return value
+  console.log("Deduct user credits RPC data:", data);
+
+  // Assuming success if no error is returned, as the RPC should handle the logic
+  return true;
 }

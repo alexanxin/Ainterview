@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -143,6 +143,7 @@ const getQuestionBySessionAndNumber = async (sessionId: string, questionNumber: 
 export default function InterviewSessionPage() {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const answerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [interviewCompleted, setInterviewCompleted] = useState(false);
@@ -155,6 +156,12 @@ export default function InterviewSessionPage() {
   const [isPracticeMode, setIsPracticeMode] = useState(false); // Track if this is practice mode
   const [practiceQuestion, setPracticeQuestion] = useState<string | null>(null); // Store the practice question
   const [isContextLoading, setIsContextLoading] = useState(true); // Track if context is being loaded
+  const [interviewQuestionsCount, setInterviewQuestionsCount] = useState<number>(5); // Default to 5 questions
+  const [showRecordingTips, setShowRecordingTips] = useState(false); // Show/hide recording tips
+  const [isRecording, setIsRecording] = useState(false); // Track recording state
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null); // Store media recorder instance
+  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null); // Timer for recording duration
+  const [recordingTime, setRecordingTime] = useState(0); // Track recording time in seconds
   const router = useRouter();
   const { user, loading } = useAuth(); // Get user and loading state from auth context
   const { success, error, info, warning } = useToast(); // Initialize toast notifications
@@ -184,6 +191,8 @@ export default function InterviewSessionPage() {
     const jobPosting = localStorage.getItem('interviewJobPosting');
     const cv = localStorage.getItem('interviewCv');
     const companyInfo = localStorage.getItem('interviewCompanyInfo');
+    // Load the number of questions selected by the user (default to 5)
+    const numberOfQuestions = localStorage.getItem('interviewNumberOfQuestions') || '5';
 
     if (jobPosting && cv) {
       const context = {
@@ -192,12 +201,32 @@ export default function InterviewSessionPage() {
         companyInfo: companyInfo || 'Company information'
       };
       setInterviewContext(context);
+      // Set the number of questions to use for this interview
+      setInterviewQuestionsCount(parseInt(numberOfQuestions, 10));
     } else {
       // Set to null if not available to ensure consistent state
       setInterviewContext(null);
+      setInterviewQuestionsCount(5); // Default to 5 if no context available
     }
     setIsContextLoading(false); // Set loading to false after context is loaded
   }, []);
+
+  // Effect to set the current question when questions array changes
+  useEffect(() => {
+    if (questions.length > 0 && currentQuestionIndex < questions.length) {
+      setQuestion(questions[currentQuestionIndex]);
+    }
+  }, [questions, currentQuestionIndex]);
+
+  // Effect to focus the answer textarea when the question changes
+  useEffect(() => {
+    if (answerTextareaRef.current) {
+      // Give the DOM a moment to update before focusing
+      setTimeout(() => {
+        answerTextareaRef.current?.focus();
+      }, 100);
+    }
+  }, [question]); // Only run when the question changes
 
   // Show loading state while checking auth or loading context
   if (loading || isContextLoading) {
@@ -249,50 +278,14 @@ export default function InterviewSessionPage() {
 
     try {
       if (isPracticeMode && practiceQuestion) {
-        // In practice mode, we still need to create a session record for proper data tracking
-        if (user?.id) {
-          const sessionData = {
-            user_id: user.id,
-            job_posting: interviewContext.jobPosting,
-            company_info: interviewContext.companyInfo,
-            user_cv: interviewContext.userCv,
-            title: 'Practice Question Session',
-            total_questions: 1 // Just one practice question
-          };
-
-          const session = await createInterviewSession(sessionData);
-
-          if (session && session.id) {
-            setInterviewSessionId(session.id);
-          } else {
-            error('Failed to create practice session. Please try again.');
-            setInterviewStarted(false);
-            setIsLoading(false); // Reset loading state
-            return;
-          }
-        }
-
-        // Set the single practice question
+        // In practice mode, we don't create a session record yet - we'll create it when the user submits their answer
+        // This prevents empty sessions from being created when users just view the practice question without answering
         setQuestions([practiceQuestion]);
         setQuestion(practiceQuestion);
 
-        // Create the question record in the database
-        if (interviewSessionId) {
-          const questionData = {
-            session_id: interviewSessionId,
-            question_text: practiceQuestion,
-            question_number: 1
-          };
-
-          try {
-            const result = await createInterviewQuestion(questionData);
-            if (!result) {
-              console.error('Failed to create practice question in database');
-            }
-          } catch (err) {
-            console.error('Error creating practice question:', err);
-          }
-        }
+        // We still want to set the session ID to a temporary value so the question can be created later
+        // Actually, we should create the session only when the user submits an answer with feedback
+        // For now, we'll just set up the question without creating a session
       } else {
         // Create an interview session in the database for normal mode
         if (user?.id) {
@@ -302,7 +295,7 @@ export default function InterviewSessionPage() {
             company_info: interviewContext.companyInfo,
             user_cv: interviewContext.userCv,
             title: extractJobTitle(interviewContext.jobPosting),
-            total_questions: 5 // We're generating 5 questions
+            total_questions: interviewQuestionsCount // Use the user-selected number of questions
           };
 
           const session = await createInterviewSession(sessionData);
@@ -337,10 +330,18 @@ export default function InterviewSessionPage() {
       setIsLoading(true);
       const generatedQuestions = await geminiService.generateInterviewFlow(
         interviewContext,
-        5, // Generate 5 questions for the interview
-        user?.id // Pass user ID for usage tracking
+        interviewQuestionsCount, // Use the user-selected number of questions
+        user?.id, // Pass user ID for usage tracking
+        (message) => info(message), // onPaymentInitiated
+        (message) => success(message), // onPaymentSuccess
+        (message) => error(message) // onPaymentFailure
       );
       setQuestions(generatedQuestions);
+
+      // Set the first question immediately after generation
+      if (generatedQuestions.length > 0) {
+        setQuestion(generatedQuestions[0]);
+      }
 
       // Store questions in the database if we have a session ID
       if (interviewSessionId && generatedQuestions.length > 0) {
@@ -356,6 +357,7 @@ export default function InterviewSessionPage() {
             const result = await createInterviewQuestion(questionData);
             return result;
           } catch (err) {
+            console.error(`Error creating question ${i + 1}:`, err);
             return null;
           }
         });
@@ -364,20 +366,18 @@ export default function InterviewSessionPage() {
 
         // Check if all questions were created successfully
         const successfulCreations = results.filter(result => result !== null);
+        console.log(`${successfulCreations.length} out of ${generatedQuestions.length} questions created successfully`);
       }
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // Handle payment required case
-        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
-        // In a real app, redirect to payment page
-        router.push('/dashboard');
+        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
+        // Redirect to payment page
+        router.push('/payment');
+        return; // Exit immediately after redirect
       } else if (err instanceof Error && (err.message?.includes('Rate limit exceeded') || (err as { status?: number }).status === 429)) {
         // Handle rate limit exceeded case
         error('Too many requests. Please wait before trying again.');
-        // Optionally show a retry button or wait before retrying
-        setTimeout(() => {
-          generateInterviewFlow(); // Attempt to retry after a delay
-        }, 300); // Retry after 30 seconds
       } else {
         // Fallback to mock questions if API fails
         setQuestions([
@@ -400,28 +400,42 @@ export default function InterviewSessionPage() {
       return;
     }
 
+    setIsLoading(true); // Set loading state immediately to prevent double submission
+
     // Store the answer locally but don't send to API yet
     const newAnswers = [...answers];
     newAnswers[currentQuestionIndex] = answer;
     setAnswers(newAnswers);
 
-    // In practice mode, there's only one question, so complete immediately
-    if (isPracticeMode) {
-      // Show notification about processing wait time
-      info('Your answer is being analyzed by our AI. Please be patient as this may take a moment...');
-      await completePracticeQuestion(newAnswers);
-    } else {
-      // Move to next question or complete interview in normal mode
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-        setAnswer('');
-        // Update the question to the next one
-        setQuestion(questions[currentQuestionIndex + 1]);
-      } else {
-        // All answers collected, now send for batch evaluation
+    try {
+      // In practice mode, there's only one question, so complete immediately
+      if (isPracticeMode) {
         // Show notification about processing wait time
-        info('Your answers are being analyzed by our AI. Please be patient as this may take a moment...');
-        await completeInterviewWithBatchEvaluation(newAnswers);
+        info('Your answer is being analyzed by our AI. Please be patient as this may take a moment...');
+        await completePracticeQuestion(newAnswers);
+      } else {
+        // Move to next question or complete interview in normal mode
+        if (currentQuestionIndex < questions.length - 1) {
+          setCurrentQuestionIndex(currentQuestionIndex + 1);
+          setAnswer('');
+          // Update the question to the next one
+          setQuestion(questions[currentQuestionIndex + 1]);
+        } else {
+          // All answers collected, now send for batch evaluation
+          // Show notification about processing wait time
+          info('Your answers are being analyzed by our AI. Please be patient as this may take a moment...');
+          await completeInterviewWithBatchEvaluation(newAnswers);
+        }
+      }
+    } catch (err) {
+      // Handle any unexpected errors during the submission flow
+      console.error('Error during answer submission:', err);
+      error('An unexpected error occurred during submission. Please try again.');
+    } finally {
+      // Only reset loading if we are not moving to the next question in normal mode
+      // The complete functions will handle the final reset/redirect
+      if (!isPracticeMode && currentQuestionIndex < questions.length - 1) {
+        setIsLoading(false);
       }
     }
   };
@@ -429,15 +443,16 @@ export default function InterviewSessionPage() {
   const completeInterviewWithBatchEvaluation = async (allAnswers: string[]) => {
     if (!interviewContext) return;
 
-    setIsLoading(true);
-
     try {
       // Perform batch evaluation using Gemini
       const batchAnalysis = await geminiService.batchEvaluateAnswers(
         interviewContext,
         questions,
         allAnswers,
-        user?.id // Pass user ID for usage tracking
+        user?.id, // Pass user ID for usage tracking
+        (message) => info(message), // onPaymentInitiated
+        (message) => success(message), // onPaymentSuccess
+        (message) => error(message) // onPaymentFailure
       );
 
       // Store all answers and their evaluations in the database
@@ -541,9 +556,10 @@ export default function InterviewSessionPage() {
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // Handle payment required case
-        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
-        // In a real app, redirect to payment page
-        router.push('/dashboard');
+        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
+        // Redirect to payment page
+        router.push('/payment');
+        return; // Exit immediately after redirect
       } else {
         error('Error processing your answers. Please try again.');
 
@@ -551,8 +567,6 @@ export default function InterviewSessionPage() {
         await processAnswersIndividually(allAnswers);
       }
     } finally {
-      setIsLoading(false);
-
       // Redirect to feedback page after processing is complete
       setTimeout(() => {
         router.push('/feedback');
@@ -569,7 +583,10 @@ export default function InterviewSessionPage() {
             interviewContext,
             questions[i],
             allAnswers[i],
-            user?.id // Pass user ID for usage tracking
+            user?.id, // Pass user ID for usage tracking
+            (message) => info(message), // onPaymentInitiated
+            (message) => success(message), // onPaymentSuccess
+            (message) => error(message) // onPaymentFailure
           );
 
           // Store the answer in the database
@@ -675,19 +692,103 @@ export default function InterviewSessionPage() {
   const completePracticeQuestion = async (allAnswers: string[]) => {
     if (!interviewContext) return;
 
-    setIsLoading(true);
-
     try {
       // Analyze the single answer using Gemini
       const analysis = await geminiService.analyzeAnswer(
         interviewContext,
         questions[0], // The practice question
         allAnswers[0], // The user's answer
-        user?.id // Pass user ID for usage tracking
+        user?.id, // Pass user ID for usage tracking
+        (message) => info(message), // onPaymentInitiated
+        (message) => success(message), // onPaymentSuccess
+        (message) => error(message) // onPaymentFailure
       );
 
-      // Store the answer and its evaluation in the database
-      if (interviewSessionId) {
+      // For practice mode, create the session and question only when the user submits an answer with feedback
+      if (isPracticeMode && !interviewSessionId && user?.id) {
+        // Create a new session for the practice question
+        const sessionData = {
+          user_id: user.id,
+          job_posting: interviewContext.jobPosting,
+          company_info: interviewContext.companyInfo,
+          user_cv: interviewContext.userCv,
+          title: 'Practice Question Session',
+          total_questions: 1 // Just one practice question
+        };
+
+        const session = await createInterviewSession(sessionData);
+
+        if (session && session.id) {
+          setInterviewSessionId(session.id);
+          // Now create the question record in the database
+          const questionData = {
+            session_id: session.id,
+            question_text: questions[0],
+            question_number: 1
+          };
+
+          const newQuestion = await createInterviewQuestion(questionData);
+          if (newQuestion && newQuestion.id) {
+            // Now create the answer record
+            const answerData = {
+              question_id: newQuestion.id,
+              session_id: session.id,
+              user_answer: allAnswers[0],
+              ai_feedback: analysis.aiFeedback,
+              improvement_suggestions: analysis.improvementSuggestions || [],
+              rating: analysis.rating || 0
+            };
+
+            await createInterviewAnswer(answerData);
+
+            // Update the session as completed since it's just one question
+            try {
+              const success = await updateInterviewSession(session.id, { completed: true });
+
+              // Refresh cache for the session and user after AI feedback is submitted
+              await cacheRefreshService.refreshCacheForSession(session.id);
+              await cacheRefreshService.refreshCacheForUser(user.id);
+            } catch (dbError) {
+              // Log error to console but don't show to user as it's a background operation
+            }
+          } else {
+            // Fallback to localStorage if database storage fails
+            const feedbackItem = {
+              id: `feedback_${Date.now()}_0`,
+              question: questions[0],
+              answer: allAnswers[0],
+              feedback: analysis.aiFeedback,
+              suggestions: analysis.improvementSuggestions,
+              rating: analysis.rating || 0,
+              date: new Date().toISOString()
+            };
+
+            // Get existing feedback from localStorage
+            const existingFeedback = JSON.parse(localStorage.getItem('interviewFeedback') || '[]');
+            // Add new feedback and save back to localStorage
+            const updatedFeedback = [feedbackItem, ...existingFeedback];
+            localStorage.setItem('interviewFeedback', JSON.stringify(updatedFeedback));
+          }
+        } else {
+          // If session creation fails, fallback to localStorage
+          const feedbackItem = {
+            id: `feedback_${Date.now()}_0`,
+            question: questions[0],
+            answer: allAnswers[0],
+            feedback: analysis.aiFeedback,
+            suggestions: analysis.improvementSuggestions,
+            rating: analysis.rating || 0,
+            date: new Date().toISOString()
+          };
+
+          // Get existing feedback from localStorage
+          const existingFeedback = JSON.parse(localStorage.getItem('interviewFeedback') || '[]');
+          // Add new feedback and save back to localStorage
+          const updatedFeedback = [feedbackItem, ...existingFeedback];
+          localStorage.setItem('interviewFeedback', JSON.stringify(updatedFeedback));
+        }
+      } else if (interviewSessionId) {
+        // For non-practice mode, follow the existing flow
         try {
           // Get the actual question ID from the database
           let question = await getQuestionBySessionAndNumber(interviewSessionId, 1);
@@ -760,9 +861,10 @@ export default function InterviewSessionPage() {
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // Handle payment required case
-        error('You\'ve reached your free usage limit. Please purchase credits to continue.');
-        // In a real app, redirect to payment page
-        router.push('/dashboard');
+        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
+        // Redirect to payment page
+        router.push('/payment');
+        return; // Exit immediately after redirect
       } else {
         error('Error processing your answer. Please try again.');
 
@@ -808,6 +910,147 @@ export default function InterviewSessionPage() {
       return (companyMatch[1] || companyMatch[2] || companyMatch[3]).trim();
     }
     return 'Unknown Company';
+  };
+
+  // Function to start voice recording and transcription using Web Speech API
+  const startVoiceRecording = async () => {
+    try {
+      // Check for browser support
+      if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+        error('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Opera for best experience.');
+        return;
+      }
+
+      // Check for online status before attempting to connect to speech recognition service
+      if (!navigator.onLine) {
+        error('You appear to be offline. Speech recognition requires an internet connection. Please type your answer instead.');
+        return;
+      }
+
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Set up speech recognition
+      const SpeechRecognition: any = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      let finalTranscript = '';
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        // Update the answer field with both final and interim results
+        setAnswer(finalTranscript + interimTranscript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        setRecordingTime(0);
+        if (recordingTimer) {
+          clearInterval(recordingTimer);
+          setRecordingTimer(null);
+        }
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop()); // Stop microphone
+        }
+
+        // Handle specific error types with more helpful guidance
+        if (event.error === 'network') {
+          error('Speech recognition requires an internet connection to Google\'s servers. This feature may not work behind certain firewalls or corporate networks. Please try typing your answer instead.');
+        } else if (event.error === 'no-speech') {
+          error('No speech detected. Please speak louder, ensure your microphone is working, and try again. If problems persist, type your answer instead.');
+        } else if (event.error === 'audio-capture') {
+          error('Could not access microphone. Please check microphone permissions in your browser settings, ensure no other applications are using the microphone, and try again. If issues continue, type your answer instead.');
+        } else if (event.error === 'not-allowed') {
+          error('Microphone access denied. Please go to your browser settings, allow microphone access for this site, and try again. As an alternative, you can type your answer.');
+        } else if (event.error === 'service-not-allowed') {
+          error('Speech recognition service not allowed. Your browser or network may restrict access to speech services. Please type your answer instead.');
+        } else if (event.error === 'bad-grammar') {
+          error('Speech recognition grammar error occurred. This is typically a system error. Please type your answer instead.');
+        } else {
+          error(`Recording error (${event.error}). Web Speech API requires internet connectivity. You can type your answer instead, which is just as effective for our AI analysis.`);
+        }
+      };
+
+      recognition.onend = () => {
+        // When recognition stops, update UI
+        setIsRecording(false);
+        setRecordingTime(0);
+        if (recordingTimer) {
+          clearInterval(recordingTimer);
+          setRecordingTimer(null);
+        }
+        stream.getTracks().forEach(track => track.stop()); // Stop microphone
+      };
+
+      // Start recognition
+      recognition.start();
+      setIsRecording(true);
+
+      // Start recording timer
+      const timer = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      setRecordingTimer(timer);
+
+      // Stop recording after 30 seconds max to prevent excessive recording
+      const autoStopTimer = setTimeout(() => {
+        if (isRecording) {
+          stopVoiceRecording(recognition, stream, timer);
+        }
+      }, 30000); // 30 seconds max
+
+      // Store reference to stop function
+      (window as any)._stopVoiceRecording = () => {
+        stopVoiceRecording(recognition, stream, timer);
+        clearTimeout(autoStopTimer);
+      };
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      error('Could not access microphone. Please check permissions and try again.');
+    }
+  };
+
+  // Function to stop voice recording
+  const stopVoiceRecording = (recognition: any, stream: MediaStream, timer: NodeJS.Timeout) => {
+    recognition.stop();
+    setIsRecording(false);
+    setRecordingTime(0);
+    if (timer) {
+      clearInterval(timer);
+      setRecordingTimer(null);
+    }
+    stream.getTracks().forEach(track => track.stop()); // Stop microphone
+  };
+
+  // Function to handle the speak answer button click
+  const handleSpeakAnswerClick = () => {
+    if (isRecording) {
+      // If already recording, stop it
+      if ((window as any)._stopVoiceRecording) {
+        (window as any)._stopVoiceRecording();
+      }
+      setIsRecording(false);
+      setRecordingTime(0);
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+        setRecordingTimer(null);
+      }
+    } else {
+      // Start recording
+      startVoiceRecording();
+    }
   };
 
   if (!interviewStarted) {
@@ -1025,10 +1268,22 @@ export default function InterviewSessionPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Your Answer
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Your Answer
+                  </label>
+                  <Button
+                    variant={isRecording ? "destructive" : "outline"}
+                    size="sm"
+                    onClick={handleSpeakAnswerClick}
+                    className="flex items-center"
+                  >
+                    <span className="mr-1">{isRecording ? '⏹️' : '🎤'}</span>
+                    {isRecording ? `Recording (${recordingTime}s)` : 'Speak Answer'}
+                  </Button>
+                </div>
                 <Textarea
+                  ref={answerTextareaRef}
                   placeholder="Type your answer here..."
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
@@ -1036,7 +1291,60 @@ export default function InterviewSessionPage() {
                 />
               </div>
 
-              <div className="flex justify-end">
+              {/* Recording Tips Card */}
+              {showRecordingTips && (
+                <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <CardHeader className="border-b border-blue-200 dark:border-blue-700">
+                    <CardTitle className="text-blue-800 dark:text-blue-200 flex items-center">
+                      <span className="mr-2">💡</span>
+                      Recording Tips for Best Results
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <ul className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Find a quiet space with minimal background noise</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Speak clearly and at a moderate pace</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Use a good quality microphone (headphones work best)</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Position yourself close to, but not too close to, the mic</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Enunciate clearly, especially technical terms</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="mr-2">✓</span>
+                        <span>Keep answers concise but specific (1-3 minutes typically)</span>
+                      </li>
+                      <li className="flex items-start text-xs bg-blue-100 dark:bg-blue-900/30 p-2 rounded">
+                        <span className="mr-2">🌐</span>
+                        <span><strong>Note:</strong> Speech recognition requires an internet connection and may not work behind corporate firewalls. If you encounter network errors, simply type your answer instead.</span>
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRecordingTips(!showRecordingTips)}
+                  className="flex items-center"
+                >
+                  <span className="mr-2">💡</span>
+                  {showRecordingTips ? 'Hide Tips' : 'Recording Tips'}
+                </Button>
                 <Button
                   onClick={submitAnswer}
                   disabled={isLoading}

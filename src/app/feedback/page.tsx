@@ -261,16 +261,16 @@ export default function FeedbackPage() {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Left sidebar: List of interviews */}
             <div className="lg:w-1/3">
-              <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg">
+              <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg flex flex-col">
                 <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                   <CardTitle className="text-gray-900 dark:text-white flex items-center">
                     <span className="mr-2">📋</span>
                     Your Interview Sessions
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className="p-6 flex-1 overflow-y-auto max-h-[600px]">
                   {interviews.length > 0 ? (
-                    <div className="space-y-3 max-h-[1000px] overflow-y-auto pr-2">
+                    <div className="space-y-3 overflow-y-auto pr-2">
                       {interviews.map((interview) => (
                         <div
                           key={interview.id}
@@ -316,8 +316,8 @@ export default function FeedbackPage() {
 
             {/* Right panel: Feedback details for selected interview */}
             <div className="lg:w-2/3">
-              <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+              <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg flex flex-col">
+                <CardHeader className="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-gray-900 dark:text-white flex items-center">
                       <span className="mr-2">📊</span>
@@ -334,7 +334,7 @@ export default function FeedbackPage() {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className="p-6 flex-1 overflow-y-auto max-h-[600px]">
                   {selectedInterview ? (
                     <div className="space-y-6">
                       {selectedInterview.feedbackItems.length > 0 ? (

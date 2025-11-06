@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { RangeInput } from '@/components/ui/range-input';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -28,6 +29,7 @@ export default function InterviewPage() {
     skills: '',
   });
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [numberOfQuestions, setNumberOfQuestions] = useState<number>(5); // Default to 5 questions
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const router = useRouter();
@@ -240,12 +242,15 @@ export default function InterviewPage() {
     localStorage.removeItem('interviewJobPosting');
     localStorage.removeItem('interviewCv');
     localStorage.removeItem('interviewCompanyInfo');
+    localStorage.removeItem('interviewNumberOfQuestions'); // Also clear the number of questions
 
     // Save new job posting and CV to localStorage
     localStorage.setItem('interviewJobPosting', jobPosting);
     localStorage.setItem('interviewCv', cv);
     // Also save company info if available (could be extracted from job posting)
     localStorage.setItem('interviewCompanyInfo', extractCompanyInfo(jobPosting));
+    // Save the selected number of questions
+    localStorage.setItem('interviewNumberOfQuestions', numberOfQuestions.toString());
 
     // Simulate API call to prepare interview
     setTimeout(() => {
@@ -713,8 +718,42 @@ export default function InterviewPage() {
                 </CardContent>
               </Card>
 
-              <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              {/* Number of Questions Selector */}
+              <Card className="dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                <CardHeader className="border-b border-purple-200 dark:border-purple-800">
+                  <CardTitle className="text-purple-800 dark:text-purple-200 flex items-center">
+                    <span className="mr-2">🔢</span>
+                    Number of Interview Questions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                      <span>5 questions</span>
+                      <span>10 questions</span>
+                    </div>
+                    <RangeInput
+                      defaultValue="5" 
+                      min="5"
+                      max="10"
+                      step="1"
+                      onChange={(e) => setNumberOfQuestions(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                    <div className="text-center mt-2">
+                      <span className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                        {numberOfQuestions} questions
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <span>Less</span>
+                      <span>More</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
+              <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                 <CardContent className="p-4">
                   <p className="text-blue-700 dark:text-blue-300 font-bold text-sm"><span className="mr-2">📄</span>
                     CV Information</p>

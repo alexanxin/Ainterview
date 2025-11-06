@@ -43,4 +43,11 @@ export const supabaseServer =
             }),
           }),
         }),
+        rpc: (fnName: string, params: Record<string, unknown>) => {
+          // Mock RPC function for database functions
+          return {
+            data: null,
+            error: null,
+          };
+        },
       };
