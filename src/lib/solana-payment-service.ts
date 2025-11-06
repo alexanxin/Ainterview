@@ -22,10 +22,15 @@ export class SolanaPaymentService {
 
   private constructor() {
     // Initialize Solana connection
-    this.connection = new Connection(
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-        "https://api.mainnet-beta.solana.com"
-    );
+    const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
+    const endpoint =
+      network === "devnet"
+        ? process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ||
+          "https://devnet.helius-rpc.com/?api-key=d44985e5-048b-42ed-885f-e3f4ba38d5fc"
+        : process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+          "https://api.mainnet-beta.solana.com";
+
+    this.connection = new Connection(endpoint, "confirmed");
   }
 
   public static getInstance(): SolanaPaymentService {
@@ -118,7 +123,7 @@ export class SolanaPaymentService {
         return {
           success: true,
           transactionId,
-          creditsAdded: expectedAmount ? expectedAmount : 10, // expectedAmount is the number of credits to add
+          creditsAdded: expectedAmount || 10, // Use expected amount if provided
         };
       }
 
@@ -130,7 +135,7 @@ export class SolanaPaymentService {
       return {
         success: true,
         transactionId,
-        creditsAdded: expectedAmount ? expectedAmount : 10, // expectedAmount is the number of credits to add
+        creditsAdded: expectedAmount || 10, // Use expected amount if provided
       };
     } catch (error) {
       console.error("Error verifying Solana payment:", error);

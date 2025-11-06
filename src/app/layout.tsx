@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Toaster } from "sonner";
+import SolanaWalletProvider from "@/components/solana-wallet-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,25 +31,26 @@ export default function RootLayout({
       <head>
         <meta name="theme-color" content="#6366f1" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
+        <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Ainterview" />
-        <link rel="icon" type="image/svg+xml" sizes="192x192" href="/icons/icon-192x192.svg" />
-        <link rel="icon" type="image/svg+xml" sizes="512x512" href="/icons/icon-512x512.svg" />
+        <link rel="icon" href="/logo.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased dark:bg-gray-900 dark:text-gray-100`}
       >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-        <Toaster 
-          richColors 
+        <SolanaWalletProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </SolanaWalletProvider>
+        <Toaster
+          richColors
           position="top-right"
           theme="dark"
         />
-        <script 
+        <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
@@ -63,7 +65,7 @@ export default function RootLayout({
                 });
               }
             `
-          }} 
+          }}
         />
       </body>
     </html>

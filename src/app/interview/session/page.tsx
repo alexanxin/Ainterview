@@ -1254,10 +1254,10 @@ export default function InterviewSessionPage() {
                     AI Interview Session
                   </CardTitle>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {isPracticeMode ? 'Practice Question' : `Question ${currentQuestionIndex + 1} of ${questions.length}`}
+                    {isPracticeMode ? 'Practice Question' : `Question ${currentQuestionIndex + 1} of ${questions.length || interviewQuestionsCount}`}
                   </div>
                 </div>
-                <Progress value={isPracticeMode ? 50 : ((currentQuestionIndex + 1) / questions.length) * 100} className="h-2" />
+                <Progress value={isPracticeMode ? 50 : ((currentQuestionIndex + 1) / (questions.length || interviewQuestionsCount)) * 100} className="h-2" />
               </div>
             </CardHeader>
             <CardContent className="space-y-6">

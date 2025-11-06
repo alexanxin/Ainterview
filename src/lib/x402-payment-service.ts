@@ -1,5 +1,5 @@
 // x402 payment integration
-import { SolanaPaymentService } from './solana-payment-service';
+import { SolanaPaymentService } from "./solana-payment-service";
 
 // Re-export the interface for compatibility
 export interface PaymentIntent {
@@ -19,7 +19,7 @@ export interface PaymentResult {
 export interface X402TransactionParams {
   userId: string;
   amount: number; // in USD (e.g., 5 for $5)
-  token: 'USDC' | 'USDT' | 'CASH';
+  token: "USDC" | "USDT" | "CASH";
   recipientPublicKey: string;
 }
 
@@ -54,28 +54,32 @@ export class X402PaymentService {
   }
 
   // Create payment intent (compatibility with existing code)
-  async createPaymentIntent(paymentData: PaymentIntent): Promise<PaymentResult> {
+  async createPaymentIntent(
+    paymentData: PaymentIntent
+  ): Promise<PaymentResult> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
         return {
           success: false,
-          error: 'Payment service failed to initialize',
+          error: "Payment service failed to initialize",
         };
       }
     }
 
     // In a real implementation, this would convert the payment data to Solana transaction parameters
     // For now, we'll simulate the process
-    console.log(`Creating payment intent for ${paymentData.amount} ${paymentData.currency}`);
-    
+    console.log(
+      `Creating payment intent for ${paymentData.amount} ${paymentData.currency}`
+    );
+
     // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // In a real implementation, this would interact with the x402 protocol
     // For now, we'll simulate a successful transaction
     const success = Math.random() > 0.2; // 80% success rate for simulation
-    
+
     if (success) {
       return {
         success: true,
@@ -84,19 +88,21 @@ export class X402PaymentService {
     } else {
       return {
         success: false,
-        error: 'Payment failed. Please try again.',
+        error: "Payment failed. Please try again.",
       };
     }
   }
 
   // New x402-specific method for creating Solana payment requests
-  async createSolanaPaymentRequest(paymentData: X402TransactionParams): Promise<X402PaymentResult> {
+  async createSolanaPaymentRequest(
+    paymentData: X402TransactionParams
+  ): Promise<X402PaymentResult> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
         return {
           success: false,
-          error: 'Payment service failed to initialize',
+          error: "Payment service failed to initialize",
         };
       }
     }
@@ -106,38 +112,49 @@ export class X402PaymentService {
   }
 
   // New x402-specific method for verifying payments
-  async verifySolanaPayment(transactionId: string, expectedAmount?: number, expectedToken?: 'USDC' | 'USDT' | 'CASH'): Promise<X402PaymentResult> {
+  async verifySolanaPayment(
+    transactionId: string,
+    expectedAmount?: number,
+    expectedToken?: "USDC" | "USDT" | "CASH"
+  ): Promise<X402PaymentResult> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
         return {
           success: false,
-          error: 'Payment service failed to initialize',
+          error: "Payment service failed to initialize",
         };
       }
     }
 
     // Use the Solana service to verify the payment
-    return this.solanaService.verifyPayment(transactionId, expectedAmount, expectedToken);
+    return this.solanaService.verifyPayment(
+      transactionId,
+      expectedAmount,
+      expectedToken
+    );
   }
 
   // Subscribe to plan (compatibility with existing code)
-  async subscribeToPlan(planId: string, userId: string): Promise<PaymentResult> {
+  async subscribeToPlan(
+    planId: string,
+    userId: string
+  ): Promise<PaymentResult> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
         return {
           success: false,
-          error: 'Payment service failed to initialize',
+          error: "Payment service failed to initialize",
         };
       }
     }
 
     console.log(`Creating subscription for plan ${planId} for user ${userId}`);
-    
+
     // Simulate subscription processing
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     // For simulation purposes, always succeed
     return {
       success: true,
@@ -150,25 +167,28 @@ export class X402PaymentService {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
-        throw new Error('Payment service failed to initialize');
+        throw new Error("Payment service failed to initialize");
       }
     }
 
     console.log(`Fetching balance for user ${userId}`);
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     // Return a mock balance in cents
     return 5000; // $50.00
   }
 
   // Get token balance from Solana
-  async getTokenBalance(walletPublicKey: string, token: 'USDC' | 'USDT' | 'CASH'): Promise<number> {
+  async getTokenBalance(
+    walletPublicKey: string,
+    token: "USDC" | "USDT" | "CASH"
+  ): Promise<number> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
       if (!initSuccess) {
-        throw new Error('Payment service failed to initialize');
+        throw new Error("Payment service failed to initialize");
       }
     }
 
@@ -176,11 +196,11 @@ export class X402PaymentService {
   }
 
   // Get token mint address
-  getTokenMintAddress(token: 'USDC' | 'USDT' | 'CASH'): string {
+  getTokenMintAddress(token: "USDC" | "USDT" | "CASH"): string {
     if (!this.isInitialized) {
       const initSuccess = this.initialize();
       if (!initSuccess) {
-        throw new Error('Payment service failed to initialize');
+        throw new Error("Payment service failed to initialize");
       }
     }
 

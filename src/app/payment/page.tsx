@@ -3,49 +3,33 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { x402Service } from '@/lib/x402-payment-service';
 import { useToast } from '@/lib/toast';
 import { useAuth } from '@/lib/auth-context';
 
-// Phantom Wallet imports
-declare global {
-  interface Window {
-    solana: any;
-  }
-}
+// Solana wallet adapter imports
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
+
+const CREDIT_TO_USD_RATE = 0.10; // 1 credit = $0.10 USD
+const MIN_CREDITS = 5; // Minimum purchase of $0.50 USD
+const MAX_CREDITS = 100; // Maximum purchase of $10.00 USD
 
 export default function PaymentPage() {
-  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('basic');
+  const [creditsToBuy, setCreditsToBuy] = useState(MIN_CREDITS);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const { user, loading } = useAuth(); // Get user from auth context
+  const { user, session, loading } = useAuth(); // Get user and session from auth context
+  const { connection } = useConnection();
+  const { publicKey, connected, sendTransaction } = useWallet();
   const router = useRouter();
   const { success, error, warning, info } = useToast(); // Initialize toast notifications
 
-  const plans = {
-    basic: {
-      name: 'Basic Plan',
-      price: 5, // $5
-      credits: 20,
-      description: 'Perfect for occasional use'
-    },
-    premium: {
-      name: 'Premium Plan',
-      price: 15, // $15
-      credits: 100,
-      description: 'Best value for regular users'
-    }
-  };
-
-  // Check for Phantom wallet on component mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.solana) {
-      setWalletConnected(window.solana.isPhantom);
-    }
-  }, []);
+  const usdAmount = (creditsToBuy * CREDIT_TO_USD_RATE).toFixed(2);
 
   // Redirect to auth if user is not logged in
   useEffect(() => {
@@ -54,22 +38,6 @@ export default function PaymentPage() {
     }
   }, [user, loading, router]);
 
-  const connectWallet = async () => {
-    if (typeof window !== 'undefined' && window.solana) {
-      try {
-        const response = await window.solana.connect();
-        setWalletAddress(response.publicKey.toString());
-        setWalletConnected(true);
-        success('Wallet connected successfully!');
-      } catch (err) {
-        console.error('Error connecting wallet:', err);
-        error('Failed to connect wallet. Please try again.');
-      }
-    } else {
-      error('Phantom wallet not detected. Please install Phantom browser extension.');
-    }
-  };
-
   const handlePayment = async () => {
     if (!user) {
       error('You must be logged in to make a payment. Please sign in first.');
@@ -77,8 +45,13 @@ export default function PaymentPage() {
       return;
     }
 
-    if (!walletConnected) {
+    if (!connected) {
       error('Please connect your Solana wallet first.');
+      return;
+    }
+
+    if (creditsToBuy < MIN_CREDITS) {
+      error(`Minimum purchase is ${MIN_CREDITS} credits.`);
       return;
     }
 
@@ -88,7 +61,7 @@ export default function PaymentPage() {
       // Create a Solana payment request
       const paymentData = {
         userId: user?.id || 'current_user_id', // Use actual user ID from auth context
-        amount: plans[selectedPlan].price, // Amount in USD
+        amount: parseFloat(usdAmount), // Variable amount in USD
         token: 'USDC' as const, // Could be USDC, USDT, or CASH
         recipientPublicKey: process.env.NEXT_PUBLIC_PAYMENT_WALLET || 'DUMMY_WALLET_ADDRESS', // Payment wallet
       };
@@ -99,61 +72,87 @@ export default function PaymentPage() {
       if (result.success && result.transactionId) {
         console.log(`Payment request created: ${result.transactionId}`);
 
-        // In a real implementation, this would trigger the wallet interaction
-        // to initiate the actual blockchain transaction
+        // Create and send actual Solana transaction for user approval
+        if (publicKey && connected) {
+          try {
+            // Calculate lamports (for demonstration - in a real app, we'd handle USDC/USDT tokens)
+            // For now, we'll create a simple transfer transaction to demonstrate the process
+            const lamports = Math.round(parseFloat(usdAmount) * 1_000_000); // Convert to lamports (simplified)
 
-        // For now, simulate the process and add credits after "payment"
-        // In real implementation, we'd wait for blockchain confirmation
-        success('Payment request created! Please complete the transaction in your wallet.');
+            const transaction = new Transaction().add(
+              SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: new PublicKey(paymentData.recipientPublicKey),
+                lamports: lamports > 0 ? lamports : 10000, // Ensure at least 0.00001 SOL
+              })
+            );
 
-        // In a real implementation, we would:
-        // 1. Return transaction details to the frontend
-        // 2. Have the frontend initiate the actual Solana transaction
-        // 3. Verify the transaction on the blockchain
-        // 4. Add credits to the user account
+            // Get the latest blockhash for the transaction
+            const { blockhash } = await connection.getLatestBlockhash();
+            transaction.recentBlockhash = blockhash;
+            transaction.feePayer = publicKey;
 
-        // For demo purposes, simulate adding credits after payment
-        setTimeout(async () => {
-          const verificationResult = await x402Service.verifySolanaPayment(result.transactionId!);
-          if (verificationResult.success) {
-            // Calculate credits based on the selected plan
-            const creditsToAdd = plans[selectedPlan].credits;
+            // Send transaction to user's wallet for approval using the wallet adapter
+            const signature = await sendTransaction(transaction, connection);
 
-            // Add credits to user account via API call
-            try {
-              const response = await fetch('/api/user/credits', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  userId: user?.id,
-                  amount: creditsToAdd,
-                  transactionId: result.transactionId
-                }),
-              });
+            success('Transaction confirmed! Adding credits to your account...');
 
-              if (response.ok) {
-                success(`Payment confirmed! ${creditsToAdd} credits have been added to your account.`);
-                router.push('/dashboard');
-              } else {
-                const errorData = await response.json();
-                error(`Payment verified but failed to add credits: ${errorData.error}`);
+            // Verify the transaction and add credits
+            const verificationResult = await x402Service.verifySolanaPayment(signature, creditsToBuy);
+            if (verificationResult.success) {
+              // Calculate credits based on the purchased amount
+              const creditsToAdd = verificationResult.creditsAdded || creditsToBuy;
+
+              // Add credits to user account via API call
+              try {
+                const response = await fetch('/api/user/credits', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token || ''}`, // Use session access token
+                  },
+                  body: JSON.stringify({
+                    amount: creditsToAdd,
+                    transactionId: signature
+                  }),
+                });
+
+                if (response.ok) {
+                  const data = await response.json();
+                  success(`Payment confirmed! ${data.message || `${creditsToAdd} credits have been added to your account.`}`);
+                  router.push('/dashboard');
+                } else {
+                  const errorData = await response.json();
+                  error(`Payment verified but failed to add credits: ${errorData.error || 'Unknown error'}`);
+                  router.push('/dashboard');
+                }
+              } catch (apiError) {
+                console.error('Error adding credits:', apiError);
+                error('Payment verified but failed to add credits. Please contact support.');
                 router.push('/dashboard');
               }
-            } catch (apiError) {
-              console.error('Error adding credits:', apiError);
-              error('Payment verified but failed to add credits. Please contact support.');
-              router.push('/dashboard');
+            } else {
+              error('Payment verification failed. Please contact support if you were charged.');
             }
-          } else {
-            error('Payment verification failed. Please contact support if you were charged.');
+          } catch (walletError: unknown) {
+            if (walletError instanceof Error) {
+              if (walletError.message.includes('User rejected') || walletError.message.includes('cancelled')) {
+                error('Transaction was cancelled. No charges were made.');
+              } else {
+                console.error('Wallet transaction error:', walletError);
+                error('Failed to process wallet transaction. Please make sure your wallet is connected and try again.');
+              }
+            } else {
+              console.error('Wallet transaction error:', walletError);
+              error('Failed to process wallet transaction. Please make sure your wallet is connected and try again.');
+            }
           }
-        }, 200); // Simulate 2 seconds for wallet transaction
-
+        } else {
+          error('Wallet not connected. Please connect your Solana wallet first.');
+        }
       } else {
         console.error('Payment request failed:', result.error);
-        error(`Payment request failed: ${result.error}`);
+        error(`Payment request failed: ${result.error || 'Unknown error occurred'}`);
       }
     } catch (err) {
       console.error('Payment error:', err);
@@ -222,99 +221,62 @@ export default function PaymentPage() {
                       Required for x402 payments via Solana blockchain
                     </p>
                   </div>
-                  <Button
-                    onClick={walletConnected ? undefined : connectWallet}
-                    disabled={walletConnected}
-                    className={`${walletConnected
-                      ? 'bg-green-500 hover:bg-green-600'
-                      : 'bg-purple-600 hover:bg-purple-700'
-                      }`}
-                  >
-                    {walletConnected ? (
-                      <span className="truncate max-w-[120px]">
-                        {walletAddress?.slice(0, 4)}...{walletAddress?.slice(-4)}
-                      </span>
-                    ) : (
-                      'Connect Phantom Wallet'
-                    )}
-                  </Button>
+                  <div className="w-full sm:w-auto">
+                    <WalletMultiButton className="w-full" />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {Object.entries(plans).map(([key, plan]) => (
-                  <Card
-                    key={key}
-                    className={`cursor-pointer transition-all ${selectedPlan === key
-                      ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20'
-                      : 'hover:shadow-md'
-                      }`}
-                    onClick={() => setSelectedPlan(key as 'basic' | 'premium')}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {plan.name}
-                          </h3>
-                          <p className="text-gray-600 dark:text-gray-400 text-sm">
-                            {plan.description}
-                          </p>
-                        </div>
-                        <span className="text-2xl font-bold text-green-600">
-                          ${plan.price}
-                        </span>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between py-2">
-                          <span className="text-gray-600 dark:text-gray-400">Credits:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {plan.credits}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between py-2">
-                          <span className="text-gray-600 dark:text-gray-400">AI Interactions:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {plan.credits} questions/analyses
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button
-                        className={`w-full mt-4 ${selectedPlan === key
-                          ? 'bg-gradient-to-r from-green-600 to-lime-500 text-gray-900'
-                          : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                          }`}
-                      >
-                        {selectedPlan === key ? 'Selected' : 'Select Plan'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="mb-8 p-6 border rounded-lg shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  Granular Credit Purchase
+                </h3>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="credit-slider" className="text-lg font-medium">
+                      Credits to Buy: <span className="text-green-600 dark:text-green-400">{creditsToBuy}</span>
+                    </Label>
+                    <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                      ${usdAmount} USD
+                    </span>
+                  </div>
+                  <Slider
+                    id="credit-slider"
+                    min={MIN_CREDITS}
+                    max={MAX_CREDITS}
+                    step={1}
+                    value={[creditsToBuy]}
+                    onValueChange={(value) => setCreditsToBuy(value[0])}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                    <span>{MIN_CREDITS} Credits (${(MIN_CREDITS * CREDIT_TO_USD_RATE).toFixed(2)})</span>
+                    <span>{MAX_CREDITS} Credits (${(MAX_CREDITS * CREDIT_TO_USD_RATE).toFixed(2)})</span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Total: ${plans[selectedPlan].price}
+                    Total: ${usdAmount} USD
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {plans[selectedPlan].credits} credits
+                    {creditsToBuy} credits
                   </p>
                 </div>
                 <Button
                   onClick={handlePayment}
-                  disabled={isProcessing || !walletConnected}
-                  className={`w-full sm:w-auto ${walletConnected
+                  disabled={isProcessing || !connected || creditsToBuy < MIN_CREDITS}
+                  className={`w-full sm:w-auto ${connected
                     ? 'bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90'
                     : 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     }`}
                 >
                   {isProcessing
                     ? 'Processing...'
-                    : walletConnected
-                      ? `Pay with Solana (${plans[selectedPlan].price} USD)`
+                    : connected
+                      ? `Pay with Solana (${usdAmount} USD)`
                       : 'Connect Wallet First'}
                 </Button>
               </div>

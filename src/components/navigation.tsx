@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sheet';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import CreditDisplay from '@/components/credit-display';
 
 export default function Navigation() {
   const [open, setOpen] = useState(false);
@@ -22,11 +23,12 @@ export default function Navigation() {
   const { user, signOut } = authContext;
 
   const navItems = [
-    { name: 'Home', icon: Home, href: '/' },
-    { name: 'About', icon: Info, href: '/about' },
-    { name: 'Practice', icon: FileText, href: '/interview' },
-    { name: 'Feedback', icon: MessageSquare, href: '/feedback' },
+    // { name: 'Home', icon: Home, href: '/' },
+
+    { name: 'Start Interview', icon: FileText, href: '/interview' },
+    { name: 'Feedback & Practice', icon: MessageSquare, href: '/feedback' },
     { name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
+    { name: 'About', icon: Info, href: '/about' },
     // Profile link will be conditionally rendered when user is authenticated
   ];
 
@@ -54,16 +56,15 @@ export default function Navigation() {
           className="flex items-center cursor-pointer"
           onClick={() => router.push('/')}
         >
-          <div className="mr-2 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-green-700 to-lime-600 text-white">
-            <span className="font-bold">AI</span>
-          </div>
+          <img src="/logo.png" alt="Ainterview Logo" className="mr-2 h-10 w-10" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Ainterview
           </h1>
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-1">
+        <nav className="hidden md:flex items-center space-x-4">
+          <CreditDisplay />
           {navItems.map((item) => (
             <Button
               key={item.name}
@@ -125,6 +126,7 @@ export default function Navigation() {
               </SheetTitle>
             </SheetHeader>
             <div className="flex flex-col space-y-2 mt-6">
+              <CreditDisplay className="mb-4" />
               {navItems.map((item) => (
                 <Button
                   key={item.name}

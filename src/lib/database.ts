@@ -618,12 +618,30 @@ export async function getUserCredits(userId: string): Promise<number> {
     .eq("user_id", userId)
     .single();
 
-  if (result.error && result.error.code !== "PGRST116") {
-    console.error("Error fetching user credits:", result.error);
-    return 0;
+  if (result.error) {
+    if (result.error.code === "PGRST116") {
+      // No record found, create a default record with 0 credits
+      const insertResult = await supabaseServerClient
+        .from("user_credits")
+        .insert([{ user_id: userId, credits: 0 }])
+        .select("credits")
+        .single();
+
+      if (insertResult.error) {
+        console.error(
+          "Error creating user credits record:",
+          insertResult.error
+        );
+        return 0;
+      }
+
+      return insertResult.data.credits;
+    } else {
+      console.error("Error fetching user credits:", result.error);
+      return 0;
+    }
   }
 
-  // If no record is found (PGRST116), return 0 credits
   return result.data?.credits ?? 0;
 }
 

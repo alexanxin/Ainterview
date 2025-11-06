@@ -333,7 +333,7 @@ export class GeminiService {
       });
 
       // Use the unified API client
-      return await this.callGeminiAPI(
+      const data = await this.callGeminiAPI<{ questions: string[] }>(
         "generateFlow",
         {
           context: sanitizedContext,
@@ -344,6 +344,7 @@ export class GeminiService {
         onPaymentSuccess,
         onPaymentFailure
       );
+      return data.questions || [];
     } catch (error) {
       Logger.error("Error generating interview flow:", {
         error: error instanceof Error ? error.message : String(error),

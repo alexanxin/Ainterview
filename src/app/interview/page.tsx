@@ -511,10 +511,10 @@ export default function InterviewPage() {
               <span className="text-2xl font-bold">AI</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-              AI Interview <span className="text-green-600">Preparation</span>
+              Start Your <span className="text-green-600">Personalized</span> Interview
             </h1>
             <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Personalize your interview experience with AI-powered practice
+              Tailor your practice session with a job posting and your CV for the most realistic AI interview experience.
             </p>
           </div>
 
@@ -733,7 +733,7 @@ export default function InterviewPage() {
                       <span>10 questions</span>
                     </div>
                     <RangeInput
-                      defaultValue="5" 
+                      defaultValue="5"
                       min="5"
                       max="10"
                       step="1"

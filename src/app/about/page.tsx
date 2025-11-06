@@ -45,7 +45,7 @@ export default function AboutPage() {
     {
       step: 2,
       title: "Answer Tailored Questions",
-      description: "Respond to 5 AI-generated questions tailored specifically to the job and your background."
+      description: "Respond to 5-10 AI-generated questions tailored specifically to the job and your background."
     },
     {
       step: 3,

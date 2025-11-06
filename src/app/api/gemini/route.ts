@@ -71,8 +71,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Determine the cost based on the action and parameters
+    let cost = 1; // Default cost
+
+    // Charge for different actions appropriately
+    // For interview flows, only charge for feedback/analysis, not for question generation
+    if (action === "generateFlow") {
+      // Don't charge for generating the flow of questions
+      cost = 0; // No cost for question generation
+    } else if (action === "analyzeAnswer") {
+      // Charge for individual answer analysis
+      cost = 1; // Charge 1 credit per answer analysis
+    } else if (action === "batchEvaluate") {
+      // Charge for batch evaluation based on number of answers
+      cost = answers ? answers.length : 1; // Charge per answer in batch
+    } else if (action === "generateQuestion") {
+      // Don't charge for generating a single question
+      cost = 0; // No cost for question generation
+    } else if (action === "generateSimilarQuestion") {
+      // Don't charge for generating similar questions
+      cost = 0; // No cost for question generation
+    } else {
+      // Default cost for other actions
+      cost = 1;
+    }
+
     // Check if user has sufficient credits or if payment is provided
-    const usageCheck = await checkUsage(userId || "anonymous", action, req);
+    const usageCheck = await checkUsage(
+      userId || "anonymous",
+      action,
+      req,
+      cost
+    );
 
     if (!usageCheck.allowed) {
       Logger.warn("User has insufficient credits", {
@@ -981,7 +1011,7 @@ export async function POST(req: NextRequest) {
     const usageRecorded = await recordUsageWithDatabase(
       userId || "anonymous",
       action,
-      usageCheck.cost,
+      cost,
       usageCheck.freeInterviewUsed,
       wasPaymentJustVerified
     );

@@ -96,45 +96,44 @@ export default function Home() {
         <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
         <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
       </div>
-      
+
       <Navigation />
       <main className="flex w-full flex-1 items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-6xl py-12 px-4">
           {/* Hero Section */}
           <div className="text-center mb-16">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white mx-auto">
-              <span className="text-3xl font-bold">AI</span>
+              <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-              Ace Your Next Interview with <span className="text-green-600">AI-Powered</span> Practice
+              Rehearse for Success: <span className="text-green-600">Master</span> your interview skills
             </h1>
             <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-10">
-              Transform your interview preparation with personalized AI simulations that mirror real hiring manager expectations. 
-              Practice with confidence and land your dream job.
+              AI-powered, personalized practice that transforms your interview preparation and helps you land your dream job.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <Button 
-                className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90" 
+              <Button
+                className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                 onClick={() => router.push('/interview')}
               >
                 Start Free Interview Practice
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-auto py-6 text-lg px-8" 
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto py-6 text-lg px-8"
                 onClick={() => router.push('/about')}
               >
                 See How It Works
               </Button>
             </div>
-            
+
             <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
               <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
               First interview completely free • No credit card required
             </div>
           </div>
-          
+
           {/* Stats Section */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
             {stats.map((stat, index) => (
@@ -144,13 +143,13 @@ export default function Home() {
               </div>
             ))}
           </div>
-          
+
           {/* Features Section */}
           <div className="mb-16">
             <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-12">
               Why Ainterview Stands Apart
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {features.map((feature, index) => (
                 <Card key={index} className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
@@ -174,13 +173,13 @@ export default function Home() {
               ))}
             </div>
           </div>
-          
+
           {/* Upcoming Features Section */}
           <div className="mb-16">
             <h2 className="text-2xl font-semibold text-center text-gray-900 dark:text-white mb-8">
               Coming Soon
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {upcomingFeatures.map((feature, index) => (
                 <Card key={index} className="dark:bg-gray-800/30 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
@@ -202,7 +201,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-          
+
           {/* CTA Section */}
           <Card className="bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-800 dark:to-gray-900 border-green-200 dark:border-green-900/50">
             <CardHeader className="text-center border-b border-gray-200 dark:border-gray-700">
@@ -214,22 +213,22 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
-                className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90" 
+              <Button
+                className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                 onClick={() => router.push('/interview')}
               >
                 Start Your Free Interview
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-auto py-6 text-lg px-8 bg-white dark:bg-gray-800" 
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto py-6 text-lg px-8 bg-white dark:bg-gray-800"
                 onClick={() => router.push('/dashboard')}
               >
                 View Demo Results
               </Button>
             </CardContent>
           </Card>
-          
+
           {/* PWA Notice */}
           <div className="mt-12 text-center">
             <div className="inline-flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 px-4 py-2 rounded-full text-sm font-medium">

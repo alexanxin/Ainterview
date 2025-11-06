@@ -112,9 +112,10 @@ export async function verifyPaymentSignature(
 export async function checkUsage(
   userId: string,
   action: string,
-  req?: NextRequest
+  req?: NextRequest,
+  customCost?: number
 ): Promise<UsageCheckResult> {
-  const cost = 1; // Each action costs 1 credit
+  const cost = customCost || 1; // Use custom cost if provided, otherwise default to 1 credit
 
   if (!userId || userId === "anonymous") {
     // For anonymous users, only allow basic usage with no personalization
