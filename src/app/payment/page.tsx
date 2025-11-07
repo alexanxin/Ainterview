@@ -10,11 +10,16 @@ import Navigation from '@/components/navigation';
 import { x402Service } from '@/lib/x402-payment-service';
 import { useToast } from '@/lib/toast';
 import { useAuth } from '@/lib/auth-context';
+import { useCreditRefresh } from '@/lib/credit-context';
 
 // Solana wallet adapter imports
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
+import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+
+// Define the associated token program ID
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
 const CREDIT_TO_USD_RATE = 0.10; // 1 credit = $0.10 USD
 const MIN_CREDITS = 5; // Minimum purchase of $0.50 USD
@@ -22,8 +27,10 @@ const MAX_CREDITS = 100; // Maximum purchase of $10.00 USD
 
 export default function PaymentPage() {
   const [creditsToBuy, setCreditsToBuy] = useState(MIN_CREDITS);
+  const [selectedToken, setSelectedToken] = useState<'USDC' | 'PYUSD' | 'CASH'>('USDC'); // New state for token selection
   const [isProcessing, setIsProcessing] = useState(false);
   const { user, session, loading } = useAuth(); // Get user and session from auth context
+  const { refreshCredits } = useCreditRefresh();
   const { connection } = useConnection();
   const { publicKey, connected, sendTransaction } = useWallet();
   const router = useRouter();
@@ -62,7 +69,7 @@ export default function PaymentPage() {
       const paymentData = {
         userId: user?.id || 'current_user_id', // Use actual user ID from auth context
         amount: parseFloat(usdAmount), // Variable amount in USD
-        token: 'USDC' as const, // Could be USDC, USDT, or CASH
+        token: selectedToken, // Use selected token
         recipientPublicKey: process.env.NEXT_PUBLIC_PAYMENT_WALLET || 'DUMMY_WALLET_ADDRESS', // Payment wallet
       };
 
@@ -75,17 +82,106 @@ export default function PaymentPage() {
         // Create and send actual Solana transaction for user approval
         if (publicKey && connected) {
           try {
-            // Calculate lamports (for demonstration - in a real app, we'd handle USDC/USDT tokens)
-            // For now, we'll create a simple transfer transaction to demonstrate the process
-            const lamports = Math.round(parseFloat(usdAmount) * 1_000_000); // Convert to lamports (simplified)
+            // Get token mint address based on selected token and network
+            const mainnetTokenMintAddresses: Record<string, string> = {
+              USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Mainnet USDC
+              PYUSD: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", // Mainnet PYUSD
+              CASH: "CASHXWvxwjmrRdjMGJtD4K58z9mJYwg4x4Qq5NmN7cdL", // Placeholder for CASH
+            };
 
-            const transaction = new Transaction().add(
-              SystemProgram.transfer({
-                fromPubkey: publicKey,
-                toPubkey: new PublicKey(paymentData.recipientPublicKey),
-                lamports: lamports > 0 ? lamports : 10000, // Ensure at least 0.00001 SOL
-              })
+            const devnetTokenMintAddresses: Record<string, string> = {
+              USDC: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet USDC
+              PYUSD: "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM", // Devnet PYUSD
+              CASH: "CASHXWvxwjmrRdjMGJtD4K58z9mJYwg4x4Qq5NmN7cdL", // Placeholder for CASH
+            };
+
+            // Detect if we're on devnet
+            const isDevnet = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet" ||
+              process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.includes("devnet") ||
+              process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL?.includes("devnet") || false;
+            const tokenMintAddresses = isDevnet ? devnetTokenMintAddresses : mainnetTokenMintAddresses;
+
+            console.log('Network detection:', {
+              NEXT_PUBLIC_SOLANA_NETWORK: process.env.NEXT_PUBLIC_SOLANA_NETWORK,
+              NEXT_PUBLIC_SOLANA_RPC_URL: process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+              NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL,
+              isDevnet,
+              selectedTokenMintAddresses: tokenMintAddresses
+            });
+
+            const tokenMintAddress = tokenMintAddresses[selectedToken];
+            if (!tokenMintAddress) {
+              error(`Unsupported token: ${selectedToken}`);
+              return;
+            }
+
+            const tokenMintPublicKey = new PublicKey(tokenMintAddress);
+            const recipientPublicKey = new PublicKey(paymentData.recipientPublicKey);
+
+            // Get associated token accounts
+            const senderTokenAccount = await getAssociatedTokenAddress(
+              tokenMintPublicKey,
+              publicKey
             );
+
+            const recipientTokenAccount = await getAssociatedTokenAddress(
+              tokenMintPublicKey,
+              recipientPublicKey
+            );
+
+            // Check if recipient token account exists, if not create it
+            const transaction = new Transaction();
+
+            try {
+              // Check if recipient token account exists
+              const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+              if (!recipientAccountInfo) {
+                // Create recipient token account if it doesn't exist
+                const createRecipientAccountInstruction = createAssociatedTokenAccountInstruction(
+                  publicKey, // payer
+                  recipientTokenAccount, // associated token account
+                  recipientPublicKey, // owner
+                  tokenMintPublicKey // mint
+                );
+                transaction.add(createRecipientAccountInstruction);
+                console.log('Added instruction to create recipient token account');
+              }
+            } catch (error) {
+              console.error('Error checking recipient token account:', error);
+              // Create recipient token account as fallback
+              const createRecipientAccountInstruction = createAssociatedTokenAccountInstruction(
+                publicKey, // payer
+                recipientTokenAccount, // associated token account
+                recipientPublicKey, // owner
+                tokenMintPublicKey // mint
+              );
+              transaction.add(createRecipientAccountInstruction);
+              console.log('Added instruction to create recipient token account (fallback)');
+            }
+
+            // Calculate amount in token units (USDC/USDT have 6 decimals)
+            const tokenAmount = BigInt(Math.round(parseFloat(usdAmount) * 1_000_000)); // Convert USD to token units
+
+            // Debug logging
+            console.log('Payment details:', {
+              tokenMint: tokenMintAddress,
+              sender: publicKey.toString(),
+              senderTokenAccount: senderTokenAccount.toString(),
+              recipient: recipientPublicKey.toString(),
+              recipientTokenAccount: recipientTokenAccount.toString(),
+              tokenAmount: tokenAmount.toString(),
+              usdAmount
+            });
+
+            // Create token transfer instruction
+            const transferInstruction = createTransferInstruction(
+              senderTokenAccount,
+              recipientTokenAccount,
+              publicKey,
+              tokenAmount
+            );
+
+            transaction.add(transferInstruction);
 
             // Get the latest blockhash for the transaction
             const { blockhash } = await connection.getLatestBlockhash();
@@ -112,7 +208,7 @@ export default function PaymentPage() {
                     'Authorization': `Bearer ${session?.access_token || ''}`, // Use session access token
                   },
                   body: JSON.stringify({
-                    amount: creditsToAdd,
+                    usdAmount: parseFloat(usdAmount),
                     transactionId: signature
                   }),
                 });
@@ -120,6 +216,7 @@ export default function PaymentPage() {
                 if (response.ok) {
                   const data = await response.json();
                   success(`Payment confirmed! ${data.message || `${creditsToAdd} credits have been added to your account.`}`);
+                  refreshCredits(); // Trigger credit refresh after successful payment
                   router.push('/dashboard');
                 } else {
                   const errorData = await response.json();
@@ -227,6 +324,47 @@ export default function PaymentPage() {
                 </div>
               </div>
 
+              {/* Token Selection Section */}
+              <div className="mb-8 p-6 border rounded-lg shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  Select Payment Token
+                </h3>
+                <div className="flex flex-wrap gap-4">
+                  {['USDC', 'PYUSD'].map((token) => (
+                    <Button
+                      key={token}
+                      variant={selectedToken === token ? 'default' : 'outline'}
+                      onClick={() => setSelectedToken(token as 'USDC' | 'PYUSD' | 'CASH')}
+                      className={selectedToken === token ? 'bg-green-600 text-white' : 'dark:text-white'}
+                    >
+                      {token}
+                    </Button>
+                  ))}
+                  {process.env.NEXT_PUBLIC_SOLANA_NETWORK !== "devnet" && (
+                    <Button
+                      key="CASH"
+                      variant={selectedToken === 'CASH' ? 'default' : 'outline'}
+                      onClick={() => setSelectedToken('CASH')}
+                      className={selectedToken === 'CASH' ? 'bg-green-600 text-white' : 'dark:text-white'}
+                      title="Phantom CASH - Available on mainnet only"
+                    >
+                      CASH
+                    </Button>
+                  )}
+                  {process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet" && (
+                    <Button
+                      key="CASH-disabled"
+                      variant="outline"
+                      disabled
+                      className="dark:text-gray-500 cursor-not-allowed"
+                      title="Phantom CASH - Not available on devnet"
+                    >
+                      CASH
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="mb-8 p-6 border rounded-lg shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Granular Credit Purchase
@@ -276,7 +414,7 @@ export default function PaymentPage() {
                   {isProcessing
                     ? 'Processing...'
                     : connected
-                      ? `Pay with Solana (${usdAmount} USD)`
+                      ? `Pay with ${selectedToken} (${usdAmount} USD)`
                       : 'Connect Wallet First'}
                 </Button>
               </div>
@@ -292,14 +430,14 @@ export default function PaymentPage() {
                 <p className="text-sm text-green-700 dark:text-green-300 mt-2">
                   x402 is an autonomous payment protocol that allows for secure,
                   blockchain-based transactions. Your payment will be processed
-                  using Solana blockchain technology with support for USDC, USDT, and Phantom CASH.
+                  using Solana blockchain technology with support for USDC, PYUSD, and Phantom CASH.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="px-2 py-1 bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-200 rounded text-xs">
                     USDC
                   </span>
                   <span className="px-2 py-1 bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-200 rounded text-xs">
-                    USDT
+                    PYUSD
                   </span>
                   <span className="px-2 py-1 bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-200 rounded text-xs">
                     Phantom CASH
@@ -308,6 +446,37 @@ export default function PaymentPage() {
                     Solana Blockchain
                   </span>
                 </div>
+                {process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet" && (
+                  <div className="mt-4 p-3 rounded-lg">
+                    <h5 className="font-medium mb-2 dark:text-green-200">
+                      Devnet Token Faucets
+                    </h5>
+                    <div className="space-y-1 text-sm dark:text-green-300">
+                      <div>
+                        <strong>USDC:</strong>{" "}
+                        <a
+                          href="https://faucet.circle.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline "
+                        >
+                          https://faucet.circle.com/
+                        </a>
+                      </div>
+                      <div>
+                        <strong>PYUSD:</strong>{" "}
+                        <a
+                          href="https://cloud.google.com/application/web3/faucet/solana/devnet/pyusd"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline "
+                        >
+                          https://cloud.google.com/application/web3/faucet/solana/devnet/pyusd
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

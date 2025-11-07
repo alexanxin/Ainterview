@@ -9,6 +9,7 @@ import {
   deductUserCredits,
   getInterviewSessionsByUser,
   getQuestionsBySession,
+  createPaymentRecord,
 } from "@/lib/database";
 import { Logger } from "@/lib/logger";
 import { validatePaymentSignature } from "@/lib/x402-utils";
@@ -40,8 +41,15 @@ export async function verifyPaymentSignature(
   userId: string,
   req: NextRequest | undefined
 ): Promise<{ valid: boolean; error?: string; transactionId?: string }> {
+  Logger.info("Starting payment signature verification", {
+    userId,
+    hasRequest: !!req,
+    hasHeaders: !!(req && req.headers),
+  });
+
   // Check if req is undefined or if it doesn't have headers
   if (!req || !req.headers) {
+    Logger.warn("Request or headers not available", { userId });
     return { valid: false, error: "Request or headers not available" };
   }
 
@@ -115,6 +123,13 @@ export async function checkUsage(
   req?: NextRequest,
   customCost?: number
 ): Promise<UsageCheckResult> {
+  Logger.info("Checking user usage", {
+    userId,
+    action,
+    customCost,
+    hasRequest: !!req,
+  });
+
   const cost = customCost || 1; // Use custom cost if provided, otherwise default to 1 credit
 
   if (!userId || userId === "anonymous") {
@@ -200,6 +215,27 @@ export async function checkUsage(
     // For the new flow, we'll use 0.5 USDC for 5 credits as described in the proposal
     const micropaymentAmount = 0.5; // $0.50 USD for 5 credits
 
+    // Create a payment record for this payment request
+    try {
+      const paymentRecord = await createPaymentRecord({
+        user_id: userId,
+        transaction_id: `pending_${userId}_${Date.now()}`, // Temporary ID until actual transaction - uses user ID for easy lookup
+        expected_amount: micropaymentAmount,
+        token: "USDC",
+        recipient:
+          process.env.NEXT_PUBLIC_PAYMENT_WALLET || "YOUR_WALLET_ADDRESS",
+      });
+
+      if (!paymentRecord) {
+        Logger.error("Failed to create payment record for user", { userId });
+      }
+    } catch (error) {
+      Logger.error("Error creating payment record:", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+    }
+
     return {
       allowed: false,
       remaining: 0,
@@ -267,8 +303,17 @@ export async function recordUsageWithDatabase(
   freeInterviewAlreadyUsed: boolean,
   wasPaymentJustVerified: boolean = false
 ): Promise<boolean> {
+  Logger.info("Recording usage in database", {
+    userId,
+    action,
+    cost,
+    freeInterviewAlreadyUsed,
+    wasPaymentJustVerified,
+  });
+
   if (!userId || userId === "anonymous") {
     // Don't record usage for anonymous users
+    Logger.info("Not recording usage for anonymous user", { action });
     return true;
   }
 

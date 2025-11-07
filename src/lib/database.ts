@@ -59,6 +59,18 @@ export interface UsageRecord {
   created_at?: string;
 }
 
+// Payment record interface
+export interface PaymentRecord {
+  id: string;
+  user_id: string;
+  transaction_id: string;
+  expected_amount: number;
+  token: "USDC" | "USDT" | "CASH";
+  recipient: string;
+  status: "pending" | "confirmed" | "failed";
+  created_at: string;
+}
+
 // Profile operations
 export async function getUserProfile(
   userId: string
@@ -664,18 +676,78 @@ export async function addUserCredits(
 
   const supabaseServerClient =
     supabaseServer as import("@supabase/supabase-js").SupabaseClient;
-  // Use an RPC call to safely update the credits (upsert and increment)
-  const { error } = await supabaseServerClient.rpc("add_credits", {
-    p_user_id: userId,
-    p_amount: amount,
-  });
 
-  if (error) {
-    console.error("Error adding user credits via RPC:", error);
+  try {
+    // First, try the RPC function (if it exists)
+    const { error } = await supabaseServerClient.rpc("add_credits", {
+      p_user_id: userId,
+      p_amount: amount,
+    });
+
+    if (error) {
+      console.warn(
+        "RPC function add_credits not available, falling back to direct insert/update:",
+        error.message
+      );
+
+      // Fallback: Use direct insert/update if RPC doesn't exist
+      const { data, error: upsertError } = await supabaseServerClient
+        .from("user_credits")
+        .upsert(
+          {
+            user_id: userId,
+            credits: amount,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id",
+            ignoreDuplicates: false,
+          }
+        );
+
+      if (upsertError) {
+        console.error(
+          "Error adding user credits via direct insert/update:",
+          upsertError
+        );
+
+        // Try alternative: Get current credits and update
+        const { data: currentCredits, error: fetchError } =
+          await supabaseServerClient
+            .from("user_credits")
+            .select("credits")
+            .eq("user_id", userId)
+            .single();
+
+        if (fetchError && fetchError.code !== "PGRST116") {
+          console.error("Error fetching current credits:", fetchError);
+          return false;
+        }
+
+        const currentAmount = currentCredits?.credits || 0;
+        const { error: updateError } = await supabaseServerClient
+          .from("user_credits")
+          .upsert({
+            user_id: userId,
+            credits: currentAmount + amount,
+            updated_at: new Date().toISOString(),
+          });
+
+        if (updateError) {
+          console.error(
+            "Error updating user credits via alternative method:",
+            updateError
+          );
+          return false;
+        }
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error("Error in addUserCredits:", err);
     return false;
   }
-
-  return true;
 }
 
 export async function deductUserCredits(
@@ -715,3 +787,162 @@ export async function deductUserCredits(
   // Assuming success if no error is returned, as the RPC should handle the logic
   return true;
 }
+
+// Payment record operations
+export async function createPaymentRecord(
+  paymentData: Omit<PaymentRecord, "id" | "created_at" | "status">
+): Promise<PaymentRecord | null> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  const { data, error } = await supabaseServerClient
+    .from("payment_records")
+    .insert([{ ...paymentData, status: "pending" }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating payment record:", error);
+    return null;
+  }
+
+  return data as PaymentRecord;
+}
+
+export async function getPaymentRecordByTransactionId(
+  transactionId: string
+): Promise<PaymentRecord | null> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return null;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  const { data, error } = await supabaseServerClient
+    .from("payment_records")
+    .select("*")
+    .eq("transaction_id", transactionId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // Record not found, which is fine
+      return null;
+    }
+    console.error("Error fetching payment record:", error);
+    return null;
+  }
+
+  return data as PaymentRecord;
+}
+
+export async function updatePaymentRecordStatus(
+  transactionId: string,
+  status: "pending" | "confirmed" | "failed"
+): Promise<boolean> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+  const { error } = await supabaseServerClient
+    .from("payment_records")
+    .update({ status })
+    .eq("transaction_id", transactionId);
+
+  if (error) {
+    console.error("Error updating payment record status:", error);
+    return false;
+  }
+
+  return true;
+}
+
+// Function to update the transaction ID for a payment record
+// This is used when we initially create a payment record with a temporary ID
+// and then update it with the actual transaction signature
+export async function updatePaymentRecordTransactionId(
+  tempTransactionId: string,
+  actualTransactionId: string
+): Promise<boolean> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  const { error } = await supabaseServerClient
+    .from("payment_records")
+    .update({
+      transaction_id: actualTransactionId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("transaction_id", tempTransactionId);
+
+  if (error) {
+    console.error("Error updating payment record transaction ID:", error);
+    return false;
+  }
+
+  return true;
+}
+
+// Function to get pending payment records for a user
+// This is used to find recently created payment records that need to be updated
+export async function getPendingPaymentRecordsByUser(
+  userId: string,
+  minutesBack: number = 10 // Look back 10 minutes for pending payments
+): Promise<PaymentRecord[]> {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return [];
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  const cutoffTime = new Date(
+    Date.now() - minutesBack * 60 * 1000
+  ).toISOString();
+
+  const { data, error } = await supabaseServerClient
+    .from("payment_records")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .gte("created_at", cutoffTime)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching pending payment records:", error);
+    return [];
+  }
+
+  return data as PaymentRecord[];
+}
+
+// Functions already exported above

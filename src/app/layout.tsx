@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { CreditProvider } from "@/lib/credit-context";
 import { Toaster } from "sonner";
 import SolanaWalletProvider from "@/components/solana-wallet-provider";
 
@@ -42,7 +43,9 @@ export default function RootLayout({
       >
         <SolanaWalletProvider>
           <AuthProvider>
-            {children}
+            <CreditProvider>
+              {children}
+            </CreditProvider>
           </AuthProvider>
         </SolanaWalletProvider>
         <Toaster

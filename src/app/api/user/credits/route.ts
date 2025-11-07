@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserCredits } from "@/lib/database";
 import { Logger } from "@/lib/logger";
+import { processCompletedX402Payment } from "@/lib/x402-utils";
 import { supabaseServer } from "@/lib/supabase-server";
 import { SupabaseClient } from "@supabase/supabase-js";
 
@@ -99,30 +100,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { amount, transactionId } = await req.json();
+    const { usdAmount, transactionId } = await req.json();
     Logger.info("POST /api/user/credits - Request body:", {
       userId,
-      amount,
+      usdAmount,
       transactionId,
     });
 
-    if (!amount || amount <= 0) {
+    if (!usdAmount || usdAmount <= 0) {
       return NextResponse.json(
-        { error: "Amount is required and must be greater than 0" },
+        { error: "USD amount is required and must be greater than 0" },
         { status: 400 }
       );
     }
 
-    // Add credits to the user's account
-    const { addUserCredits } = await import("@/lib/database");
-    const success = await addUserCredits(userId, amount);
+    if (!transactionId) {
+      return NextResponse.json(
+        { error: "Transaction ID is required" },
+        { status: 400 }
+      );
+    }
 
-    if (success) {
+    // Assuming USDC has 6 decimals, 1 USDC = 1,000,000 atomic units.
+    const expectedAmountAtomic = Math.round(usdAmount * 1000000);
+
+    // Process and verify the payment
+    const verificationResult = await processCompletedX402Payment(
+      userId,
+      transactionId,
+      expectedAmountAtomic,
+      usdAmount,
+      "USDC" // Assuming USDC as the token based on client code
+    );
+
+    Logger.info("POST /api/user/credits - Payment verification result:", {
+      userId,
+      transactionId,
+      success: verificationResult.success,
+      error: verificationResult.error,
+      creditsAdded: verificationResult.creditsAdded,
+    });
+
+    if (verificationResult.success) {
       // Fetch updated credit balance
       const updatedCredits = await getUserCredits(userId);
       Logger.info("POST /api/user/credits - Credits added successfully:", {
         userId,
-        amount,
+        usdAmount,
+        creditsAdded: verificationResult.creditsAdded,
         newBalance: updatedCredits,
       });
 
@@ -131,7 +156,7 @@ export async function POST(req: NextRequest) {
       await recordUsage({
         user_id: userId,
         action: "add_credits",
-        cost: -amount, // Negative cost indicates credits added
+        cost: -(verificationResult.creditsAdded || 0), // Negative cost indicates credits added
         free_interview_used: false,
       });
 
@@ -139,17 +164,18 @@ export async function POST(req: NextRequest) {
         {
           success: true,
           credits: updatedCredits,
-          message: `${amount} credits added successfully`,
+          message: `${verificationResult.creditsAdded} credits added successfully`,
         },
         { status: 200 }
       );
     } else {
       Logger.error("POST /api/user/credits - Failed to add credits:", {
         userId,
-        amount,
+        usdAmount,
+        error: verificationResult.error,
       });
       return NextResponse.json(
-        { error: "Failed to add credits" },
+        { error: verificationResult.error || "Failed to add credits" },
         { status: 500 }
       );
     }

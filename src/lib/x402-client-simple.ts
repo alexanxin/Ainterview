@@ -228,20 +228,116 @@ export async function handleX402PaymentFlow(
 }
 
 /**
- * Simulates transaction creation (in a real implementation, this would interact with Solana)
+ * Creates a real Solana transaction for x402 payment
  */
 async function simulateTransactionCreation(
   connection: any,
   wallet: any,
   paymentRequirements: X402PaymentRequirements
 ): Promise<string> {
-  // This is a simulation - in a real implementation, you would:
-  // 1. Create a Solana transaction with the payment details
-  // 2. Have the user's wallet sign it
-  // 3. Return the serialized transaction
+  try {
+    // Import Solana dependencies
+    const { Transaction, SystemProgram, PublicKey } = await import(
+      "@solana/web3.js"
+    );
+    const {
+      createTransferInstruction,
+      getAssociatedTokenAddress,
+      TOKEN_PROGRAM_ID,
+      createAssociatedTokenAccountInstruction,
+    } = await import("@solana/spl-token");
 
-  // For simulation purposes, return a mock serialized transaction
-  return "mock_serialized_transaction_" + Date.now();
+    // Check if wallet is connected
+    if (!wallet?.publicKey) {
+      throw new Error("Wallet not connected");
+    }
+
+    // Parse payment requirements
+    const recipientPublicKey = new PublicKey(paymentRequirements.payTo);
+    const tokenMintPublicKey = new PublicKey(paymentRequirements.asset);
+    const senderPublicKey = wallet.publicKey;
+
+    // Get associated token accounts
+    const senderTokenAccount = await getAssociatedTokenAddress(
+      tokenMintPublicKey,
+      senderPublicKey
+    );
+
+    const recipientTokenAccount = await getAssociatedTokenAddress(
+      tokenMintPublicKey,
+      recipientPublicKey
+    );
+
+    // Create transaction
+    const transaction = new Transaction();
+
+    // Check if recipient token account exists, if not create it
+    try {
+      const recipientAccountInfo = await connection.getAccountInfo(
+        recipientTokenAccount
+      );
+      if (!recipientAccountInfo) {
+        const createRecipientAccountInstruction =
+          createAssociatedTokenAccountInstruction(
+            senderPublicKey, // payer
+            recipientTokenAccount, // associated token account
+            recipientPublicKey, // owner
+            tokenMintPublicKey // mint
+          );
+        transaction.add(createRecipientAccountInstruction);
+      }
+    } catch (error) {
+      // Create recipient token account as fallback
+      const createRecipientAccountInstruction =
+        createAssociatedTokenAccountInstruction(
+          senderPublicKey, // payer
+          recipientTokenAccount, // associated token account
+          recipientPublicKey, // owner
+          tokenMintPublicKey // mint
+        );
+      transaction.add(createRecipientAccountInstruction);
+    }
+
+    // Calculate amount in token units (USDC/USDT have 6 decimals)
+    const tokenAmount = BigInt(paymentRequirements.maxAmountRequired);
+
+    // Create token transfer instruction
+    const transferInstruction = createTransferInstruction(
+      senderTokenAccount,
+      recipientTokenAccount,
+      senderPublicKey,
+      tokenAmount
+    );
+
+    transaction.add(transferInstruction);
+
+    // Get the latest blockhash for the transaction
+    const { blockhash } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = senderPublicKey;
+
+    // Sign the transaction with the wallet
+    const signedTransaction = await wallet.signTransaction(transaction);
+
+    // Serialize the transaction
+    const serializedTransaction = signedTransaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    });
+
+    // Convert to base64 for x402 header
+    return Buffer.from(serializedTransaction).toString("base64");
+  } catch (error) {
+    Logger.error("Error creating real Solana transaction:", {
+      error: error instanceof Error ? error.message : String(error),
+      paymentRequirements,
+    });
+    throw new Error(
+      `Failed to create transaction: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
 }
 
 /**

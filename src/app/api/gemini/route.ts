@@ -38,6 +38,12 @@ interface ApiResult {
 
 export async function POST(req: NextRequest) {
   try {
+    Logger.info("Received Gemini API request", {
+      url: req.url,
+      method: req.method,
+      headers: Object.fromEntries(req.headers.entries()),
+    });
+
     const {
       action,
       context,
@@ -96,6 +102,13 @@ export async function POST(req: NextRequest) {
       cost = 1;
     }
 
+    Logger.info("Performing usage check", {
+      userId,
+      action,
+      cost,
+      hasRequest: !!req,
+    });
+
     // Check if user has sufficient credits or if payment is provided
     const usageCheck = await checkUsage(
       userId || "anonymous",
@@ -104,12 +117,29 @@ export async function POST(req: NextRequest) {
       cost
     );
 
+    Logger.info("Usage check completed", {
+      userId,
+      action,
+      allowed: usageCheck.allowed,
+      creditsAvailable: usageCheck.creditsAvailable,
+      cost: usageCheck.cost,
+      needsPayment: !!usageCheck.paymentRequired,
+    });
+
     if (!usageCheck.allowed) {
       Logger.warn("User has insufficient credits", {
         userId,
         action,
         creditsAvailable: usageCheck.creditsAvailable,
         cost: usageCheck.cost,
+      });
+
+      Logger.warn("User has insufficient credits, preparing payment response", {
+        userId,
+        action,
+        creditsAvailable: usageCheck.creditsAvailable,
+        cost: usageCheck.cost,
+        paymentRequired: usageCheck.paymentRequired,
       });
 
       // Get x402 payment response with standardized format
@@ -1003,6 +1033,14 @@ export async function POST(req: NextRequest) {
         Logger.error("Invalid action provided", { action, userId });
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
+
+    Logger.info("About to record usage after successful processing", {
+      userId,
+      action,
+      cost,
+      freeInterviewUsed: usageCheck.freeInterviewUsed,
+      wasPaymentJustVerified: !!req && !!req.headers.get("X-PAYMENT"),
+    });
 
     // Record usage after successful processing
     // Using the dedicated function that handles server-side authentication

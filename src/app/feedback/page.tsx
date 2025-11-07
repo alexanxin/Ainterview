@@ -47,6 +47,7 @@ export default function FeedbackPage() {
 
   // Load interviews and feedback from database on component mount
   const loadInterviews = async (forceRefresh: boolean = false) => {
+    console.time('loadInterviews-total');
     if (loading) return; // Wait for auth state to load
     if (!user) {
       router.push('/auth?redirect=/feedback');
@@ -56,13 +57,17 @@ export default function FeedbackPage() {
     // Check if we have recent data (less than 5 minutes old) and not forcing refresh
     const now = Date.now();
     if (!forceRefresh && lastUpdated && (now - lastUpdated) < 5 * 60 * 1000) { // 5 minutes in milliseconds
+      console.log('Using cached data, skipping reload');
       return; // Data is still fresh, no need to reload
     }
 
     setIsLoading(true);
     try {
+      console.time('getInterviewSessionsByUser');
       // Get all interview sessions for the user
       const sessions = await getInterviewSessionsByUser(user.id);
+      console.timeEnd('getInterviewSessionsByUser');
+      console.log(`Found ${sessions.length} sessions`);
 
       if (sessions.length === 0) {
         setInterviews([]);
@@ -72,15 +77,18 @@ export default function FeedbackPage() {
         return;
       }
 
-      const interviewsWithFeedback: InterviewWithFeedback[] = [];
+      console.time('process-sessions-loop');
 
-      // Process each session to get its questions and answers
-      for (const session of sessions) {
-        // Get questions for this session
-        const questions = await getQuestionsBySession(session.id!);
-
-        // Get answers for this session
-        const answers = await getAnswersBySession(session.id!);
+      // Parallelize API calls for all sessions
+      const sessionPromises = sessions.map(async (session) => {
+        console.time(`session-${session.id}-apis`);
+        // Get questions and answers for this session in parallel
+        const [questions, answers] = await Promise.all([
+          getQuestionsBySession(session.id!),
+          getAnswersBySession(session.id!)
+        ]);
+        console.timeEnd(`session-${session.id}-apis`);
+        console.log(`Session ${session.id}: ${questions.length} questions, ${answers.length} answers`);
 
         // Match questions with answers to create feedback items
         const feedbackItems: FeedbackItem[] = [];
@@ -114,9 +122,14 @@ export default function FeedbackPage() {
           feedbackItems
         };
 
-        interviewsWithFeedback.push(interview);
-      }
+        return interview;
+      });
 
+      // Wait for all sessions to be processed in parallel
+      const interviewsWithFeedback = await Promise.all(sessionPromises);
+      console.timeEnd('process-sessions-loop');
+
+      console.time('set-state-and-sort');
       setInterviews(interviewsWithFeedback);
 
       // If we have interviews, select the most recent one
@@ -128,12 +141,15 @@ export default function FeedbackPage() {
         setInterviews(sortedInterviews);
         setSelectedInterview(sortedInterviews[0]);
       }
+      console.timeEnd('set-state-and-sort');
 
       setLastUpdated(now); // Update the last updated time
+      console.timeEnd('loadInterviews-total');
     } catch (error) {
       console.error('Error loading interviews:', error);
       setInterviews([]);
       setSelectedInterview(null);
+      console.timeEnd('loadInterviews-total');
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +159,12 @@ export default function FeedbackPage() {
   useEffect(() => {
     loadInterviews();
   }, [user, loading, router]);
+
+  // Log component renders for performance monitoring
+  useEffect(() => {
+    console.timeStamp('FeedbackPage-render');
+    console.log('FeedbackPage rendered');
+  });
 
   const handlePracticeSimilarQuestion = async (originalQuestion: string) => {
     if (!selectedInterview) {
@@ -222,7 +244,7 @@ export default function FeedbackPage() {
           <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
           <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
         </div>
-        
+
         <Navigation />
         <main className="flex-1 p-4 relative z-10">
           <div className="container mx-auto max-w-6xl py-8">
@@ -245,7 +267,7 @@ export default function FeedbackPage() {
         <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
         <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
       </div>
-      
+
       <Navigation />
       <main className="flex-1 p-4 relative z-10">
         <div className="container mx-auto max-w-6xl py-8">

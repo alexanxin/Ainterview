@@ -23,11 +23,19 @@ export interface BatchEvaluationResponse {
 export class GeminiService {
   private static instance: GeminiService;
   private isPaymentProcessing: boolean = false; // Lock to prevent multiple concurrent payment flows
+  private onCreditsChanged?: () => void; // Callback to trigger credit refresh
+
+  // Method to set the credit refresh callback
+  public setCreditRefreshCallback(callback: () => void) {
+    this.onCreditsChanged = callback;
+  }
 
   private async callGeminiAPI<T>(
     action: string,
     body: Record<string, any>,
     userId?: string,
+    connection?: any,
+    wallet?: any,
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -84,8 +92,8 @@ export class GeminiService {
         // Use the X402 handling flow to process the payment
         const response = await executeWithX402Handling(
           requestExecutor,
-          null, // connection - would be a Solana connection in real implementation
-          null, // wallet - would be a wallet adapter instance in real implementation
+          connection, // Use real Solana connection
+          wallet, // Use real wallet adapter
           (paymentReq) => {
             // onPaymentRequired callback
             Logger.info("X402 Payment required", { paymentReq });
@@ -143,7 +151,25 @@ export class GeminiService {
       (error as any).errorData = errorData;
       throw error;
     }
-    return await res.json();
+
+    const result = await res.json();
+
+    // Trigger credit refresh after successful API calls that may have spent credits
+    // Only trigger for actions that cost credits (not generateFlow which is free)
+    if (
+      this.onCreditsChanged &&
+      action !== "generateFlow" &&
+      action !== "generateQuestion" &&
+      action !== "generateSimilarQuestion"
+    ) {
+      Logger.info("Triggering credit refresh after API call", {
+        action,
+        userId,
+      });
+      this.onCreditsChanged();
+    }
+
+    return result;
   }
 
   private constructor() {
@@ -228,6 +254,8 @@ export class GeminiService {
     question: string,
     answer: string,
     userId?: string,
+    connection?: any,
+    wallet?: any,
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -262,6 +290,8 @@ export class GeminiService {
           answer: sanitizedAnswer,
         },
         userId,
+        connection,
+        wallet,
         onPaymentInitiated,
         onPaymentSuccess,
         onPaymentFailure
@@ -310,6 +340,8 @@ export class GeminiService {
     context: InterviewContext,
     numQuestions: number = 5,
     userId?: string,
+    connection?: any,
+    wallet?: any,
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -340,6 +372,8 @@ export class GeminiService {
           numQuestions,
         },
         userId,
+        connection,
+        wallet,
         onPaymentInitiated,
         onPaymentSuccess,
         onPaymentFailure
@@ -365,6 +399,8 @@ export class GeminiService {
             numQuestions: numQuestions,
           },
           userId,
+          connection,
+          wallet,
           onPaymentInitiated,
           onPaymentSuccess,
           onPaymentFailure
@@ -389,6 +425,8 @@ export class GeminiService {
     questions: string[],
     answers: string[],
     userId?: string,
+    connection?: any,
+    wallet?: any,
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -426,6 +464,8 @@ export class GeminiService {
           answers: sanitizedAnswers,
         },
         userId,
+        connection,
+        wallet,
         onPaymentInitiated,
         onPaymentSuccess,
         onPaymentFailure
@@ -455,6 +495,8 @@ export class GeminiService {
             answers: answers,
           },
           userId,
+          connection,
+          wallet,
           onPaymentInitiated,
           onPaymentSuccess,
           onPaymentFailure

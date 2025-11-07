@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { getInterviewSessionsByUser, InterviewSession, getAnswersBySession, InterviewAnswer } from '@/lib/database';
+import AnalyticsDashboard from '@/components/analytics-dashboard';
+import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -17,14 +19,21 @@ export default function DashboardPage() {
   const [avgConfidenceScore, setAvgConfidenceScore] = useState(0);
   const [feedbackInsights, setFeedbackInsights] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [analyticsExpanded, setAnalyticsExpanded] = useState(false);
 
   // Load interviews from database on component mount
   useEffect(() => {
     const loadInterviews = async () => {
       if (user) {
         try {
+          console.time('Dashboard: Total load time');
           setIsLoading(true);
+
+          console.time('Dashboard: Fetch interview sessions');
           const userInterviews = await getInterviewSessionsByUser(user.id);
+          console.timeEnd('Dashboard: Fetch interview sessions');
+          console.log(`Dashboard: Found ${userInterviews.length} interview sessions`);
+
           setInterviews(userInterviews);
 
           // Calculate stats
@@ -36,8 +45,20 @@ export default function DashboardPage() {
           let ratingCount = 0;
           let feedbackCount = 0;
 
-          for (const session of userInterviews) {
-            const answers = await getAnswersBySession(session.id!);
+          console.time('Dashboard: Fetch and process answers');
+          console.log(`Dashboard: Starting to fetch answers for ${userInterviews.length} sessions`);
+
+          // Fetch all answers in parallel instead of sequentially
+          const answerPromises = userInterviews.map(session =>
+            getAnswersBySession(session.id!)
+          );
+          const allAnswers = await Promise.all(answerPromises);
+
+          // Process all answers
+          userInterviews.forEach((session, index) => {
+            const answers = allAnswers[index];
+            console.log(`Dashboard: Session ${session.id} has ${answers.length} answers`);
+
             for (const answer of answers) {
               if (answer.rating !== undefined && answer.rating > 0) {
                 totalRating += answer.rating;
@@ -47,7 +68,10 @@ export default function DashboardPage() {
                 feedbackCount++;
               }
             }
-          }
+          });
+
+          console.timeEnd('Dashboard: Fetch and process answers');
+          console.log(`Dashboard: Processed ${ratingCount} ratings and ${feedbackCount} feedback items`);
 
           const avgRating = ratingCount > 0 ? Math.round(totalRating / ratingCount) : 0;
           // Ensure the confidence score is within 0-100 range
@@ -56,6 +80,8 @@ export default function DashboardPage() {
           // Update the state values for confidence and feedback
           setAvgConfidenceScore(calculatedConfidenceScore);
           setFeedbackInsights(feedbackCount);
+
+          console.timeEnd('Dashboard: Total load time');
         } catch (error) {
           console.error('Error loading interviews:', error);
           setInterviews([]);
@@ -283,6 +309,43 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </CardContent>
+            </Card>
+          </div>
+
+          {/* Analytics Dashboard Section - Load on Demand */}
+          <div className="mt-8">
+            <Card className="dark:bg-gray-800 border-green-200 dark:border-green-900/30">
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-gray-900 dark:text-white flex items-center">
+                    <BarChart3 className="mr-2 h-5 w-5" />
+                    Usage Analytics
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAnalyticsExpanded(!analyticsExpanded)}
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  >
+                    {analyticsExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4 mr-1" />
+                        Hide Analytics
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-1" />
+                        Show Analytics
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              {analyticsExpanded && (
+                <CardContent className="p-6">
+                  <AnalyticsDashboard />
+                </CardContent>
+              )}
             </Card>
           </div>
         </div>

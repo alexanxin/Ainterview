@@ -83,9 +83,7 @@ export function createX402PaymentHeader(serializedTransaction: string): string {
 /**
  * Processes a successful payment response from the server
  */
-export async function processX402PaymentResponse(
-  response: Response
-): Promise<{
+export async function processX402PaymentResponse(response: Response): Promise<{
   success: boolean;
   txHash?: string;
   networkId?: string;
@@ -386,6 +384,21 @@ export async function executeWithX402Handling<T>(
         );
       }
     }
+  }
+
+  // Log the final response status and body for debugging
+  try {
+    const clonedResponse = response.clone();
+    const responseBody = await clonedResponse.json().catch(() => null);
+    Logger.info("Final API response after X402 handling:", {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseBody,
+    });
+  } catch (logError) {
+    Logger.error("Error logging final response:", {
+      error: logError instanceof Error ? logError.message : String(logError),
+    });
   }
 
   return response;

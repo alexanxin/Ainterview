@@ -102,7 +102,7 @@ export default function Home() {
         <div className="w-full max-w-6xl py-12 px-4">
           {/* Hero Section */}
           <div className="text-center mb-16">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white mx-auto">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full  text-white mx-auto">
               <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">

@@ -8,9 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/navigation';
+import PaymentModal from '@/components/payment-modal';
 import { geminiService, InterviewContext } from '@/lib/gemini-service';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { InterviewSession, InterviewQuestion, InterviewAnswer } from '@/lib/database';
 import { cacheRefreshService } from '@/lib/cache-refresh-service';
 
@@ -162,9 +164,24 @@ export default function InterviewSessionPage() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null); // Store media recorder instance
   const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null); // Timer for recording duration
   const [recordingTime, setRecordingTime] = useState(0); // Track recording time in seconds
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCreditSelection, setShowCreditSelection] = useState(false);
+  const [interruptedOperation, setInterruptedOperation] = useState<{
+    operation: string;
+    data: string[] | null;
+    isResume?: boolean;
+  } | null>(null); // Track interrupted operation for retry
+  const [pendingPaymentData, setPendingPaymentData] = useState<{
+    description?: string;
+    usdAmount?: number;
+    requiredCredits?: number;
+  } | null>(null);
   const router = useRouter();
   const { user, loading } = useAuth(); // Get user and loading state from auth context
   const { success, error, info, warning } = useToast(); // Initialize toast notifications
+  const { connection } = useConnection(); // Solana connection
+  const { publicKey, connected, sendTransaction } = useWallet(); // Solana wallet
+  const walletAdapter = { publicKey, connected, sendTransaction }; // Create wallet object for x402
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -172,6 +189,55 @@ export default function InterviewSessionPage() {
       router.push('/auth?redirect=/interview/session');
     }
   }, [user, loading, router]);
+
+  // Callback for when payment is successful
+  const handlePaymentSuccess = () => {
+    success('Payment successful! Credits have been added to your account.');
+    setShowPaymentModal(false);
+    setPendingPaymentData(null);
+    setIsLoading(false); // Reset loading state immediately
+
+    // If there was an interrupted operation, resume it
+    if (interruptedOperation) {
+      const { operation, data, isResume } = interruptedOperation;
+      setInterruptedOperation(null); // Clear the interrupted operation
+
+      // Resume the appropriate operation based on the type
+      if (operation === 'generateInterviewFlow') {
+        // Re-run the interview generation
+        generateInterviewFlow();
+      } else if (operation === 'completePracticeQuestion' && data) {
+        // Re-run the practice question completion with resume flag
+        completePracticeQuestion(data, true);
+      } else if (operation === 'completeInterviewWithBatchEvaluation' && data) {
+        // Re-run the interview completion with resume flag
+        completeInterviewWithBatchEvaluation(data, true);
+      } else if (operation === 'processAnswersIndividually' && data) {
+        // Re-run individual answer processing with resume flag
+        processAnswersIndividually(data, true);
+      } else if (operation === 'submitAnswer' && data) {
+        // Resume the original submitAnswer flow
+        setIsLoading(true); // Set loading again for the resumed operation
+        // Re-run the submitAnswer with the stored data
+        if (isPracticeMode) {
+          info('Resuming your answer analysis...');
+          completePracticeQuestion(data, true);
+        } else {
+          if (currentQuestionIndex < questions.length - 1) {
+            // Move to next question
+            setCurrentQuestionIndex(currentQuestionIndex + 1);
+            setAnswer('');
+            setQuestion(questions[currentQuestionIndex + 1]);
+            setIsLoading(false);
+          } else {
+            // Complete interview
+            info('Resuming your interview completion...');
+            completeInterviewWithBatchEvaluation(data, true);
+          }
+        }
+      }
+    }
+  };
 
   // Load initial data and manage interview flow
   useEffect(() => {
@@ -332,7 +398,13 @@ export default function InterviewSessionPage() {
         interviewContext,
         interviewQuestionsCount, // Use the user-selected number of questions
         user?.id, // Pass user ID for usage tracking
-        (message) => info(message), // onPaymentInitiated
+        connection, // Solana connection
+        walletAdapter, // Solana wallet
+        (message) => {
+          // onPaymentInitiated - show credit selection when payment is required
+          setShowCreditSelection(true);
+          info('Additional credits required. Please select a credit package to continue.');
+        }, // onPaymentInitiated
         (message) => success(message), // onPaymentSuccess
         (message) => error(message) // onPaymentFailure
       );
@@ -370,18 +442,25 @@ export default function InterviewSessionPage() {
       }
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
-        // Handle payment required case
-        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
-        // Redirect to payment page
-        router.push('/payment');
-        return; // Exit immediately after redirect
+        // CRITICAL: Stop all execution when payment is required
+        setIsLoading(false);
+        setIsGeneratingQuestions(false);
+        setInterviewStarted(false); // Stop the interview completely
+        setInterruptedOperation({ operation: 'generateInterviewFlow', data: null }); // Track interrupted operation
+        setShowCreditSelection(true);
+        info('Additional credits required. Please select a credit package to continue.');
+        return; // Exit immediately and STOP all interview flow
       } else if (err instanceof Error && (err.message?.includes('Rate limit exceeded') || (err as { status?: number }).status === 429)) {
         // Handle rate limit exceeded case
+        setIsLoading(false);
+        setIsGeneratingQuestions(false);
         error('Too many requests. Please wait before trying again.');
       } else {
         // Fallback to mock questions if API fails
+        setIsLoading(false);
+        setIsGeneratingQuestions(false);
         setQuestions([
-          'Tell me about yourself and why you\'re interested in this position.',
+          'Tell me about yourself and why you are interested in this position.',
           'Can you describe a challenging project you worked on and how you handled it?',
           'How do you stay updated with industry trends and technologies?',
           'Describe a time when you had to work with a difficult team member.',
@@ -420,6 +499,7 @@ export default function InterviewSessionPage() {
           setAnswer('');
           // Update the question to the next one
           setQuestion(questions[currentQuestionIndex + 1]);
+          setIsLoading(false); // Reset loading for next question
         } else {
           // All answers collected, now send for batch evaluation
           // Show notification about processing wait time
@@ -431,17 +511,16 @@ export default function InterviewSessionPage() {
       // Handle any unexpected errors during the submission flow
       console.error('Error during answer submission:', err);
       error('An unexpected error occurred during submission. Please try again.');
-    } finally {
-      // Only reset loading if we are not moving to the next question in normal mode
-      // The complete functions will handle the final reset/redirect
-      if (!isPracticeMode && currentQuestionIndex < questions.length - 1) {
-        setIsLoading(false);
-      }
     }
+    // Note: We don't reset loading in the finally block anymore
+    // The complete functions will handle their own loading state management
   };
 
-  const completeInterviewWithBatchEvaluation = async (allAnswers: string[]) => {
-    if (!interviewContext) return;
+  const completeInterviewWithBatchEvaluation = async (allAnswers: string[], isResume: boolean = false) => {
+    if (!interviewContext) {
+      if (!isResume) setIsLoading(false);
+      return;
+    }
 
     try {
       // Perform batch evaluation using Gemini
@@ -450,7 +529,13 @@ export default function InterviewSessionPage() {
         questions,
         allAnswers,
         user?.id, // Pass user ID for usage tracking
-        (message) => info(message), // onPaymentInitiated
+        connection, // Solana connection
+        walletAdapter, // Solana wallet
+        (message) => {
+          // onPaymentInitiated - show credit selection when payment is required
+          setShowCreditSelection(true);
+          info('Additional credits required. Please select a credit package to continue.');
+        }, // onPaymentInitiated
         (message) => success(message), // onPaymentSuccess
         (message) => error(message) // onPaymentFailure
       );
@@ -553,28 +638,33 @@ export default function InterviewSessionPage() {
       // Update quota information in UI if needed
       if (batchAnalysis.remainingQuota !== undefined) {
       }
+
+      // Reset loading state when not resuming
+      if (!isResume) {
+        setIsLoading(false);
+      }
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
-        // Handle payment required case
-        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
-        // Redirect to payment page
-        router.push('/payment');
-        return; // Exit immediately after redirect
+        // CRITICAL: Stop all execution when payment is required
+        if (!isResume) {
+          setIsLoading(false);
+        }
+        setInterviewStarted(false); // Stop the interview completely
+        setInterruptedOperation({ operation: 'completeInterviewWithBatchEvaluation', data: allAnswers, isResume: true }); // Track interrupted operation
+        setShowCreditSelection(true);
+        info('Additional credits required. Please select a credit package to continue.');
+        return; // Exit immediately and STOP all interview flow
       } else {
+        if (!isResume) {
+          setIsLoading(false);
+        }
         error('Error processing your answers. Please try again.');
-
-        // Fallback: process answers individually if batch evaluation fails
-        await processAnswersIndividually(allAnswers);
+        // Note: We do NOT redirect to feedback - this is an error case
       }
-    } finally {
-      // Redirect to feedback page after processing is complete
-      setTimeout(() => {
-        router.push('/feedback');
-      }, 1000); // Small delay to ensure user sees the processing completion
     }
   };
 
-  const processAnswersIndividually = async (allAnswers: string[]) => {
+  const processAnswersIndividually = async (allAnswers: string[], isResume: boolean = false) => {
     // Fallback to individual processing if batch evaluation fails
     for (let i = 0; i < questions.length; i++) {
       if (interviewContext) {
@@ -584,7 +674,18 @@ export default function InterviewSessionPage() {
             questions[i],
             allAnswers[i],
             user?.id, // Pass user ID for usage tracking
-            (message) => info(message), // onPaymentInitiated
+            connection, // Solana connection
+            walletAdapter, // Solana wallet
+            (message) => {
+              // onPaymentInitiated - show credit selection when payment is required
+              if (!isResume) {
+                setIsLoading(false);
+              }
+              setInterviewStarted(false); // Stop the interview completely
+              setShowCreditSelection(true);
+              info('Additional credits required. Please select a credit package to continue.');
+              // Note: The return here only exits the callback, not the loop
+            }, // onPaymentInitiated
             (message) => success(message), // onPaymentSuccess
             (message) => error(message) // onPaymentFailure
           );
@@ -683,14 +784,24 @@ export default function InterviewSessionPage() {
       }
     }
 
+    // Reset loading state when not resuming
+    if (!isResume) {
+      setIsLoading(false);
+    }
+
     // Redirect to feedback page after processing is complete
     setTimeout(() => {
       router.push('/feedback');
     }, 1000); // Small delay to ensure user sees the processing completion
   };
 
-  const completePracticeQuestion = async (allAnswers: string[]) => {
-    if (!interviewContext) return;
+  const completePracticeQuestion = async (allAnswers: string[], isResume: boolean = false) => {
+    if (!interviewContext) {
+      if (!isResume) setIsLoading(false);
+      return;
+    }
+
+    let paymentRequired = false;
 
     try {
       // Analyze the single answer using Gemini
@@ -699,10 +810,26 @@ export default function InterviewSessionPage() {
         questions[0], // The practice question
         allAnswers[0], // The user's answer
         user?.id, // Pass user ID for usage tracking
-        (message) => info(message), // onPaymentInitiated
+        connection, // Solana connection
+        walletAdapter, // Solana wallet
+        () => {
+          // onPaymentInitiated - show credit selection and STOP execution
+          setShowCreditSelection(true);
+          info('Additional credits required. Please select a credit package to continue.');
+          paymentRequired = true; // Mark that payment is required
+          throw new Error('PAYMENT_REQUIRED_STOP_FLOW'); // This will stop execution
+        }, // onPaymentInitiated
         (message) => success(message), // onPaymentSuccess
         (message) => error(message) // onPaymentFailure
       );
+
+      // Only proceed if payment was not required
+      if (paymentRequired) {
+        if (!isResume) {
+          setIsLoading(false);
+        }
+        return; // Exit early - do not proceed with any processing
+      }
 
       // For practice mode, create the session and question only when the user submits an answer with feedback
       if (isPracticeMode && !interviewSessionId && user?.id) {
@@ -843,6 +970,7 @@ export default function InterviewSessionPage() {
         }
       }
 
+      // Only redirect if payment was not required
       // Since this is practice mode, redirect back to feedback instead of storing as a full interview
       // Clean up practice mode flags
       localStorage.removeItem('practiceMode');
@@ -858,27 +986,38 @@ export default function InterviewSessionPage() {
       setTimeout(() => {
         router.push('/feedback');
       }, 1000); // Small delay to ensure user sees the processing completion
+
+      // Reset loading state when not resuming
+      if (!isResume) {
+        setIsLoading(false);
+      }
     } catch (err) {
+      console.log('Payment error caught:', err);
+
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
-        // Handle payment required case
-        info('Payment initiation: Processing payment for additional credits. Please complete the transaction in your wallet.');
-        // Redirect to payment page
-        router.push('/payment');
-        return; // Exit immediately after redirect
+        console.log('Payment required condition met - stopping practice flow');
+
+        // CRITICAL: Stop all execution when payment is required
+        if (!isResume) {
+          setIsLoading(false);
+        }
+        setInterviewStarted(false); // Stop the practice completely
+        setInterruptedOperation({ operation: 'completePracticeQuestion', data: allAnswers, isResume: true }); // Track interrupted operation
+        // setShowCreditSelection(true); // Already set in callback
+        info('Additional credits required. Please select a credit package to continue.');
+        return; // Exit immediately and STOP all practice flow
       } else {
+        console.log('Non-payment error, showing generic error message');
+        if (!isResume) {
+          setIsLoading(false);
+        }
         error('Error processing your answer. Please try again.');
 
         // Clean up practice mode flags
         localStorage.removeItem('practiceMode');
         localStorage.removeItem('practiceQuestion');
-
-        // Redirect to feedback page
-        setTimeout(() => {
-          router.push('/feedback');
-        }, 1000);
+        // Note: We do NOT redirect to feedback for practice mode errors
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -1356,6 +1495,85 @@ export default function InterviewSessionPage() {
           </Card>
         </div>
       </main>
+
+      {/* Credit Selection Modal */}
+      {showCreditSelection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Choose Credit Package
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Select the number of credits you'd like to purchase to continue your interview.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              {[
+                { credits: 5, price: 0.50, popular: false },
+                { credits: 10, price: 0.90, popular: true, savings: '10% off' },
+                { credits: 25, price: 2.00, popular: false, savings: '20% off' },
+                { credits: 50, price: 3.50, popular: false, savings: '30% off' }
+              ].map((pkg) => (
+                <button
+                  key={pkg.credits}
+                  onClick={() => {
+                    const paymentData = {
+                      description: `Top up ${pkg.credits} credits for interview`,
+                      usdAmount: pkg.price,
+                      requiredCredits: pkg.credits
+                    };
+                    setPendingPaymentData(paymentData);
+                    setShowCreditSelection(false);
+                    setShowPaymentModal(true);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${pkg.popular
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-green-300'
+                    }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {pkg.credits} Credits
+                        {pkg.popular && <span className="ml-2 text-xs bg-green-500 text-white px-2 py-1 rounded">Popular</span>}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        ${pkg.price.toFixed(2)} USD
+                        {pkg.savings && <span className="ml-2 text-green-600 font-medium">{pkg.savings}</span>}
+                      </div>
+                    </div>
+                    <div className="text-green-600 font-medium">
+                      ${(pkg.price / pkg.credits).toFixed(2)}/credit
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCreditSelection(false);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPendingPaymentData(null);
+        }}
+        onSuccess={handlePaymentSuccess}
+        paymentContext={pendingPaymentData || undefined}
+      />
     </div>
   );
 }

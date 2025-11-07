@@ -60,11 +60,11 @@ export default function Navigation() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Ainterview
           </h1>
+          <CreditDisplay className="ml-4" showTopUpButton={true} />
         </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-4">
-          <CreditDisplay />
           {navItems.map((item) => (
             <Button
               key={item.name}
@@ -96,7 +96,7 @@ export default function Navigation() {
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
-              <span>Sign Out</span>
+              <span></span>
             </Button>
           ) : (
             <Button
@@ -126,7 +126,9 @@ export default function Navigation() {
               </SheetTitle>
             </SheetHeader>
             <div className="flex flex-col space-y-2 mt-6">
-              <CreditDisplay className="mb-4" />
+              <div className="flex items-center justify-between mb-4">
+                <CreditDisplay showTopUpButton={true} />
+              </div>
               {navItems.map((item) => (
                 <Button
                   key={item.name}

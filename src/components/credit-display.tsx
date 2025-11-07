@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context'; // Assuming this is the correct path
-import { CreditCard, Loader2 } from 'lucide-react';
+import { useCreditRefresh } from '@/lib/credit-context';
+import { CreditCard, Loader2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
 interface CreditDisplayProps {
     className?: string;
+    showTopUpButton?: boolean; // New prop to control whether to show the top-up button
 }
 
-export default function CreditDisplay({ className }: CreditDisplayProps) {
+export default function CreditDisplay({ className, showTopUpButton = true }: CreditDisplayProps) {
     const { user, session, loading } = useAuth();
+    const { creditsRefreshTrigger } = useCreditRefresh();
     const [credits, setCredits] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
@@ -20,9 +23,6 @@ export default function CreditDisplay({ className }: CreditDisplayProps) {
         if (!loading && user) {
             const fetchCredits = async () => {
                 try {
-                    console.log('Fetching credits for user:', user.id);
-                    console.log('Session access token exists:', !!session?.access_token);
-
                     const response = await fetch('/api/user/credits', {
                         headers: {
                             Authorization: `Bearer ${session?.access_token || ''}`,
@@ -30,7 +30,6 @@ export default function CreditDisplay({ className }: CreditDisplayProps) {
                     });
                     if (response.ok) {
                         const data = await response.json();
-                        console.log('Received credits:', data.credits);
                         setCredits(data.credits);
                     } else {
                         console.error('Failed to fetch credits:', response.statusText);
@@ -50,7 +49,7 @@ export default function CreditDisplay({ className }: CreditDisplayProps) {
             setCredits(null);
             setIsLoading(false);
         }
-    }, [user, session, loading]);
+    }, [loading, creditsRefreshTrigger]); // Only depend on loading and refresh trigger, not user/session
 
     if (loading || isLoading) {
         return (
@@ -66,12 +65,23 @@ export default function CreditDisplay({ className }: CreditDisplayProps) {
     }
 
     return (
-        <div
-            className={cn("flex items-center space-x-1 text-sm font-medium text-green-600 dark:text-green-40 cursor-pointer hover:opacity-80 transition-opacity", className)}
-            onClick={() => router.push('/payment')}
-        >
-            <CreditCard className="h-4 w-4" />
-            <span>{credits} Credits</span>
+        <div className={cn("flex items-center space-x-2 text-sm font-medium", className)}>
+            <div className="flex items-center space-x-1 text-green-600 dark:text-green-40">
+                <CreditCard className="h-4 w-4" />
+                <span>{credits} Credits</span>
+            </div>
+            {showTopUpButton && (
+                <button
+                    className="flex items-center justify-center h-6 w-6 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-70 text-white cursor-pointer transition-all dark:from-green-600 dark:to-green-700 dark:hover:from-green-700 dark:hover:to-green-800"
+                    onClick={(e) => {
+                        e.stopPropagation(); // Prevent event bubbling to parent
+                        router.push('/payment');
+                    }}
+                    aria-label="Top up credits"
+                >
+                    <Plus className="h-4 w-4 font-black" />
+                </button>
+            )}
         </div>
     );
 }

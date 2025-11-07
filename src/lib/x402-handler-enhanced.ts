@@ -1,19 +1,47 @@
 // Enhanced x402 API handler for Ainterview
-import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase-server';
-import { x402Service } from '@/lib/x402-payment-service';
-import { getUserCredits, deductUserCredits, addUserCredits } from '@/lib/database';
-import { Logger } from '@/lib/logger';
+import { NextApiRequest, NextApiResponse } from "next";
+import { x402Service } from "@/lib/x402-payment-service";
+import { x402VerificationService } from "@/lib/x402-verification-service";
+import {
+  getUserCredits,
+  deductUserCredits,
+  addUserCredits,
+} from "@/lib/database";
+import { Logger } from "@/lib/logger";
 
 // Define payment verification middleware for x402
 export async function verifyX402Payment(
   userId: string,
   transactionSignature: string,
   expectedAmount: number,
-  expectedToken: 'USDC' | 'USDT' | 'CASH' = 'USDC'
+  expectedToken: "USDC" | "USDT" | "CASH" = "USDC"
 ): Promise<{ success: boolean; error?: string; creditsAdded?: number }> {
   try {
-    // Verify the payment on the Solana blockchain
+    // Use the new two-phase verification service for more robust payment verification
+    // First, we need to get the payment requirements that would have been used for this transaction
+    // In a real implementation, these would come from a stored payment session
+    const paymentRequirements = {
+      scheme: "exact",
+      network: process.env.NEXT_PUBLIC_SOLANA_NETWORK || "solana",
+      maxAmountRequired: (expectedAmount * 1000000).toString(), // Convert to atomic units
+      payTo: process.env.NEXT_PUBLIC_PAYMENT_WALLET || "YOUR_WALLET_ADDRESS",
+      asset:
+        expectedToken === "USDC"
+          ? "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // Mainnet USDC
+          : expectedToken === "USDT"
+          ? "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" // Mainnet USDT
+          : "CASHXWvxwjmrRdjMGJtD4K58z9mJYwg4x4Qq5NmN7cdL", // Placeholder
+      description: "Payment verification for user credits",
+      mimeType: "application/json",
+      maxTimeoutSeconds: 300, // 5 minutes
+      extra: {
+        memo: `Payment verification for user: ${userId}`,
+        usdAmount: expectedAmount,
+      },
+    };
+
+    // For this verification, we'll use the x402Service which already has the proper integration
+    // The two-phase verification is more appropriate when you have the full X-PAYMENT header
     const verificationResult = await x402Service.verifySolanaPayment(
       transactionSignature,
       expectedAmount,
@@ -23,35 +51,34 @@ export async function verifyX402Payment(
     if (!verificationResult.success) {
       return {
         success: false,
-        error: verificationResult.error || 'Payment verification failed'
+        error: verificationResult.error || "Payment verification failed",
       };
     }
 
-    if (verificationResult.creditsAdded) {
-      // Add the verified credits to the user's account
-      const creditsAdded = await addUserCredits(userId, verificationResult.creditsAdded);
-      
-      if (!creditsAdded) {
-        return {
-          success: false,
-          error: 'Failed to update user credits after successful payment verification'
-        };
-      }
+    // Calculate credits to add based on the expected amount
+    // Assuming 1 USD = 10 credits as per existing implementation
+    const creditsToAdd = Math.round(expectedAmount * 10);
 
+    // Add the verified credits to the user's account
+    const creditsAdded = await addUserCredits(userId, creditsToAdd);
+
+    if (!creditsAdded) {
       return {
-        success: true,
-        creditsAdded: verificationResult.creditsAdded
+        success: false,
+        error:
+          "Failed to update user credits after successful payment verification",
       };
     }
 
     return {
-      success: true
+      success: true,
+      creditsAdded: creditsToAdd,
     };
   } catch (error) {
-    console.error('Error in x402 payment verification:', error);
+    console.error("Error in x402 payment verification:", error);
     return {
       success: false,
-      error: 'Payment verification failed due to internal error'
+      error: "Payment verification failed due to internal error",
     };
   }
 }
@@ -273,34 +300,38 @@ export async function POST(req: NextRequest) {
 
 // Example middleware for payment verification in API routes
 export async function withX402PaymentVerification(
-  handler: (req: NextApiRequest, res: NextApiResponse) => Promise<any>
+  handler: (
+    req: NextApiRequest,
+    res: NextApiResponse
+  ) => Promise<void | NextApiResponse>
 ) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     // Check if this is a retry after payment
-    const transactionSignature = req.headers['x-payment-signature'] as string || 
-                               req.headers['x-transaction-signature'] as string;
-    
+    const transactionSignature =
+      (req.headers["x-payment-signature"] as string) ||
+      (req.headers["x-transaction-signature"] as string);
+
     if (transactionSignature) {
       // Verify the transaction signature before processing
       const userId = req.body?.userId || req.query?.userId; // Get userId from request
-      
+
       if (userId) {
         const verificationResult = await verifyX402Payment(
-          userId, 
+          userId,
           transactionSignature,
           1, // Default expected amount
-          'USDC'
+          "USDC"
         );
-        
+
         if (!verificationResult.success) {
           return res.status(402).json({
-            error: 'Payment verification failed',
-            details: verificationResult.error
+            error: "Payment verification failed",
+            details: verificationResult.error,
           });
         }
       }
     }
-    
+
     // Proceed with original handler
     return handler(req, res);
   };
