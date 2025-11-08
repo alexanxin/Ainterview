@@ -33,12 +33,47 @@ declare module "@solana/spl-token" {
     source: any,
     destination: any,
     owner: any,
-    amount: bigint
+    amount: bigint,
+    multiSigners?: any[],
+    programId?: any
+  ): any;
+
+  export function getMint(
+    connection: any,
+    address: any,
+    commitment?: any,
+    programId?: any
+  ): Promise<any>;
+
+  export function transferCheckedWithFee(
+    source: any,
+    mint: any,
+    destination: any,
+    owner: any,
+    amount: bigint,
+    decimals: number,
+    fee: bigint,
+    multiSigners?: any[],
+    programId?: any
+  ): any;
+
+  export function createTransferCheckedInstruction(
+    source: any,
+    mint: any,
+    destination: any,
+    owner: any,
+    amount: bigint,
+    decimals: number,
+    multiSigners?: any[],
+    programId?: any
   ): any;
 
   export function getAssociatedTokenAddress(
     mint: any,
-    owner: any
+    owner: any,
+    allowOwnerOffCurve?: boolean,
+    programId?: any,
+    associatedTokenProgramId?: any
   ): Promise<any>;
 
   export function createAssociatedTokenAccountInstruction(

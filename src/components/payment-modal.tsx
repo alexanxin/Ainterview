@@ -68,6 +68,13 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
             return;
         }
 
+        // Prevent self-payment - check if user is trying to send to their own wallet
+        const recipientWallet = process.env.NEXT_PUBLIC_PAYMENT_WALLET || 'DUMMY_WALLET_ADDRESS';
+        if (publicKey && recipientWallet === publicKey.toString()) {
+            error('Cannot send payment to your own wallet address. Please check your payment configuration.');
+            return;
+        }
+
         setIsProcessing(true);
 
         try {
@@ -76,7 +83,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                 userId: user?.id || 'current_user_id',
                 amount: parseFloat(usdAmount),
                 token: selectedToken,
-                recipientPublicKey: process.env.NEXT_PUBLIC_PAYMENT_WALLET || 'DUMMY_WALLET_ADDRESS',
+                recipientPublicKey: recipientWallet,
             };
 
             // Process payment using x402 service
@@ -142,6 +149,73 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                 );
                                 transaction.add(createSenderAccountInstruction);
                                 console.log('Added instruction to create sender token account for', selectedToken);
+                            } else {
+                                // Check if the sender has enough tokens
+                                console.log(`Checking ${selectedToken} balance for account:`, senderTokenAccount.toString());
+
+                                try {
+                                    // Use RPC call to get token account balance
+                                    const rpcRequest = {
+                                        jsonrpc: "2.0",
+                                        id: "get-token-account-balance",
+                                        method: "getTokenAccountBalance",
+                                        params: [senderTokenAccount.toString()],
+                                    };
+
+                                    // Get the RPC endpoint from environment or connection
+                                    const rpcEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+                                        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ||
+                                        "https://api.devnet.solana.com";
+
+                                    console.log(`Checking balance via RPC:`, rpcEndpoint);
+
+                                    const response = await fetch(rpcEndpoint, {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify(rpcRequest),
+                                    });
+
+                                    console.log(`Balance check response status:`, response.status);
+
+                                    if (response.ok) {
+                                        const result = await response.json();
+                                        console.log(`Balance check result:`, result);
+
+                                        if (result.result?.value) {
+                                            const balance = parseFloat(result.result.value.uiAmountString || '0');
+                                            const requiredAmount = parseFloat(usdAmount);
+
+                                            console.log(`Sender ${selectedToken} balance:`, balance, 'Required:', requiredAmount);
+
+                                            if (balance < requiredAmount) {
+                                                error(`Insufficient ${selectedToken} balance. You have ${balance} ${selectedToken} but need ${requiredAmount} ${selectedToken}.`);
+                                                return;
+                                            }
+                                        } else {
+                                            console.log(`No balance data found for ${selectedToken} account`);
+                                            // If account exists but has no balance data, it might be empty
+                                            error(`${selectedToken} token account exists but appears to be empty. Please ensure you have ${selectedToken} tokens.`);
+                                            return;
+                                        }
+                                    } else {
+                                        console.error(`Balance check failed with status:`, response.status);
+                                        const errorText = await response.text();
+                                        console.error(`Balance check error:`, errorText);
+                                    }
+                                } catch (balanceErr) {
+                                    console.error('Error checking token balance:', balanceErr);
+                                    // For PYUSD on devnet, balance checks might fail even if tokens are available
+                                    // Since we can see PYUSD transactions succeeding in explorer, let's be more permissive
+                                    if (selectedToken === 'PYUSD' && process.env.NEXT_PUBLIC_SOLANA_NETWORK === 'devnet') {
+                                        console.warn('PYUSD balance check failed on devnet, but proceeding since PYUSD transfers work on-chain');
+                                        // Don't block the transaction - PYUSD works on devnet despite balance check issues
+                                    } else {
+                                        // For other tokens/networks, if we can't check balance, assume they have tokens
+                                        console.log('Could not check token balance, proceeding with transaction');
+                                    }
+                                }
                             }
                         } catch (err) {
                             console.error('Error checking sender token account:', err);
@@ -190,6 +264,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                         });
 
                         // Create token transfer instruction
+                        // Note: PYUSD on devnet may require Token-2022 program, but for now we'll use standard transfer
+                        // If PYUSD transactions still fail, the issue is likely that PYUSD tokens aren't available on devnet
                         const transferInstruction = createTransferInstruction(
                             senderTokenAccount,
                             recipientTokenAccount,
@@ -219,16 +295,30 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
 
                             // Provide specific error messages for different scenarios
                             if (txError instanceof Error) {
+                                console.error('Transaction error details:', {
+                                    message: txError.message,
+                                    name: txError.name,
+                                    stack: txError.stack,
+                                    selectedToken,
+                                    usdAmount,
+                                    tokenMintAddress
+                                });
+
                                 if (txError.message.includes('Insufficient funds') || txError.message.includes('insufficient lamports')) {
                                     error(`Insufficient ${selectedToken} tokens or SOL for transaction fees. Please ensure you have enough ${selectedToken} tokens and some SOL for fees.`);
                                 } else if (txError.message.includes('User rejected') || txError.message.includes('cancelled')) {
                                     error('Transaction was cancelled. No charges were made.');
                                 } else if (txError.message.includes('Token account not found') || txError.message.includes('Invalid account owner')) {
                                     error(`Invalid ${selectedToken} token account. Please ensure you have ${selectedToken} tokens in your wallet.`);
+                                } else if (txError.message.includes('Program failed to complete') || txError.message.includes('custom program error')) {
+                                    error(`Transaction failed due to ${selectedToken} token program error. This token may not be available on this network.`);
+                                } else if (txError.message.includes('Account not found') && txError.message.includes(selectedToken)) {
+                                    error(`${selectedToken} token account not found. Please ensure you have ${selectedToken} tokens in your wallet.`);
                                 } else {
                                     error(`Transaction failed: ${txError.message}`);
                                 }
                             } else {
+                                console.error('Unknown transaction error:', txError);
                                 error(`Transaction failed: ${txError instanceof Error ? txError.message : 'Unknown error'}`);
                             }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
@@ -16,7 +16,15 @@ import { useCreditRefresh } from '@/lib/credit-context';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
-import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import {
+  createTransferInstruction,
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
+  getMint,
+  transferCheckedWithFee,
+  createTransferCheckedInstruction
+} from '@solana/spl-token';
 
 // Define the associated token program ID
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
@@ -26,6 +34,9 @@ const MIN_CREDITS = 5; // Minimum purchase of $0.50 USD
 const MAX_CREDITS = 100; // Maximum purchase of $10.00 USD
 
 export default function PaymentPage() {
+  // Define TOKEN_2022_PROGRAM_ID inside the component to avoid module-level evaluation issues
+  const TOKEN_2022_PROGRAM_ID = useMemo(() => new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'), []);
+
   const [creditsToBuy, setCreditsToBuy] = useState(MIN_CREDITS);
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<'USDC' | 'PYUSD' | 'CASH'>('USDC'); // New state for token selection
@@ -158,15 +169,24 @@ export default function PaymentPage() {
             const tokenMintPublicKey = new PublicKey(tokenMintAddress);
             const recipientPublicKey = new PublicKey(paymentData.recipientPublicKey);
 
-            // Get associated token accounts
+            // Use TOKEN_2022_PROGRAM_ID for PYUSD since it's a Token-2022 token
+            const programId = selectedToken === 'PYUSD' ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+
+            // Fetch mint info to check for extensions
+            const mintInfo = await getMint(connection, tokenMintPublicKey, 'confirmed', programId);
+
             const senderTokenAccount = await getAssociatedTokenAddress(
               tokenMintPublicKey,
-              publicKey
+              publicKey,
+              false,
+              programId
             );
 
             const recipientTokenAccount = await getAssociatedTokenAddress(
               tokenMintPublicKey,
-              recipientPublicKey
+              recipientPublicKey,
+              false,
+              programId
             );
 
             // Check if recipient token account exists, if not create it
@@ -204,6 +224,7 @@ export default function PaymentPage() {
                   recipientPublicKey, // owner
                   tokenMintPublicKey // mint
                 );
+
                 transaction.add(createRecipientAccountInstruction);
                 console.log('Added instruction to create recipient token account');
               }
@@ -216,12 +237,14 @@ export default function PaymentPage() {
                 recipientPublicKey, // owner
                 tokenMintPublicKey // mint
               );
+
               transaction.add(createRecipientAccountInstruction);
               console.log('Added instruction to create recipient token account (fallback)');
             }
 
             // Calculate amount in token units (USDC/USDT have 6 decimals)
-            const tokenAmount = BigInt(Math.round(parseFloat(usdAmount) * 1_000_000)); // Convert USD to token units
+            const decimals = 6;
+            const rawAmount = BigInt(Math.round(parseFloat(usdAmount) * Math.pow(10, decimals))); // Convert USD to token units
 
             // Debug logging
             console.log('Payment details:', {
@@ -230,20 +253,58 @@ export default function PaymentPage() {
               senderTokenAccount: senderTokenAccount.toString(),
               recipient: recipientPublicKey.toString(),
               recipientTokenAccount: recipientTokenAccount.toString(),
-              tokenAmount: tokenAmount.toString(),
+              rawAmount: rawAmount.toString(),
               usdAmount,
-              selectedToken
+              selectedToken,
+              hasTransferFeeExtension: !!mintInfo.transferFeeConfig
             });
 
-            // Create token transfer instruction
-            const transferInstruction = createTransferInstruction(
-              senderTokenAccount,
-              recipientTokenAccount,
-              publicKey,
-              tokenAmount
-            );
+            // Handle transfer instruction based on transfer fee extension
+            if (mintInfo.transferFeeConfig) {
+              // Calculate expected fee (even if 0)
+              const feeBasisPoints = mintInfo.transferFeeConfig.transferFeeBasisPoints;
+              const maxFee = mintInfo.transferFeeConfig.maximumFee;
+              const calculatedFee = (rawAmount * BigInt(feeBasisPoints)) / BigInt(10000);
+              const expectedFee = calculatedFee > maxFee ? maxFee : calculatedFee;
 
-            transaction.add(transferInstruction);
+              console.log('Using transferCheckedWithFee:', {
+                feeBasisPoints,
+                maxFee: maxFee.toString(),
+                calculatedFee: calculatedFee.toString(),
+                expectedFee: expectedFee.toString()
+              });
+
+              // Use transferCheckedWithFee for tokens with fee extension
+              const transferInstruction = transferCheckedWithFee(
+                senderTokenAccount,
+                tokenMintPublicKey,
+                recipientTokenAccount,
+                publicKey,
+                rawAmount,
+                decimals,
+                expectedFee,
+                [], // multiSigners
+                programId
+              );
+
+              transaction.add(transferInstruction);
+            } else {
+              console.log('Using createTransferCheckedInstruction (no fee extension)');
+
+              // Fallback to checked transfer for standard tokens
+              const transferInstruction = createTransferCheckedInstruction(
+                senderTokenAccount,
+                tokenMintPublicKey,
+                recipientTokenAccount,
+                publicKey,
+                rawAmount,
+                decimals,
+                [], // multiSigners
+                programId
+              );
+
+              transaction.add(transferInstruction);
+            }
 
             // Get the latest blockhash for the transaction
             const { blockhash } = await connection.getLatestBlockhash();
@@ -459,38 +520,36 @@ export default function PaymentPage() {
                   Select Payment Token
                 </h3>
                 <div className="flex flex-wrap gap-4">
-                  {['USDC', 'PYUSD'].map((token) => (
-                    <Button
-                      key={token}
-                      variant={selectedToken === token ? 'default' : 'outline'}
-                      onClick={() => setSelectedToken(token as 'USDC' | 'PYUSD' | 'CASH')}
-                      className={selectedToken === token ? 'bg-green-600 text-white' : 'dark:text-white'}
-                    >
-                      {token}
-                    </Button>
-                  ))}
-                  {process.env.NEXT_PUBLIC_SOLANA_NETWORK !== "devnet" && (
-                    <Button
-                      key="CASH"
-                      variant={selectedToken === 'CASH' ? 'default' : 'outline'}
-                      onClick={() => setSelectedToken('CASH')}
-                      className={selectedToken === 'CASH' ? 'bg-green-600 text-white' : 'dark:text-white'}
-                      title="Phantom CASH - Available on mainnet only"
-                    >
-                      CASH
-                    </Button>
-                  )}
-                  {process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet" && (
-                    <Button
-                      key="CASH-disabled"
-                      variant="outline"
-                      disabled
-                      className="dark:text-gray-500 cursor-not-allowed"
-                      title="Phantom CASH - Not available on devnet"
-                    >
-                      CASH
-                    </Button>
-                  )}
+                  {['USDC', 'PYUSD', 'CASH'].map((token) => {
+                    // Show all tokens on mainnet, only USDC and PYUSD on devnet
+                    const isDevnet = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet";
+                    const isCashOnDevnet = token === 'CASH' && isDevnet;
+
+                    if (isCashOnDevnet) {
+                      return (
+                        <Button
+                          key="CASH-disabled"
+                          variant="outline"
+                          disabled
+                          className="dark:text-gray-500 cursor-not-allowed"
+                          title="Phantom CASH - Not available on devnet"
+                        >
+                          CASH
+                        </Button>
+                      );
+                    }
+
+                    return (
+                      <Button
+                        key={token}
+                        variant={selectedToken === token ? 'default' : 'outline'}
+                        onClick={() => setSelectedToken(token as 'USDC' | 'PYUSD' | 'CASH')}
+                        className={selectedToken === token ? 'bg-green-600 text-white' : 'dark:text-white'}
+                      >
+                        {token}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
 

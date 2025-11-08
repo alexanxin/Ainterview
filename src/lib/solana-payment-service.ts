@@ -1,6 +1,29 @@
 // Solana payment integration for x402 protocol
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Logger } from "./logger";
+import {
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+  createTransferInstruction,
+  createAssociatedTokenAccountInstruction,
+} from "@solana/spl-token";
+
+// Safely handle the program ID to avoid runtime errors
+let _token2022ProgramId: PublicKey | null = null;
+const getValidToken2022ProgramId = (): PublicKey => {
+  if (!_token2022ProgramId) {
+    try {
+      _token2022ProgramId = new PublicKey(
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHFsXRsGNVxM"
+      );
+    } catch (error) {
+      console.error("Invalid Token-2022 program ID:", error);
+      // Return a default value or throw a more informative error
+      throw new Error("Failed to create valid Token-2022 program ID");
+    }
+  }
+  return _token2022ProgramId;
+};
 
 // Define a local interface for SignatureStatus based on Solana's expected structure
 interface SignatureStatus {
@@ -188,7 +211,7 @@ export class SolanaPaymentService {
 
       // Implement polling for transaction confirmation
       const MAX_POLLING_ATTEMPTS = 10;
-      const POLLING_INTERVAL_MS = 3000; // Poll every 3 seconds
+      const POLLING_INTERVAL_MS = 300; // Poll every 3 seconds
       let attempts = 0;
       let transactionConfirmed = false;
       let signatureStatus: SignatureStatus | null = null; // Use the locally defined interface
@@ -400,7 +423,7 @@ export class SolanaPaymentService {
     // These are actual addresses for mainnet - update as needed
     const mintAddresses: Record<string, string> = {
       USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-      USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY1McCe8BenwNYB",
+      PYUSD: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", // Mainnet PYUSD
       CASH: "CASHXWvxwjmrRdjMGJtD4K58z9mJYwg4x4Qq5NmN7cdL", // Placeholder
     };
 
