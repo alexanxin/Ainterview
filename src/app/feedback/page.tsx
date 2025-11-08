@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -17,6 +17,8 @@ import {
 import { geminiService } from '@/lib/gemini-service';
 import { useToast } from '@/lib/toast';
 import { getUserProfile } from '@/lib/database';
+import { checkCreditsBeforeOperation } from '@/lib/credit-service';
+import PaymentModal from '@/components/payment-modal';
 
 interface FeedbackItem {
   id: string;
@@ -38,12 +40,22 @@ interface InterviewWithFeedback {
 
 export default function FeedbackPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { success, error, info, warning } = useToast(); // Initialize toast notifications
   const [interviews, setInterviews] = useState<InterviewWithFeedback[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<InterviewWithFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentContext, setPaymentContext] = useState({
+    description: '',
+    requiredCredits: 0,
+  });
+  const [pendingPracticeOperation, setPendingPracticeOperation] = useState<{
+    originalQuestion: string;
+    selectedInterview: InterviewWithFeedback;
+  } | null>(null);
 
   // Load interviews and feedback from database on component mount
   const loadInterviews = async (forceRefresh: boolean = false) => {
@@ -54,12 +66,20 @@ export default function FeedbackPage() {
       return;
     }
 
-    // Check if we have recent data (less than 5 minutes old) and not forcing refresh
+    // Check if we came from an interview completion - if so, force refresh
+    const fromInterview = searchParams?.get('from') === 'interview';
     const now = Date.now();
-    if (!forceRefresh && lastUpdated && (now - lastUpdated) < 5 * 60 * 1000) { // 5 minutes in milliseconds
-      console.log('Using cached data, skipping reload');
+
+    // Reduced cache timeout from 5 minutes to 30 seconds for better UX
+    const CACHE_TIMEOUT = 30 * 1000; // 30 seconds
+
+    // Force refresh if coming from interview completion or cache is stale
+    if (!forceRefresh && !fromInterview && lastUpdated && (now - lastUpdated) < CACHE_TIMEOUT) {
+      console.log('Using cached data, skipping reload (cache fresh)');
       return; // Data is still fresh, no need to reload
     }
+
+    console.log(`Loading interviews - Force: ${forceRefresh}, FromInterview: ${fromInterview}, CacheAge: ${lastUpdated ? now - lastUpdated : 'never'}ms`);
 
     setIsLoading(true);
     try {
@@ -89,6 +109,12 @@ export default function FeedbackPage() {
         ]);
         console.timeEnd(`session-${session.id}-apis`);
         console.log(`Session ${session.id}: ${questions.length} questions, ${answers.length} answers`);
+
+        // Filter out sessions that have no questions and answers (empty/incomplete sessions)
+        if (questions.length === 0 && answers.length === 0) {
+          console.log(`Skipping empty session: ${session.id}`);
+          return null; // This session will be filtered out
+        }
 
         // Match questions with answers to create feedback items
         const feedbackItems: FeedbackItem[] = [];
@@ -129,13 +155,17 @@ export default function FeedbackPage() {
       const interviewsWithFeedback = await Promise.all(sessionPromises);
       console.timeEnd('process-sessions-loop');
 
+      // Filter out null sessions (empty/incomplete ones)
+      const validInterviews = interviewsWithFeedback.filter(interview => interview !== null);
+      console.log(`Filtered to ${validInterviews.length} valid interviews from ${interviewsWithFeedback.length} total`);
+
       console.time('set-state-and-sort');
-      setInterviews(interviewsWithFeedback);
+      setInterviews(validInterviews);
 
       // If we have interviews, select the most recent one
-      if (interviewsWithFeedback.length > 0) {
+      if (validInterviews.length > 0) {
         // Sort by date descending and select the first one
-        const sortedInterviews = [...interviewsWithFeedback].sort((a, b) =>
+        const sortedInterviews = [...validInterviews].sort((a, b) =>
           new Date(b.date).getTime() - new Date(a.date).getTime()
         );
         setInterviews(sortedInterviews);
@@ -166,14 +196,7 @@ export default function FeedbackPage() {
     console.log('FeedbackPage rendered');
   });
 
-  const handlePracticeSimilarQuestion = async (originalQuestion: string) => {
-    if (!selectedInterview) {
-      error('No interview selected');
-      return;
-    }
-
-    setIsLoading(true);
-
+  const handlePracticeSimilarQuestionAfterPayment = async (originalQuestion: string, interview: InterviewWithFeedback) => {
     try {
       // Get the user's profile to get CV information
       let userCv = '';
@@ -191,8 +214,8 @@ export default function FeedbackPage() {
 
       // Get the context from the selected interview
       const context = {
-        jobPosting: selectedInterview.jobTitle + ' ' + selectedInterview.company,
-        companyInfo: selectedInterview.company,
+        jobPosting: interview.jobTitle + ' ' + interview.company,
+        companyInfo: interview.company,
         userCv: userCv,
       };
 
@@ -203,9 +226,9 @@ export default function FeedbackPage() {
       );
 
       // Store the context in localStorage for the interview session
-      localStorage.setItem('interviewJobPosting', selectedInterview.jobTitle + ' ' + selectedInterview.company);
+      localStorage.setItem('interviewJobPosting', interview.jobTitle + ' ' + interview.company);
       localStorage.setItem('interviewCv', userCv);
-      localStorage.setItem('interviewCompanyInfo', selectedInterview.company);
+      localStorage.setItem('interviewCompanyInfo', interview.company);
 
       // Also store the generated similar question for the interview session
       localStorage.setItem('practiceQuestion', similarQuestion);
@@ -214,10 +237,110 @@ export default function FeedbackPage() {
       // Navigate to the interview session page
       router.push('/interview/session');
     } catch (err) {
-      console.error('Error generating similar question:', err);
+      console.error('Error generating similar question after payment:', err);
       error('Failed to generate similar question. Please try again.');
-    } finally {
+    }
+  };
+
+  const handlePracticeSimilarQuestion = async (originalQuestion: string) => {
+    if (!selectedInterview) {
+      error('No interview selected');
+      return;
+    }
+
+    // Start global loading state for smooth transition
+    setIsLoading(true);
+    localStorage.setItem('practiceLoading', 'true');
+
+    // Store the current state for restoration after payment
+    const practiceContext = {
+      originalQuestion,
+      selectedInterview,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('practiceContext', JSON.stringify(practiceContext));
+
+    try {
+      // Check if user has sufficient credits for re-answering a question (1 credit)
+      const result = await checkCreditsBeforeOperation('reanswer_question', {
+        operation: 'reanswer_question',
+        numberOfQuestions: 1, // Practice similar question only costs 1 credit
+      });
+
+      if (result.sufficientCredits) {
+        // User has enough credits, proceed with generating similar question
+        try {
+          // Get the user's profile to get CV information
+          let userCv = '';
+          if (user) {
+            const profile = await getUserProfile(user.id);
+            if (profile) {
+              const sections = [];
+              if (profile.bio) sections.push(`Bio:\n${profile.bio}`);
+              if (profile.experience) sections.push(`Experience:\n${profile.experience}`);
+              if (profile.education) sections.push(`Education:\n${profile.education}`);
+              if (profile.skills) sections.push(`Skills:\n${profile.skills}`);
+              userCv = sections.join('\n\n');
+            }
+          }
+
+          // Get the context from the selected interview
+          const context = {
+            jobPosting: selectedInterview.jobTitle + ' ' + selectedInterview.company,
+            companyInfo: selectedInterview.company,
+            userCv: userCv,
+          };
+
+          // Generate a similar question based on the original question
+          const similarQuestion = await geminiService.generateSimilarQuestion(
+            context,
+            originalQuestion
+          );
+
+          // Store the context in localStorage for the interview session
+          localStorage.setItem('interviewJobPosting', selectedInterview.jobTitle + ' ' + selectedInterview.company);
+          localStorage.setItem('interviewCv', userCv);
+          localStorage.setItem('interviewCompanyInfo', selectedInterview.company);
+
+          // Also store the generated similar question for the interview session
+          localStorage.setItem('practiceQuestion', similarQuestion);
+          localStorage.setItem('practiceMode', 'true'); // Indicate this is practice mode
+          localStorage.setItem('practiceLoading', 'false'); // Clear loading flag
+
+          // Navigate to the interview session page
+          router.push('/interview/session');
+        } catch (err) {
+          console.error('Error generating similar question:', err);
+          error('Failed to generate similar question. Please try again.');
+          setIsLoading(false);
+          localStorage.setItem('practiceLoading', 'false');
+          localStorage.removeItem('practiceContext');
+        }
+      } else {
+        // User doesn't have enough credits, show payment modal
+        setPaymentContext({
+          description: `You need 1 credit to practice a similar question, but you only have ${result.currentCredits} credits.`,
+          requiredCredits: result.requiredCredits,
+        });
+        // Store the pending operation for retry after payment
+        setPendingPracticeOperation({
+          originalQuestion,
+          selectedInterview
+        });
+        setShowPaymentModal(true);
+        // Keep loading state until payment is handled
+      }
+    } catch (err) {
+      console.error('Error checking credits:', err);
+      error('An error occurred while checking your credits. Please try again.');
       setIsLoading(false);
+      localStorage.setItem('practiceLoading', 'false');
+      localStorage.removeItem('practiceContext');
+    } finally {
+      // Only clear loading if we're not in payment flow
+      if (!showPaymentModal) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -285,9 +408,21 @@ export default function FeedbackPage() {
             <div className="lg:w-1/3">
               <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg flex flex-col">
                 <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                  <CardTitle className="text-gray-900 dark:text-white flex items-center">
-                    <span className="mr-2">📋</span>
-                    Your Interview Sessions
+                  <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="mr-2">📋</span>
+                      Your Interview Sessions
+                    </div>
+                    {/* Add refresh button for manual refresh */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={refreshData}
+                      disabled={isLoading}
+                      className="text-xs"
+                    >
+                      🔄
+                    </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 flex-1 overflow-y-auto max-h-[600px]">
@@ -349,7 +484,10 @@ export default function FeedbackPage() {
                     </CardTitle>
                     <Button
                       className="bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
-                      onClick={() => router.push('/interview')}
+                      onClick={() => {
+                        // "New Interview" should redirect directly without any credit checks
+                        router.push('/interview');
+                      }}
                     >
                       <span className="mr-2">➕</span>
                       New Interview
@@ -480,6 +618,58 @@ export default function FeedbackPage() {
           </div>
         </div>
       </main>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPendingPracticeOperation(null); // Clear pending operation on cancel
+          setIsLoading(false); // Reset loading state
+          localStorage.setItem('practiceLoading', 'false'); // Clear loading flag
+          localStorage.removeItem('practiceContext'); // Clean up practice context
+        }}
+        paymentContext={paymentContext}
+        onSuccess={() => {
+          // After successful payment, retry the pending operation
+          setShowPaymentModal(false);
+
+          if (pendingPracticeOperation) {
+            // Retry the practice question generation
+            const { originalQuestion, selectedInterview } = pendingPracticeOperation;
+            setPendingPracticeOperation(null); // Clear the pending operation
+            localStorage.setItem('practiceLoading', 'true'); // Restore loading state
+
+            // Use setTimeout to ensure the modal closes first
+            setTimeout(async () => {
+              try {
+                await handlePracticeSimilarQuestionAfterPayment(originalQuestion, selectedInterview);
+              } finally {
+                setIsLoading(false);
+              }
+            }, 100);
+          } else {
+            // Check if we have a stored practice context from navigation
+            const practiceContext = localStorage.getItem('practiceContext');
+            if (practiceContext) {
+              const { originalQuestion, selectedInterview } = JSON.parse(practiceContext);
+              setIsLoading(true);
+              localStorage.setItem('practiceLoading', 'true');
+
+              setTimeout(async () => {
+                try {
+                  await handlePracticeSimilarQuestionAfterPayment(originalQuestion, selectedInterview);
+                } finally {
+                  setIsLoading(false);
+                }
+              }, 100);
+            } else {
+              // Fallback - just show success message
+              success('Payment successful! You can now continue using the service.');
+            }
+          }
+        }}
+      />
     </div>
   );
 }

@@ -12,42 +12,8 @@ if (!supabaseServiceRoleKey) {
   console.warn("SUPABASE_SERVICE_ROLE_KEY is not set in environment variables");
 }
 
-// Export the server-side supabase client, or a mock if environment variables are not set
-export const supabaseServer =
-  supabaseUrl && supabaseServiceRoleKey
-    ? createClient(supabaseUrl, supabaseServiceRoleKey)
-    : {
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              single: async () => ({ data: null, error: null }),
-              order: () => ({ data: [], error: null }),
-            }),
-            gte: () => ({
-              lt: async () => ({ data: [], error: null }),
-            }),
-          }),
-          insert: (insertData: unknown) => ({
-            select: () => ({
-              single: async () => ({ data: insertData, error: null }),
-            }),
-            returning: () => ({
-              select: () => ({
-                single: async () => ({ data: insertData, error: null }),
-              }),
-            }),
-          }),
-          update: () => ({
-            eq: () => ({
-              select: async () => ({ data: [], error: null }),
-            }),
-          }),
-        }),
-        rpc: (fnName: string, params: Record<string, unknown>) => {
-          // Mock RPC function for database functions
-          return {
-            data: null,
-            error: null,
-          };
-        },
-      };
+// Export the server-side supabase client
+export const supabaseServer = createClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseServiceRoleKey || "placeholder-key"
+);

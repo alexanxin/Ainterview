@@ -15,7 +15,7 @@ interface CacheEntry<T> {
 
 // Cache storage for different data types
 interface CacheStorage {
-  userProfiles: Map<string, CacheEntry<UserProfile | null>>;
+  userProfiles: Map<string, CacheEntry<UserProfile>>;
   interviewSessions: Map<string, CacheEntry<InterviewSession[]>>;
   interviewSessionById: Map<string, CacheEntry<InterviewSession | null>>;
   interviewQuestions: Map<string, CacheEntry<InterviewQuestion[]>>;
@@ -62,7 +62,7 @@ function cleanExpired<T>(cacheMap: Map<string, CacheEntry<T>>): void {
 // Cache service implementation
 export const cacheService = {
   // User Profile caching
-  getUserProfile: (userId: string): UserProfile | null | undefined => {
+  getUserProfile: (userId: string): UserProfile | undefined => {
     const entry = cacheStorage.userProfiles.get(userId);
     if (entry && !isExpired(entry)) {
       return entry.data;
@@ -70,11 +70,14 @@ export const cacheService = {
       // Clean expired entry
       cacheStorage.userProfiles.delete(userId);
     }
-    return undefined; // undefined means not in cache, null means cached null result
+    // Don't return cached null results - force fresh database queries for new users
+    // This ensures profile completion checks work properly for users without profiles yet
+    return undefined; // undefined means not in cache, always fetch fresh from database
   },
 
-  setUserProfile: (userId: string, profile: UserProfile | null): void => {
-    const entry: CacheEntry<UserProfile | null> = {
+  setUserProfile: (userId: string, profile: UserProfile): void => {
+    // Only cache non-null profiles - this ensures profile completion checks work properly
+    const entry: CacheEntry<UserProfile> = {
       data: profile,
       timestamp: Date.now(),
       expiry: CACHE_CONFIG.userProfile,

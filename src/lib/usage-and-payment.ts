@@ -14,15 +14,12 @@ import {
 import { Logger } from "@/lib/logger";
 import { validatePaymentSignature } from "@/lib/x402-utils";
 
-// Define free quota for users
-const FREE_INTERVIEWS = 1; // 1 complete interview free (all questions in an interview session)
-const FREE_INTERACTIONS_PER_DAY = 2; // Additional individual interactions per day after free interview is used
+// No free interviews - all users get 5 credits to start
 
 export interface UsageCheckResult {
   allowed: boolean;
   remaining: number;
   cost: number;
-  freeInterviewUsed: boolean;
   creditsAvailable: number;
   paymentRequired?: {
     amount: number;
@@ -138,7 +135,6 @@ export async function checkUsage(
       allowed: true,
       remaining: -1, // Indicate unlimited for anonymous
       cost,
-      freeInterviewUsed: false,
       creditsAvailable: -1, // Unlimited for anonymous users
     };
   }
@@ -187,17 +183,12 @@ export async function checkUsage(
         allowed: true,
         remaining: updatedCredits,
         cost,
-        freeInterviewUsed: false, // User is now using paid credits, not the free interview
         creditsAvailable: updatedCredits,
       };
     }
   }
 
-  // Check if user has completed their free interview
-  const interviewsCompleted = await getUserInterviewsCompleted(userId);
-  const freeInterviewUsed = interviewsCompleted >= FREE_INTERVIEWS;
-
-  // For users who have used their free interview, check credits
+  // Simple credit-based system - no free interview logic
   const creditsAvailable = await getUserCredits(userId);
 
   if (creditsAvailable >= cost) {
@@ -206,7 +197,6 @@ export async function checkUsage(
       allowed: true,
       remaining: creditsAvailable - cost,
       cost,
-      freeInterviewUsed: true,
       creditsAvailable,
     };
   } else {
@@ -240,7 +230,6 @@ export async function checkUsage(
       allowed: false,
       remaining: 0,
       cost,
-      freeInterviewUsed: true,
       creditsAvailable,
       paymentRequired: {
         amount: micropaymentAmount, // $0.50 USD for 5 credits
@@ -272,23 +261,17 @@ export async function checkUsageAfterProcessing(
       allowed: true,
       remaining: -1, // Indicate unlimited for anonymous
       cost,
-      freeInterviewUsed: false,
       creditsAvailable: -1, // Unlimited for anonymous users
     };
   }
 
-  // Check if user has completed their free interview
-  const interviewsCompleted = await getUserInterviewsCompleted(userId);
-  const freeInterviewUsed = interviewsCompleted >= FREE_INTERVIEWS;
-
-  // For users who have used their free interview, check credits
+  // Simple credit-based system
   const creditsAvailable = await getUserCredits(userId);
 
   return {
     allowed: creditsAvailable >= cost,
     remaining: creditsAvailable - cost,
     cost,
-    freeInterviewUsed: true,
     creditsAvailable,
   };
 }
@@ -300,14 +283,13 @@ export async function recordUsageWithDatabase(
   userId: string,
   action: string,
   cost: number,
-  freeInterviewAlreadyUsed: boolean,
+  unused: boolean = false, // Kept for compatibility, but no longer used
   wasPaymentJustVerified: boolean = false
 ): Promise<boolean> {
   Logger.info("Recording usage in database", {
     userId,
     action,
     cost,
-    freeInterviewAlreadyUsed,
     wasPaymentJustVerified,
   });
 
@@ -317,11 +299,8 @@ export async function recordUsageWithDatabase(
     return true;
   }
 
-  // For paid users (those who have used their free interview), deduct credits
-  // But don't deduct if a payment was just verified in this request (credits already added)
-  // Deduct credits if the user is past the free interview stage OR if a payment was just verified.
-  // The credit is consumed in the same request that verified the payment.
-  if (freeInterviewAlreadyUsed || wasPaymentJustVerified) {
+  // Simple credit-based system - deduct credits unless payment was just verified
+  if (!wasPaymentJustVerified) {
     try {
       // Check user has sufficient credits before processing (defensive check)
       const currentCredits = await getUserCredits(userId);
@@ -363,23 +342,21 @@ export async function recordUsageWithDatabase(
       });
       // Continue with usage recording even if credit management fails
     }
+  } else {
+    Logger.info(`Payment just verified - not deducting credits`, {
+      userId,
+      action,
+      cost,
+    });
   }
 
-  // Calculate interviews completed based on action type
-  let interviewsCompleted = 0;
-  if (action === "generateFlow") {
-    // This indicates a complete interview session
-    interviewsCompleted = await getUserInterviewsCompleted(userId);
-    interviewsCompleted += 1;
-  }
-
-  // Record the usage in the database
+  // Record the usage in the database (simplified)
   const usageRecord = {
     user_id: userId,
     action,
     cost,
-    free_interview_used: freeInterviewAlreadyUsed,
-    interviews_completed: interviewsCompleted,
+    free_interview_used: false, // No longer tracking this
+    interviews_completed: 0, // No longer tracking this
   };
 
   try {
@@ -390,7 +367,6 @@ export async function recordUsageWithDatabase(
         userId,
         action,
         cost,
-        freeInterviewUsed: freeInterviewAlreadyUsed,
       });
       return true;
     } else {
@@ -412,4 +388,4 @@ export async function recordUsageWithDatabase(
   }
 }
 
-export { FREE_INTERVIEWS, FREE_INTERACTIONS_PER_DAY };
+// No exports needed - all logic is now simplified

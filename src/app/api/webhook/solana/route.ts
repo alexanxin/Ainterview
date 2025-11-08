@@ -56,61 +56,16 @@ export async function POST(request: NextRequest) {
     );
 
     if (!paymentRecord) {
-      Logger.info(
-        "No payment record found with actual transaction signature, looking for pending record by user",
-        {
-          transactionId: payload.transaction.signature,
-        }
+      Logger.info("No payment record found with actual transaction signature", {
+        transactionId: payload.transaction.signature,
+      });
+
+      // Return an error indicating the payment record wasn't found
+      // In a real implementation, we would have a way to map transactions to users
+      return Response.json(
+        { error: "Payment record not found for this transaction" },
+        { status: 400 }
       );
-
-      // If no record was found with the actual transaction signature,
-      // try to find a pending record by looking up recent pending payments for the recipient
-      try {
-        const {
-          getPendingPaymentRecordsByUser,
-          updatePaymentRecordTransactionId,
-        } = await import("@/lib/database");
-
-        // Since we don't know the user ID from just the transaction signature,
-        // we'll need to try to find the record another way.
-        // The recipient field might help us identify the payment record.
-        // For now, let's create a new record with the transaction signature
-        // and update its status.
-
-        // For the webhook, we need to find the user associated with this transaction
-        // by checking against the expected recipient
-        const expectedRecipient =
-          process.env.NEXT_PUBLIC_PAYMENT_WALLET || "YOUR_WALLET_ADDRESS";
-
-        // If the transaction recipient matches our expected recipient,
-        // we'll proceed with processing but won't have the original user context
-        if (paymentRecord.recipient === expectedRecipient) {
-          // We still couldn't find the record, so we'll need to create one
-          // But we don't know the user ID from just the transaction
-          Logger.warn(
-            "Transaction matches expected recipient but no payment record found",
-            {
-              transactionId: payload.transaction.signature,
-            }
-          );
-        }
-
-        // Return an error indicating the payment record wasn't found
-        // In a real implementation, we would have a way to map transactions to users
-        return Response.json(
-          { error: "Payment record not found for this transaction" },
-          { status: 400 }
-        );
-      } catch (error) {
-        Logger.error("Error looking up payment record:", {
-          error: error instanceof Error ? error.message : String(error),
-          transactionId: payload.transaction.signature,
-        });
-        return Response.json(
-          { error: "Payment record lookup failed" },
-          { status: 500 }
-        );
-      }
     }
 
     // Verify the transaction on the blockchain

@@ -27,6 +27,7 @@ const MAX_CREDITS = 100; // Maximum purchase of $10.00 USD
 
 export default function PaymentPage() {
   const [creditsToBuy, setCreditsToBuy] = useState(MIN_CREDITS);
+  const [returnUrl, setReturnUrl] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<'USDC' | 'PYUSD' | 'CASH'>('USDC'); // New state for token selection
   const [isProcessing, setIsProcessing] = useState(false);
   const { user, session, loading } = useAuth(); // Get user and session from auth context
@@ -37,6 +38,45 @@ export default function PaymentPage() {
   const { success, error, warning, info } = useToast(); // Initialize toast notifications
 
   const usdAmount = (creditsToBuy * CREDIT_TO_USD_RATE).toFixed(2);
+
+  // Handle URL parameters for dynamic credit amounts and return URLs
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const amountParam = params.get('amount');
+      const operationParam = params.get('operation');
+      const returnUrlParam = params.get('returnUrl');
+
+      // Set credits to buy based on URL parameter, with a minimum of MIN_CREDITS
+      if (amountParam) {
+        const amount = parseInt(amountParam, 10);
+        if (!isNaN(amount) && amount >= MIN_CREDITS) {
+          setCreditsToBuy(amount);
+        } else {
+          setCreditsToBuy(MIN_CREDITS);
+        }
+      } else {
+        setCreditsToBuy(MIN_CREDITS);
+      }
+
+      // Set return URL if provided
+      if (returnUrlParam) {
+        setReturnUrl(returnUrlParam);
+      } else if (operationParam) {
+        // Set default return URL based on operation
+        switch (operationParam) {
+          case 'start_interview':
+            setReturnUrl('/interview');
+            break;
+          case 'reanswer_question':
+            setReturnUrl('/feedback');
+            break;
+          default:
+            setReturnUrl('/dashboard');
+        }
+      }
+    }
+  }, []);
 
   // Redirect to auth if user is not logged in
   useEffect(() => {
@@ -132,6 +172,27 @@ export default function PaymentPage() {
             // Check if recipient token account exists, if not create it
             const transaction = new Transaction();
 
+            // Check sender token account first
+            try {
+              const senderAccountInfo = await connection.getAccountInfo(senderTokenAccount);
+              if (!senderAccountInfo) {
+                // Create sender's token account if it doesn't exist
+                const createSenderAccountInstruction = createAssociatedTokenAccountInstruction(
+                  publicKey, // payer
+                  senderTokenAccount, // associated token account
+                  publicKey, // owner
+                  tokenMintPublicKey // mint
+                );
+                transaction.add(createSenderAccountInstruction);
+                console.log('Added instruction to create sender token account for', selectedToken);
+              }
+            } catch (err) {
+              console.error('Error checking sender token account:', err);
+              error('Error accessing your token account. Please check your wallet connection.');
+              return;
+            }
+
+            // Check recipient token account
             try {
               // Check if recipient token account exists
               const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
@@ -170,7 +231,8 @@ export default function PaymentPage() {
               recipient: recipientPublicKey.toString(),
               recipientTokenAccount: recipientTokenAccount.toString(),
               tokenAmount: tokenAmount.toString(),
-              usdAmount
+              usdAmount,
+              selectedToken
             });
 
             // Create token transfer instruction
@@ -188,10 +250,38 @@ export default function PaymentPage() {
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = publicKey;
 
-            // Send transaction to user's wallet for approval using the wallet adapter
-            const signature = await sendTransaction(transaction, connection);
+            console.log('Sending transaction...', {
+              blockhash: blockhash.substring(0, 10) + '...',
+              feePayer: publicKey.toString()
+            });
 
-            success('Transaction confirmed! Adding credits to your account...');
+            // Send transaction to user's wallet for approval using the wallet adapter
+            let signature: string;
+            try {
+              signature = await sendTransaction(transaction, connection);
+              console.log('Transaction sent successfully:', signature);
+            } catch (txError) {
+              console.error('Transaction error:', txError);
+
+              // Provide specific error messages for different scenarios
+              if (txError instanceof Error) {
+                if (txError.message.includes('Insufficient funds') || txError.message.includes('insufficient lamports')) {
+                  error(`Insufficient ${selectedToken} tokens or SOL for transaction fees. Please ensure you have enough ${selectedToken} tokens and some SOL for fees.`);
+                } else if (txError.message.includes('User rejected') || txError.message.includes('cancelled')) {
+                  error('Transaction was cancelled. No charges were made.');
+                } else if (txError.message.includes('Token account not found') || txError.message.includes('Invalid account owner')) {
+                  error(`Invalid ${selectedToken} token account. Please ensure you have ${selectedToken} tokens in your wallet.`);
+                } else {
+                  error(`Transaction failed: ${txError.message}`);
+                }
+              } else {
+                error(`Transaction failed: ${txError instanceof Error ? txError.message : 'Unknown error'}`);
+              }
+
+              // Clean up and return
+              setIsProcessing(false);
+              return;
+            }
 
             // Verify the transaction and add credits
             const verificationResult = await x402Service.verifySolanaPayment(signature, creditsToBuy);
@@ -217,19 +307,40 @@ export default function PaymentPage() {
                   const data = await response.json();
                   success(`Payment confirmed! ${data.message || `${creditsToAdd} credits have been added to your account.`}`);
                   refreshCredits(); // Trigger credit refresh after successful payment
-                  router.push('/dashboard');
+                  // Redirect to return URL if provided, otherwise to dashboard
+                  if (returnUrl) {
+                    router.push(returnUrl);
+                  } else {
+                    router.push('/dashboard');
+                  }
                 } else {
                   const errorData = await response.json();
                   error(`Payment verified but failed to add credits: ${errorData.error || 'Unknown error'}`);
-                  router.push('/dashboard');
+                  // Redirect to return URL if provided, otherwise to dashboard
+                  if (returnUrl) {
+                    router.push(returnUrl);
+                  } else {
+                    router.push('/dashboard');
+                  }
                 }
               } catch (apiError) {
                 console.error('Error adding credits:', apiError);
                 error('Payment verified but failed to add credits. Please contact support.');
-                router.push('/dashboard');
+                // Redirect to return URL if provided, otherwise to dashboard
+                if (returnUrl) {
+                  router.push(returnUrl);
+                } else {
+                  router.push('/dashboard');
+                }
               }
             } else {
               error('Payment verification failed. Please contact support if you were charged.');
+              // Redirect to return URL if provided, otherwise to dashboard
+              if (returnUrl) {
+                router.push(returnUrl);
+              } else {
+                router.push('/dashboard');
+              }
             }
           } catch (walletError: unknown) {
             if (walletError instanceof Error) {
@@ -243,9 +354,21 @@ export default function PaymentPage() {
               console.error('Wallet transaction error:', walletError);
               error('Failed to process wallet transaction. Please make sure your wallet is connected and try again.');
             }
+            // Redirect to return URL if provided, otherwise to dashboard
+            if (returnUrl) {
+              router.push(returnUrl);
+            } else {
+              router.push('/dashboard');
+            }
           }
         } else {
           error('Wallet not connected. Please connect your Solana wallet first.');
+          // Redirect to return URL if provided, otherwise to dashboard
+          if (returnUrl) {
+            router.push(returnUrl);
+          } else {
+            router.push('/dashboard');
+          }
         }
       } else {
         console.error('Payment request failed:', result.error);
@@ -254,6 +377,12 @@ export default function PaymentPage() {
     } catch (err) {
       console.error('Payment error:', err);
       error('An error occurred during payment. Please try again.');
+      // Redirect to return URL if provided, otherwise to dashboard
+      if (returnUrl) {
+        router.push(returnUrl);
+      } else {
+        router.push('/dashboard');
+      }
     } finally {
       setIsProcessing(false);
     }

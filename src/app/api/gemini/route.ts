@@ -8,7 +8,6 @@ import {
   checkUsage,
   checkUsageAfterProcessing,
   recordUsageWithDatabase,
-  FREE_INTERACTIONS_PER_DAY,
   UsageCheckResult,
 } from "@/lib/usage-and-payment";
 
@@ -1038,7 +1037,6 @@ export async function POST(req: NextRequest) {
       userId,
       action,
       cost,
-      freeInterviewUsed: usageCheck.freeInterviewUsed,
       wasPaymentJustVerified: !!req && !!req.headers.get("X-PAYMENT"),
     });
 
@@ -1050,7 +1048,7 @@ export async function POST(req: NextRequest) {
       userId || "anonymous",
       action,
       cost,
-      usageCheck.freeInterviewUsed,
+      false, // unused parameter - no longer used in credit-based system
       wasPaymentJustVerified
     );
 
@@ -1070,13 +1068,12 @@ export async function POST(req: NextRequest) {
     // Add remaining quota information to the response
     result.remainingQuota = updatedUsageCheck.remaining;
     result.quotaInfo = {
-      used: updatedUsageCheck.freeInterviewUsed
-        ? FREE_INTERACTIONS_PER_DAY - updatedUsageCheck.remaining
-        : 0, // If free interview is not used, usage is 0 for the first one
-      total: updatedUsageCheck.freeInterviewUsed
-        ? FREE_INTERACTIONS_PER_DAY
-        : 1, // Total is 1 for the free interview, or FREE_INTERACTIONS_PER_DAY after
-      resetTime: new Date(new Date().setHours(24, 0, 0)).toISOString(), // Reset at next midnight
+      used: Math.max(
+        0,
+        (usageCheck.creditsAvailable || 0) - updatedUsageCheck.remaining
+      ),
+      total: usageCheck.creditsAvailable || 0,
+      resetTime: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(), // Reset at next midnight
     };
 
     // Create a response object to potentially add X-PAYMENT-RESPONSE header

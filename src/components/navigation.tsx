@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import CreditDisplay from '@/components/credit-display';
+import { handleCreditCheckAndRedirect } from '@/lib/credit-service';
 
 export default function Navigation() {
   const [open, setOpen] = useState(false);
@@ -32,7 +33,8 @@ export default function Navigation() {
     // Profile link will be conditionally rendered when user is authenticated
   ];
 
-  const handleNavigation = (href: string) => {
+  const handleNavigation = async (href: string) => {
+    // For other navigation, proceed normally
     router.push(href);
     setOpen(false);
   };
@@ -71,7 +73,9 @@ export default function Navigation() {
               variant="ghost"
               size="sm"
               className="flex items-center space-x-2"
-              onClick={() => router.push(item.href)}
+              onClick={async () => {
+                router.push(item.href);
+              }}
             >
               <item.icon className="h-4 w-4" />
               <span>{item.name}</span>

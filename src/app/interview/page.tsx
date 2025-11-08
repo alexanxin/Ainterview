@@ -14,6 +14,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast';
 import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
 import { parsePdfText } from '@/lib/pdf-parser';
+import { checkCreditsBeforeOperation } from '@/lib/credit-service';
+import PaymentModal from '@/components/payment-modal';
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
@@ -32,6 +34,11 @@ export default function InterviewPage() {
   const [numberOfQuestions, setNumberOfQuestions] = useState<number>(5); // Default to 5 questions
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentContext, setPaymentContext] = useState({
+    description: '',
+    requiredCredits: 0,
+  });
   const router = useRouter();
   const { user, loading } = useAuth();
   const { error, success, warning, info } = useToast(); // Initialize toast notifications
@@ -226,7 +233,7 @@ export default function InterviewPage() {
     await parseLinkedInPDF(pdfFile);
   };
 
-  const handleStartInterview = () => {
+  const handleStartInterview = async () => {
     if (!jobPosting.trim()) {
       error('Please fill in the job posting field');
       return;
@@ -238,25 +245,48 @@ export default function InterviewPage() {
 
     setIsLoading(true);
 
-    // Clear any previous interview session data
-    localStorage.removeItem('interviewJobPosting');
-    localStorage.removeItem('interviewCv');
-    localStorage.removeItem('interviewCompanyInfo');
-    localStorage.removeItem('interviewNumberOfQuestions'); // Also clear the number of questions
+    try {
+      // Check if user has enough credits based on the number of questions selected
+      const result = await checkCreditsBeforeOperation("start_interview", {
+        operation: "start_interview",
+        numberOfQuestions: numberOfQuestions,
+      });
 
-    // Save new job posting and CV to localStorage
-    localStorage.setItem('interviewJobPosting', jobPosting);
-    localStorage.setItem('interviewCv', cv);
-    // Also save company info if available (could be extracted from job posting)
-    localStorage.setItem('interviewCompanyInfo', extractCompanyInfo(jobPosting));
-    // Save the selected number of questions
-    localStorage.setItem('interviewNumberOfQuestions', numberOfQuestions.toString());
+      if (result.sufficientCredits) {
+        // User has enough credits, proceed with starting the interview
+        // Clear any previous interview session data
+        localStorage.removeItem('interviewJobPosting');
+        localStorage.removeItem('interviewCv');
+        localStorage.removeItem('interviewCompanyInfo');
+        localStorage.removeItem('interviewNumberOfQuestions'); // Also clear the number of questions
 
-    // Simulate API call to prepare interview
-    setTimeout(() => {
+        // Save new job posting and CV to localStorage
+        localStorage.setItem('interviewJobPosting', jobPosting);
+        localStorage.setItem('interviewCv', cv);
+        // Also save company info if available (could be extracted from job posting)
+        localStorage.setItem('interviewCompanyInfo', extractCompanyInfo(jobPosting));
+        // Save the selected number of questions
+        localStorage.setItem('interviewNumberOfQuestions', numberOfQuestions.toString());
+
+        // Simulate API call to prepare interview
+        setTimeout(() => {
+          setIsLoading(false);
+          router.push('/interview/session');
+        }, 1500);
+      } else {
+        // User doesn't have enough credits, show payment modal
+        setIsLoading(false);
+        setPaymentContext({
+          description: `You need ${result.requiredCredits} credits to start an interview with ${numberOfQuestions} questions, but you only have ${result.currentCredits} credits.`,
+          requiredCredits: result.requiredCredits,
+        });
+        setShowPaymentModal(true);
+      }
+    } catch (err) {
+      console.error('Error checking credits:', err);
+      error('An error occurred while checking your credits. Please try again.');
       setIsLoading(false);
-      router.push('/interview/session');
-    }, 1500);
+    }
   };
 
   const handleEditCv = () => {
@@ -409,7 +439,7 @@ export default function InterviewPage() {
           <div className="container mx-auto max-w-4xl py-8">
             <div className="text-center py-12">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading interview setup...</p>
+              <p className="mt-4 text-gray-60 dark:text-gray-400">Loading interview setup...</p>
             </div>
           </div>
         </main>
@@ -469,18 +499,18 @@ export default function InterviewPage() {
                   className="min-h-[100px]"
                 />
               </div>
+              <SheetFooter className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="outline" onClick={handleSaveForSession}>
+                  Save for this session
+                </Button>
+                <Button onClick={handleSaveToDatabase}>
+                  Save to database
+                </Button>
+              </SheetFooter>
             </div>
-            <SheetFooter className="flex gap-2">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button variant="outline" onClick={handleSaveForSession}>
-                Save for this session
-              </Button>
-              <Button onClick={handleSaveToDatabase}>
-                Save to database
-              </Button>
-            </SheetFooter>
           </SheetContent>
         </Sheet>
       </div>
@@ -530,15 +560,15 @@ export default function InterviewPage() {
                 <CardContent className="p-4">
                   <p className="text-green-700 dark:text-green-300 font-bold text-sm"><span className="mr-2">🎁</span>
                     Free Usage Policy</p>
-                  <p className="text-green-700 dark:text-green-300 text-sm">
-                    Your first complete interview is completely free! After that, you&apos;ll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
+                  <p className="text-green-70 dark:text-green-300 text-sm">
+                    Your first complete interview is completely free! After that, you'll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
                   </p>
                 </CardContent>
               </Card>
 
               {/* Profile Incomplete Notice */}
               {profileIncomplete ? (
-                <Card className="dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                <Card className="dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-80">
                   <CardHeader className="border-b border-yellow-200 dark:border-yellow-800">
                     <CardTitle className="text-yellow-800 dark:text-yellow-200 flex items-center text-lg">
                       <span className="mr-2">⚠️</span>
@@ -676,7 +706,7 @@ export default function InterviewPage() {
                   {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
                   {profileIncomplete && (
                     <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                      <CardHeader className="border-b border-blue-200 dark:border-blue-800">
+                      <CardHeader className="border-b border-blue-200 dark:border-blue-80">
                         <CardTitle className="text-blue-800 dark:text-blue-200 flex items-center">
                           <span className="mr-2">📄</span>
                           Import from LinkedIn PDF
@@ -687,7 +717,7 @@ export default function InterviewPage() {
                           Upload your LinkedIn profile PDF to automatically fill in your information
                         </p>
                         <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
-                          Tip: To get your LinkedIn PDF, go to your profile page, click the &quot;More&quot; button, and select &quot;Save to PDF&quot;
+                          Tip: To get your LinkedIn PDF, go to your profile page, click the "More" button, and select "Save to PDF"
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-4">
@@ -846,6 +876,18 @@ export default function InterviewPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        paymentContext={paymentContext}
+        onSuccess={() => {
+          // After successful payment, try starting the interview again
+          setShowPaymentModal(false);
+          handleStartInterview();
+        }}
+      />
     </div>
   );
 }

@@ -97,13 +97,15 @@ export async function getUserProfile(
 
   if (result.error) {
     console.error("Error fetching user profile:", result.error);
-    // Cache the null result to avoid repeated failed requests
-    cacheService.setUserProfile(userId, null);
+    // Don't cache null results - this ensures profile completion checks work for new users
+    // The cache service will return undefined for user profiles, triggering fresh database queries
     return null;
   }
 
-  // Cache the result in both memory and localStorage
-  cacheService.setUserProfile(userId, result.data);
+  // Cache only non-null results - null results are not cached
+  if (result.data) {
+    cacheService.setUserProfile(userId, result.data);
+  }
 
   return result.data;
 }
@@ -124,6 +126,12 @@ export async function updateUserProfile(
 
   const supabaseClient =
     supabase as import("@supabase/supabase-js").SupabaseClient;
+
+  console.log(
+    `🔄 UPDATE PROFILE: Updating profile for user ${userId} with data:`,
+    profileData
+  );
+
   // First try to update existing profile
   const updateResult = await supabaseClient
     .from("profiles")
@@ -164,6 +172,10 @@ export async function updateUserProfile(
     return false;
   }
 
+  console.log(
+    `✅ UPDATE PROFILE: Profile for user ${userId} updated successfully`
+  );
+
   // Invalidate cache since we updated the profile
   cacheService.invalidateUserProfile(userId);
 
@@ -174,17 +186,23 @@ export async function updateUserProfile(
 export async function createInterviewSession(
   sessionData: Omit<InterviewSession, "id" | "created_at" | "updated_at">
 ): Promise<InterviewSession | null> {
-  // Check if supabase client is the mock (when env vars aren't set)
-  if (!("from" in supabase)) {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
     console.warn(
-      "Supabase client not initialized - missing environment variables"
+      "Supabase server client not initialized - missing environment variables"
     );
     return null;
   }
 
-  const supabaseClient =
-    supabase as import("@supabase/supabase-js").SupabaseClient;
-  const { data, error } = await supabaseClient
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  console.log(
+    `🔄 CREATE SESSION: Creating interview session with data:`,
+    sessionData
+  );
+
+  const { data, error } = await supabaseServerClient
     .from("interview_sessions")
     .insert([sessionData])
     .select()
@@ -200,6 +218,10 @@ export async function createInterviewSession(
     return null;
   }
 
+  console.log(
+    `✅ CREATE SESSION: Interview session created successfully:`,
+    data?.id
+  );
   return data;
 }
 
@@ -279,17 +301,23 @@ export async function updateInterviewSession(
   sessionId: string,
   sessionData: Partial<InterviewSession>
 ): Promise<boolean> {
-  // Check if supabase client is the mock (when env vars aren't set)
-  if (!("from" in supabase)) {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
     console.warn(
-      "Supabase client not initialized - missing environment variables"
+      "Supabase server client not initialized - missing environment variables"
     );
     return false;
   }
 
-  const supabaseClient =
-    supabase as import("@supabase/supabase-js").SupabaseClient;
-  const result = await supabaseClient
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  console.log(
+    `🔄 UPDATE SESSION: Updating session ${sessionId} with data:`,
+    sessionData
+  );
+
+  const result = await supabaseServerClient
     .from("interview_sessions")
     .update(sessionData)
     .eq("id", sessionId);
@@ -298,6 +326,10 @@ export async function updateInterviewSession(
     console.error("Error updating interview session:", result.error);
     return false;
   }
+
+  console.log(
+    `✅ UPDATE SESSION: Session ${sessionId} update operation completed`
+  );
 
   // Invalidate cache since we updated the session
   cacheService.invalidateInterviewSessionById(sessionId);
@@ -314,15 +346,22 @@ export async function updateInterviewSession(
 export async function createInterviewQuestion(
   questionData: Omit<InterviewQuestion, "id" | "created_at">
 ): Promise<InterviewQuestion | null> {
-  // Check if supabase client is the mock (when env vars aren't set)
-  if (!("from" in supabase)) {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
     console.warn(
-      "Supabase client not initialized - missing environment variables"
+      "Supabase server client not initialized - missing environment variables"
     );
     return null;
   }
 
-  const result = await supabase
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  console.log(
+    `🔄 CREATE QUESTION: Creating question for session ${questionData.session_id}`
+  );
+
+  const result = await supabaseServerClient
     .from("interview_questions")
     .insert([questionData])
     .select()
@@ -332,6 +371,11 @@ export async function createInterviewQuestion(
     console.error("Error creating interview question:", result.error);
     return null;
   }
+
+  console.log(
+    `✅ CREATE QUESTION: Question created successfully:`,
+    result.data?.id
+  );
 
   // Invalidate cache for the session's questions since we added a new one
   if (questionData.session_id) {
@@ -427,15 +471,22 @@ export async function getQuestionBySessionAndNumber(
 export async function createInterviewAnswer(
   answerData: Omit<InterviewAnswer, "id" | "created_at">
 ): Promise<InterviewAnswer | null> {
-  // Check if supabase client is the mock (when env vars aren't set)
-  if (!("from" in supabase)) {
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
     console.warn(
-      "Supabase client not initialized - missing environment variables"
+      "Supabase server client not initialized - missing environment variables"
     );
     return null;
   }
 
-  const result = await supabase
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  console.log(
+    `🔄 CREATE ANSWER: Creating answer for session ${answerData.session_id}`
+  );
+
+  const result = await supabaseServerClient
     .from("interview_answers")
     .insert([answerData])
     .select()
@@ -445,6 +496,11 @@ export async function createInterviewAnswer(
     console.error("Error creating interview answer:", result.error);
     return null;
   }
+
+  console.log(
+    `✅ CREATE ANSWER: Answer created successfully:`,
+    result.data?.id
+  );
 
   // Invalidate cache for the session's answers since we added a new one
   if (answerData.session_id) {
@@ -614,6 +670,8 @@ export async function getUserInterviewsCompleted(
 
 // Credit management operations
 export async function getUserCredits(userId: string): Promise<number> {
+  console.log(`💰 CREDITS: Fetching credits for user ${userId}`);
+
   // Check if supabase server client is the mock (when env vars aren't set)
   if (!("from" in supabaseServer)) {
     console.warn(
@@ -632,10 +690,13 @@ export async function getUserCredits(userId: string): Promise<number> {
 
   if (result.error) {
     if (result.error.code === "PGRST116") {
-      // No record found, create a default record with 0 credits
+      // No record found, create a new user with 5 credits
+      console.log(
+        `Creating new user credits record for ${userId} with 5 starting credits`
+      );
       const insertResult = await supabaseServerClient
         .from("user_credits")
-        .insert([{ user_id: userId, credits: 0 }])
+        .insert([{ user_id: userId, credits: 5 }])
         .select("credits")
         .single();
 
@@ -647,6 +708,9 @@ export async function getUserCredits(userId: string): Promise<number> {
         return 0;
       }
 
+      console.log(
+        `New user ${userId} created with ${insertResult.data.credits} starting credits`
+      );
       return insertResult.data.credits;
     } else {
       console.error("Error fetching user credits:", result.error);
@@ -654,13 +718,17 @@ export async function getUserCredits(userId: string): Promise<number> {
     }
   }
 
-  return result.data?.credits ?? 0;
+  const credits = result.data?.credits ?? 0;
+  console.log(`💰 CREDITS: User ${userId} has ${credits} credits`);
+  return credits;
 }
 
 export async function addUserCredits(
   userId: string,
   amount: number
 ): Promise<boolean> {
+  console.log(`💳 CREDITS: Adding ${amount} credits to user ${userId}`);
+
   if (amount <= 0) {
     console.warn("Attempted to add non-positive amount of credits:", amount);
     return false;
@@ -743,6 +811,16 @@ export async function addUserCredits(
       }
     }
 
+    // CRITICAL: Invalidate the credit cache after successful update
+    console.log(`🗑️ CACHE: Invalidating credit cache for user ${userId}`);
+    cacheService.invalidateUserCredits(userId);
+
+    // Log the new credit balance for debugging
+    const newBalance = await getUserCredits(userId);
+    console.log(
+      `✅ CREDITS: Successfully added ${amount} credits. New balance: ${newBalance}`
+    );
+
     return true;
   } catch (err) {
     console.error("Error in addUserCredits:", err);
@@ -754,6 +832,8 @@ export async function deductUserCredits(
   userId: string,
   amount: number
 ): Promise<boolean> {
+  console.log(`💳 CREDITS: Deducting ${amount} credits from user ${userId}`);
+
   if (amount <= 0) {
     console.warn("Attempted to deduct non-positive amount of credits:", amount);
     return false;
@@ -780,9 +860,21 @@ export async function deductUserCredits(
     return false;
   }
 
+  // CRITICAL: Invalidate the credit cache after successful deduction
+  console.log(
+    `🗑️ CACHE: Invalidating credit cache for user ${userId} after deduction`
+  );
+  cacheService.invalidateUserCredits(userId);
+
   // The RPC should return true if deduction was successful (i.e., sufficient credits)
   // Log the data to debug the return value
   console.log("Deduct user credits RPC data:", data);
+
+  // Log the new credit balance for debugging
+  const newBalance = await getUserCredits(userId);
+  console.log(
+    `✅ CREDITS: Successfully deducted ${amount} credits. New balance: ${newBalance}`
+  );
 
   // Assuming success if no error is returned, as the RPC should handle the logic
   return true;

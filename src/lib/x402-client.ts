@@ -3,7 +3,7 @@
 
 import { Logger } from "@/lib/logger";
 
-interface X402PaymentRequirements {
+export interface X402PaymentRequirements {
   scheme: string;
   network: string;
   maxAmountRequired: string; // In atomic units
@@ -84,9 +84,7 @@ export function createX402PaymentHeader(serializedTransaction: string): string {
 /**
  * Processes a successful payment response from the server
  */
-export async function processX402PaymentResponse(
-  response: Response
-): Promise<{
+export async function processX402PaymentResponse(response: Response): Promise<{
   success: boolean;
   txHash?: string;
   networkId?: string;

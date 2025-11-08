@@ -1,6 +1,7 @@
 import { Logger } from "./logger";
 import { validateInterviewContext, sanitizeInput } from "./validations";
 import { deductUserCredits } from "./database"; // Import deductUserCredits
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
 export interface InterviewContext {
   jobPosting: string;
@@ -20,6 +21,29 @@ export interface BatchEvaluationResponse {
   evaluations: QuestionResponse[];
 }
 
+// Define a more specific type for the wallet adapter
+export interface WalletAdapter {
+  publicKey: PublicKey | null;
+  connected: boolean;
+  sendTransaction: (
+    transaction: Transaction,
+    connection: Connection,
+    options?: Record<string, unknown> // Use Record for more type safety
+  ) => Promise<string>;
+}
+
+export interface QuotaInfo {
+  total: number;
+  used: number;
+  remaining: number;
+}
+
+// Define a custom error type for API errors
+interface APIError extends Error {
+  status: number;
+  errorData?: Record<string, unknown>; // Use Record for more type safety
+}
+
 export class GeminiService {
   private static instance: GeminiService;
   private isPaymentProcessing: boolean = false; // Lock to prevent multiple concurrent payment flows
@@ -32,10 +56,10 @@ export class GeminiService {
 
   private async callGeminiAPI<T>(
     action: string,
-    body: Record<string, any>,
+    body: Record<string, unknown>, // Use unknown for more type safety
     userId?: string,
-    connection?: any,
-    wallet?: any,
+    connection?: Connection, // Use Solana Connection type
+    wallet?: WalletAdapter, // Use custom WalletAdapter type
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -54,101 +78,19 @@ export class GeminiService {
 
     // Check if this is a 402 Payment Required response
     if (res.status === 402) {
-      if (this.isPaymentProcessing) {
-        Logger.warn(`Concurrent payment request blocked in ${action}`, {
-          userId,
-        });
-        throw new Error("Payment flow already in progress. Please wait.");
-      }
-
-      this.isPaymentProcessing = true;
-      try {
-        // Import the X402 client functions dynamically
-        const { executeWithX402Handling } = await import(
-          "@/lib/x402-client-simple"
-        );
-
-        // Create a function that can re-execute the request
-        const requestExecutor = async (paymentHeader?: string) => {
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-          };
-
-          if (paymentHeader) {
-            headers["X-PAYMENT"] = paymentHeader;
-          }
-
-          return fetch("/api/gemini", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              action,
-              ...body,
-              userId: userId || "anonymous",
-            }),
-          });
-        };
-
-        // Use the X402 handling flow to process the payment
-        const response = await executeWithX402Handling(
-          requestExecutor,
-          connection, // Use real Solana connection
-          wallet, // Use real wallet adapter
-          (paymentReq) => {
-            // onPaymentRequired callback
-            Logger.info("X402 Payment required", { paymentReq });
-            // Optionally call onPaymentInitiated to show payment required notification
-            if (onPaymentInitiated) {
-              onPaymentInitiated(
-                "Payment required: Please complete the transaction in your wallet."
-              );
-            }
-          },
-          (result) => {
-            // onPaymentSuccess callback
-            Logger.info("X402 Payment successful", { result });
-            if (onPaymentSuccess) {
-              onPaymentSuccess(
-                "Payment successful! Credits have been added to your account."
-              );
-            }
-          },
-          (message) => {
-            // onPaymentInitiated callback - this would show the payment initiation notification
-            if (onPaymentInitiated) {
-              onPaymentInitiated(message);
-            } else {
-              console.log(message);
-            }
-          },
-          (message) => {
-            // onPaymentFailure callback - this would show the payment failure notification
-            if (onPaymentFailure) {
-              onPaymentFailure(message);
-            } else {
-              console.log(message);
-            }
-          }
-        );
-        // Return the JSON data from the response, not the Response object itself
-        const data = await response.json();
-
-        // Reverting explicit client-side deduction as per user request to handle net credit change on server.
-        // The server is expected to add 4 credits (5 - 1 consumed) instead of 5.
-        // The original bug was fixed by ensuring the RPC calls work.
-        // The deduction logic is now assumed to be handled by the server.
-
-        return data;
-      } finally {
-        this.isPaymentProcessing = false;
-      }
+      // CRITICAL: Don't handle payment internally, throw error to let page component handle it
+      const errorData = await res.json().catch(() => ({}));
+      const error = new Error("Payment required for this action");
+      (error as APIError).status = 402;
+      (error as APIError).errorData = errorData;
+      throw error;
     }
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       const error = new Error(`API request failed with status ${res.status}`);
-      (error as any).status = res.status;
-      (error as any).errorData = errorData;
+      (error as APIError).status = res.status; // Cast to APIError
+      (error as APIError).errorData = errorData; // Cast to APIError
       throw error;
     }
 
@@ -156,12 +98,9 @@ export class GeminiService {
 
     // Trigger credit refresh after successful API calls that may have spent credits
     // Only trigger for actions that cost credits (not generateFlow which is free)
-    if (
-      this.onCreditsChanged &&
-      action !== "generateFlow" &&
-      action !== "generateQuestion" &&
-      action !== "generateSimilarQuestion"
-    ) {
+    // Trigger credit refresh after successful API calls that may have spent credits
+    // or after a successful payment flow (which implies credits were added)
+    if (this.onCreditsChanged) {
       Logger.info("Triggering credit refresh after API call", {
         action,
         userId,
@@ -208,6 +147,8 @@ export class GeminiService {
         sanitizedContext,
         1,
         userId,
+        undefined, // connection
+        undefined, // wallet
         onPaymentInitiated,
         onPaymentSuccess,
         onPaymentFailure
@@ -223,26 +164,7 @@ export class GeminiService {
       });
 
       if ((error as { status?: number }).status === 402) {
-        // Use the unified API client for the payment flow
-        const allQuestions = await this.callGeminiAPI<string[]>(
-          "generateFlow",
-          {
-            context: {
-              jobPosting: context.jobPosting,
-              companyInfo: context.companyInfo,
-              userCv: context.userCv,
-            },
-            numQuestions: 1,
-          },
-          userId,
-          onPaymentInitiated,
-          onPaymentSuccess,
-          onPaymentFailure
-        );
-        return (
-          allQuestions[0] ||
-          "Can you tell me about your experience with this type of role?"
-        );
+        throw error; // Let 402 errors bubble up to page component
       }
       // Return a fallback question if API call fails
       return "Can you tell me about your experience with this type of role?";
@@ -254,12 +176,14 @@ export class GeminiService {
     question: string,
     answer: string,
     userId?: string,
-    connection?: any,
-    wallet?: any,
+    connection?: Connection, // Use Solana Connection type
+    wallet?: WalletAdapter, // Use custom WalletAdapter type
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
-  ): Promise<QuestionResponse & { remainingQuota?: number; quotaInfo?: any }> {
+  ): Promise<
+    QuestionResponse & { remainingQuota?: number; quotaInfo?: QuotaInfo }
+  > {
     try {
       // Validate context before processing
       validateInterviewContext(context);
@@ -281,7 +205,7 @@ export class GeminiService {
 
       // Use the unified API client
       const data = await this.callGeminiAPI<
-        QuestionResponse & { remainingQuota?: number; quotaInfo?: any }
+        QuestionResponse & { remainingQuota?: number; quotaInfo?: QuotaInfo }
       >(
         "analyzeAnswer",
         {
@@ -340,8 +264,8 @@ export class GeminiService {
     context: InterviewContext,
     numQuestions: number = 5,
     userId?: string,
-    connection?: any,
-    wallet?: any,
+    connection?: Connection, // Use Solana Connection type
+    wallet?: WalletAdapter, // Use custom WalletAdapter type
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
@@ -386,30 +310,13 @@ export class GeminiService {
         userId,
       });
 
+      // Let 402 errors bubble up to page component for proper handling
       if ((error as { status?: number }).status === 402) {
-        // Use the unified API client for the payment flow
-        const data = await this.callGeminiAPI<{ questions: string[] }>(
-          "generateFlow",
-          {
-            context: {
-              jobPosting: context.jobPosting,
-              companyInfo: context.companyInfo,
-              userCv: context.userCv,
-            },
-            numQuestions: numQuestions,
-          },
-          userId,
-          connection,
-          wallet,
-          onPaymentInitiated,
-          onPaymentSuccess,
-          onPaymentFailure
-        );
-        return data.questions || [];
+        throw error;
       } else if ((error as { status?: number }).status === 429) {
         throw error;
       }
-      // Return fallback questions if API call fails
+      // Return fallback questions for non-payment related errors
       return [
         "Tell me about yourself.",
         "Why are you interested in this position?",
@@ -425,13 +332,13 @@ export class GeminiService {
     questions: string[],
     answers: string[],
     userId?: string,
-    connection?: any,
-    wallet?: any,
+    connection?: Connection, // Use Solana Connection type
+    wallet?: WalletAdapter, // Use custom WalletAdapter type
     onPaymentInitiated?: (message: string) => void,
     onPaymentSuccess?: (message: string) => void,
     onPaymentFailure?: (message: string) => void
   ): Promise<
-    BatchEvaluationResponse & { remainingQuota?: number; quotaInfo?: any }
+    BatchEvaluationResponse & { remainingQuota?: number; quotaInfo?: QuotaInfo }
   > {
     try {
       // Validate context before processing
@@ -455,7 +362,10 @@ export class GeminiService {
 
       // Use the unified API client
       return await this.callGeminiAPI<
-        BatchEvaluationResponse & { remainingQuota?: number; quotaInfo?: any }
+        BatchEvaluationResponse & {
+          remainingQuota?: number;
+          quotaInfo?: QuotaInfo;
+        }
       >(
         "batchEvaluate",
         {
@@ -477,39 +387,13 @@ export class GeminiService {
         userId,
       });
 
+      // Let 402 errors bubble up to page component for proper handling
       if ((error as { status?: number }).status === 402) {
-        // Use the unified API client for the payment flow
-        const data = await this.callGeminiAPI<{
-          evaluations: QuestionResponse[];
-          remainingQuota?: number;
-          quotaInfo?: any;
-        }>(
-          "batchEvaluate",
-          {
-            context: {
-              jobPosting: context.jobPosting,
-              companyInfo: context.companyInfo,
-              userCv: context.userCv,
-            },
-            questions: questions,
-            answers: answers,
-          },
-          userId,
-          connection,
-          wallet,
-          onPaymentInitiated,
-          onPaymentSuccess,
-          onPaymentFailure
-        );
-        return {
-          evaluations: data.evaluations,
-          remainingQuota: data.remainingQuota,
-          quotaInfo: data.quotaInfo,
-        };
+        throw error;
       } else if ((error as { status?: number }).status === 429) {
         throw error;
       }
-      // Return fallback analysis if API call fails
+      // Return fallback analysis for non-payment related errors
       const evaluations = questions.map((question, i) => ({
         question,
         userAnswer: answers[i] || "",
@@ -556,6 +440,8 @@ export class GeminiService {
           question: sanitizedOriginalQuestion,
         },
         userId,
+        undefined, // connection
+        undefined, // wallet
         onPaymentInitiated,
         onPaymentSuccess,
         onPaymentFailure
@@ -569,23 +455,7 @@ export class GeminiService {
       });
 
       if ((error as { status?: number }).status === 402) {
-        // Use the unified API client for the payment flow
-        const data = await this.callGeminiAPI<{ question: string }>(
-          "generateSimilarQuestion",
-          {
-            context: {
-              jobPosting: context.jobPosting,
-              companyInfo: context.companyInfo,
-              userCv: context.userCv,
-            },
-            question: originalQuestion,
-          },
-          userId,
-          onPaymentInitiated,
-          onPaymentSuccess,
-          onPaymentFailure
-        );
-        return data.question || `Similar question to: ${originalQuestion}`;
+        throw error; // Let 402 errors bubble up to page component
       } else if ((error as { status?: number }).status === 429) {
         throw error;
       }

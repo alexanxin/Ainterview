@@ -129,6 +129,27 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                         // Check if recipient token account exists, if not create it
                         const transaction = new Transaction();
 
+                        // Check sender token account first
+                        try {
+                            const senderAccountInfo = await connection.getAccountInfo(senderTokenAccount);
+                            if (!senderAccountInfo) {
+                                // Create sender's token account if it doesn't exist
+                                const createSenderAccountInstruction = createAssociatedTokenAccountInstruction(
+                                    publicKey, // payer
+                                    senderTokenAccount, // associated token account
+                                    publicKey, // owner
+                                    tokenMintPublicKey // mint
+                                );
+                                transaction.add(createSenderAccountInstruction);
+                                console.log('Added instruction to create sender token account for', selectedToken);
+                            }
+                        } catch (err) {
+                            console.error('Error checking sender token account:', err);
+                            error('Error accessing your token account. Please check your wallet connection.');
+                            return;
+                        }
+
+                        // Check recipient token account
                         try {
                             const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
                             if (!recipientAccountInfo) {
@@ -139,6 +160,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                     tokenMintPublicKey // mint
                                 );
                                 transaction.add(createRecipientAccountInstruction);
+                                console.log('Added instruction to create recipient token account');
                             }
                         } catch (error) {
                             console.error('Error checking recipient token account:', error);
@@ -149,10 +171,23 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                 tokenMintPublicKey // mint
                             );
                             transaction.add(createRecipientAccountInstruction);
+                            console.log('Added instruction to create recipient token account (fallback)');
                         }
 
                         // Calculate amount in token units
                         const tokenAmount = BigInt(Math.round(parseFloat(usdAmount) * 1_000_000));
+
+                        // Debug logging
+                        console.log('Payment details:', {
+                            tokenMint: tokenMintAddress,
+                            sender: publicKey.toString(),
+                            senderTokenAccount: senderTokenAccount.toString(),
+                            recipient: recipientPublicKey.toString(),
+                            recipientTokenAccount: recipientTokenAccount.toString(),
+                            tokenAmount: tokenAmount.toString(),
+                            usdAmount,
+                            selectedToken
+                        });
 
                         // Create token transfer instruction
                         const transferInstruction = createTransferInstruction(
@@ -169,18 +204,70 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                         transaction.recentBlockhash = blockhash;
                         transaction.feePayer = publicKey;
 
+                        console.log('Sending transaction...', {
+                            blockhash: blockhash.substring(0, 10) + '...',
+                            feePayer: publicKey.toString()
+                        });
+
                         // Send transaction to user's wallet for approval
-                        const signature = await sendTransaction(transaction, connection);
+                        let signature: string;
+                        try {
+                            signature = await sendTransaction(transaction, connection);
+                            console.log('Transaction sent successfully:', signature);
+                        } catch (txError) {
+                            console.error('Transaction error:', txError);
+
+                            // Provide specific error messages for different scenarios
+                            if (txError instanceof Error) {
+                                if (txError.message.includes('Insufficient funds') || txError.message.includes('insufficient lamports')) {
+                                    error(`Insufficient ${selectedToken} tokens or SOL for transaction fees. Please ensure you have enough ${selectedToken} tokens and some SOL for fees.`);
+                                } else if (txError.message.includes('User rejected') || txError.message.includes('cancelled')) {
+                                    error('Transaction was cancelled. No charges were made.');
+                                } else if (txError.message.includes('Token account not found') || txError.message.includes('Invalid account owner')) {
+                                    error(`Invalid ${selectedToken} token account. Please ensure you have ${selectedToken} tokens in your wallet.`);
+                                } else {
+                                    error(`Transaction failed: ${txError.message}`);
+                                }
+                            } else {
+                                error(`Transaction failed: ${txError instanceof Error ? txError.message : 'Unknown error'}`);
+                            }
+
+                            // Clean up and return
+                            setIsProcessing(false);
+                            return;
+                        }
 
                         success('Transaction confirmed! Adding credits to your account...');
 
-                        // Verify the transaction and add credits
-                        const verificationResult = await x402Service.verifySolanaPayment(signature, creditsToBuy);
+                        // Verify the transaction and add credits via server-side API
+                        const verificationResponse = await fetch('/api/payment/verify', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                transactionId: signature,
+                                expectedAmount: Math.round(parseFloat(usdAmount) * 1000000), // Convert USD to atomic units
+                                expectedToken: selectedToken,
+                            }),
+                        });
+
+                        if (!verificationResponse.ok) {
+                            throw new Error('Payment verification failed');
+                        }
+
+                        const verificationResult = await verificationResponse.json();
                         if (verificationResult.success) {
                             const creditsToAdd = verificationResult.creditsAdded || creditsToBuy;
 
                             // Add credits to user account via API call
                             try {
+                                console.log('Calling /api/user/credits with:', {
+                                    usdAmount: parseFloat(usdAmount),
+                                    transactionId: signature,
+                                    authToken: session?.access_token ? 'present' : 'missing'
+                                });
+
                                 const response = await fetch('/api/user/credits', {
                                     method: 'POST',
                                     headers: {
@@ -192,6 +279,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                         transactionId: signature
                                     }),
                                 });
+
+                                console.log('Response status:', response.status, response.statusText);
 
                                 if (response.ok) {
                                     const data = await response.json();

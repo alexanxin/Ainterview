@@ -13,8 +13,10 @@ import { geminiService, InterviewContext } from '@/lib/gemini-service';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useCreditRefresh } from '@/lib/credit-context';
 import { InterviewSession, InterviewQuestion, InterviewAnswer } from '@/lib/database';
 import { cacheRefreshService } from '@/lib/cache-refresh-service';
+import { handleCreditCheckAndRedirect, checkCreditsBeforeOperation } from '@/lib/credit-service';
 
 // API functions using the server-side endpoint to ensure proper permissions
 const createInterviewSession = async (sessionData: Omit<InterviewSession, "id" | "created_at" | "updated_at">) => {
@@ -165,7 +167,7 @@ export default function InterviewSessionPage() {
   const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null); // Timer for recording duration
   const [recordingTime, setRecordingTime] = useState(0); // Track recording time in seconds
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showCreditSelection, setShowCreditSelection] = useState(false);
+  const [isTransitionLoading, setIsTransitionLoading] = useState(false); // Track smooth transition loading
   const [interruptedOperation, setInterruptedOperation] = useState<{
     operation: string;
     data: string[] | null;
@@ -176,12 +178,14 @@ export default function InterviewSessionPage() {
     usdAmount?: number;
     requiredCredits?: number;
   } | null>(null);
+  const [hasAutoStarted, setHasAutoStarted] = useState(false); // Prevent auto-start loop
   const router = useRouter();
   const { user, loading } = useAuth(); // Get user and loading state from auth context
   const { success, error, info, warning } = useToast(); // Initialize toast notifications
   const { connection } = useConnection(); // Solana connection
   const { publicKey, connected, sendTransaction } = useWallet(); // Solana wallet
   const walletAdapter = { publicKey, connected, sendTransaction }; // Create wallet object for x402
+  const { refreshCredits } = useCreditRefresh(); // Add credit refresh hook
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -190,32 +194,83 @@ export default function InterviewSessionPage() {
     }
   }, [user, loading, router]);
 
+  // Set up the credit refresh callback for the gemini service
+  useEffect(() => {
+    // Set the credit refresh callback for the gemini service
+    geminiService.setCreditRefreshCallback(() => {
+      console.log('🔄 CREDITS: Gemini service triggered credit refresh');
+      refreshCredits();
+    });
+
+    // Cleanup function to remove the callback if component unmounts
+    return () => {
+      // Note: The gemini service is a singleton, so we can't easily remove the callback
+      // This is fine for now as the callback doesn't cause any issues
+      console.log('🔄 CREDITS: Interview session component unmounted');
+    };
+  }, [refreshCredits]);
+
   // Callback for when payment is successful
   const handlePaymentSuccess = () => {
+    console.log('🎉 PAYMENT SUCCESS: Payment completed successfully');
+    console.log('💳 CREDITS: Payment success callback triggered');
+
     success('Payment successful! Credits have been added to your account.');
     setShowPaymentModal(false);
     setPendingPaymentData(null);
     setIsLoading(false); // Reset loading state immediately
 
+    // Refresh the credits in the credit display component
+    console.log('🔄 CREDITS: Calling refreshCredits()');
+    refreshCredits();
+    console.log('✅ CREDITS: refreshCredits() called');
+
+    // Check if there's form data in localStorage and restore it
+    const formData = localStorage.getItem('interviewFormData');
+    if (formData) {
+      const parsedData = JSON.parse(formData);
+      // Restore the interview context
+      setInterviewContext({
+        jobPosting: parsedData.jobPosting,
+        userCv: parsedData.userCv,
+        companyInfo: parsedData.companyInfo
+      });
+      setInterviewQuestionsCount(parsedData.numberOfQuestions);
+      setIsPracticeMode(parsedData.isPracticeMode);
+      setPracticeQuestion(parsedData.practiceQuestion);
+      // Clear the form data from localStorage after restoring
+      localStorage.removeItem('interviewFormData');
+
+      // Now start the interview since we have sufficient credits
+      startInterview();
+      return;
+    }
+
     // If there was an interrupted operation, resume it
     if (interruptedOperation) {
+      console.log('🔄 RESUME: Found interrupted operation:', interruptedOperation.operation);
       const { operation, data, isResume } = interruptedOperation;
       setInterruptedOperation(null); // Clear the interrupted operation
 
       // Resume the appropriate operation based on the type
       if (operation === 'generateInterviewFlow') {
+        console.log('▶️ RESUME: Re-running interview generation');
         // Re-run the interview generation
         generateInterviewFlow();
       } else if (operation === 'completePracticeQuestion' && data) {
+        console.log('▶️ RESUME: Re-running practice question completion');
         // Re-run the practice question completion with resume flag
         completePracticeQuestion(data, true);
       } else if (operation === 'completeInterviewWithBatchEvaluation' && data) {
+        console.log('▶️ RESUME: Re-running batch evaluation');
         // Re-run the interview completion with resume flag
         completeInterviewWithBatchEvaluation(data, true);
       } else if (operation === 'processAnswersIndividually' && data) {
+        console.log('▶️ RESUME: Re-running individual answer processing');
         // Re-run individual answer processing with resume flag
         processAnswersIndividually(data, true);
       } else if (operation === 'submitAnswer' && data) {
+        console.log('▶️ RESUME: Re-running submit answer flow');
         // Resume the original submitAnswer flow
         setIsLoading(true); // Set loading again for the resumed operation
         // Re-run the submitAnswer with the stored data
@@ -236,11 +291,47 @@ export default function InterviewSessionPage() {
           }
         }
       }
+    } else {
+      console.log('ℹ️ INFO: No interrupted operation found, payment success complete');
     }
   };
 
+  // Check for form data restoration when component mounts
+  useEffect(() => {
+    // Check if there's form data in localStorage (from interrupted payment)
+    const formData = localStorage.getItem('interviewFormData');
+    if (formData) {
+      const parsedData = JSON.parse(formData);
+      // Restore the interview context
+      setInterviewContext({
+        jobPosting: parsedData.jobPosting,
+        userCv: parsedData.userCv,
+        companyInfo: parsedData.companyInfo
+      });
+      setInterviewQuestionsCount(parsedData.numberOfQuestions);
+      setIsPracticeMode(parsedData.isPracticeMode);
+      setPracticeQuestion(parsedData.practiceQuestion);
+      // Clear the form data from localStorage after restoring
+      localStorage.removeItem('interviewFormData');
+      setIsContextLoading(false); // Set loading to false after context is loaded
+    }
+  }, []); // Run only once on mount
+
   // Load initial data and manage interview flow
   useEffect(() => {
+    // Check for smooth transition loading from practice mode
+    const isTransitionLoading = localStorage.getItem('practiceLoading') === 'true';
+    if (isTransitionLoading) {
+      setIsTransitionLoading(true);
+    }
+
+    // Only run this effect if form data hasn't been restored yet
+    const formData = localStorage.getItem('interviewFormData');
+    if (formData) {
+      // Form data is being handled by the first effect, so don't override anything
+      return;
+    }
+
     // Check if this is practice mode
     const practiceMode = localStorage.getItem('practiceMode');
     const practiceQuestion = localStorage.getItem('practiceQuestion');
@@ -275,6 +366,14 @@ export default function InterviewSessionPage() {
       setInterviewQuestionsCount(5); // Default to 5 if no context available
     }
     setIsContextLoading(false); // Set loading to false after context is loaded
+
+    // Clear transition loading flag after a short delay to ensure smooth UX
+    if (isTransitionLoading) {
+      setTimeout(() => {
+        setIsTransitionLoading(false);
+        localStorage.removeItem('practiceLoading');
+      }, 200);
+    }
   }, []);
 
   // Effect to set the current question when questions array changes
@@ -294,8 +393,16 @@ export default function InterviewSessionPage() {
     }
   }, [question]); // Only run when the question changes
 
-  // Show loading state while checking auth or loading context
-  if (loading || isContextLoading) {
+  // Show unified loading state for all loading scenarios
+  if (loading || isContextLoading || isTransitionLoading) {
+    const isPracticeLoading = isTransitionLoading && isPracticeMode;
+    const loadingTitle = isPracticeLoading ? 'Practice Question' : 'AI Interview Session';
+    const loadingMessage = isContextLoading
+      ? 'Loading interview context...'
+      : isTransitionLoading
+        ? (isPracticeLoading ? 'Loading practice question...' : 'Preparing interview session...')
+        : 'Loading interview session...';
+
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
         <Navigation />
@@ -304,16 +411,21 @@ export default function InterviewSessionPage() {
             <Card className="shadow-xl dark:bg-gray-800">
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-                  AI Interview Session
+                  {loadingTitle}
                 </CardTitle>
                 <Progress value={0} className="h-2 mt-4" />
               </CardHeader>
               <CardContent className="flex flex-col items-center py-12">
                 <div className="mb-8 text-center">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                  <p className="mt-4 text-gray-600 dark:text-gray-400">
-                    {isContextLoading ? 'Loading interview context...' : 'Loading interview session...'}
+                  <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+                  <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">
+                    {loadingMessage}
                   </p>
+                  {isTransitionLoading && (
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">
+                      Please wait while we set up your session...
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -339,53 +451,101 @@ export default function InterviewSessionPage() {
       return;
     }
 
-    setIsLoading(true);
-    setInterviewStarted(true);
-
     try {
-      if (isPracticeMode && practiceQuestion) {
-        // In practice mode, we don't create a session record yet - we'll create it when the user submits their answer
-        // This prevents empty sessions from being created when users just view the practice question without answering
-        setQuestions([practiceQuestion]);
-        setQuestion(practiceQuestion);
+      // For practice mode, we only need to check for 1 credit (reanswer_question)
+      // For normal mode, we check for the selected number of questions (start_interview)
+      const creditAction = isPracticeMode ? 'reanswer_question' : 'start_interview';
+      const creditContext = isPracticeMode ? {
+        operation: 'reanswer_question',
+        numberOfQuestions: 1
+      } : {
+        operation: 'start_interview',
+        numberOfQuestions: interviewQuestionsCount
+      };
 
-        // We still want to set the session ID to a temporary value so the question can be created later
-        // Actually, we should create the session only when the user submits an answer with feedback
-        // For now, we'll just set up the question without creating a session
-      } else {
-        // Create an interview session in the database for normal mode
-        if (user?.id) {
-          const sessionData = {
-            user_id: user.id,
-            job_posting: interviewContext.jobPosting,
-            company_info: interviewContext.companyInfo,
-            user_cv: interviewContext.userCv,
-            title: extractJobTitle(interviewContext.jobPosting),
-            total_questions: interviewQuestionsCount // Use the user-selected number of questions
-          };
+      // Check if user has sufficient credits
+      const creditCheckResult = await checkCreditsBeforeOperation(creditAction, creditContext);
 
-          const session = await createInterviewSession(sessionData);
+      if (!creditCheckResult.sufficientCredits) {
+        // Store form data in localStorage before showing the payment modal
+        const formData = {
+          jobPosting: interviewContext.jobPosting,
+          userCv: interviewContext.userCv,
+          companyInfo: interviewContext.companyInfo,
+          numberOfQuestions: interviewQuestionsCount,
+          isPracticeMode,
+          practiceQuestion
+        };
+        localStorage.setItem('interviewFormData', JSON.stringify(formData));
 
-          if (session && session.id) {
-            setInterviewSessionId(session.id);
-          } else {
-            error('Failed to create interview session. Please try again.');
-            setInterviewStarted(false);
-            setIsLoading(false); // Reset loading state
-            return;
+        // Show payment modal for insufficient credits
+        setPendingPaymentData({
+          description: `You need ${creditCheckResult.requiredCredits} credits to ${isPracticeMode ? 'practice this question' : 'start an interview'}, but you only have ${creditCheckResult.currentCredits} credits.`,
+          requiredCredits: creditCheckResult.requiredCredits
+        });
+        setShowPaymentModal(true);
+        return;
+      }
+
+      // User has sufficient credits, proceed with interview/practice
+      // Prevent multiple concurrent start attempts
+      setIsLoading(true);
+      setInterviewStarted(true);
+
+      try {
+        if (isPracticeMode && practiceQuestion) {
+          // In practice mode, we don't create a session record yet - we'll create it when the user submits their answer
+          // This prevents empty sessions from being created when users just view the practice question without answering
+          setQuestions([practiceQuestion]);
+          setQuestion(practiceQuestion);
+
+          // For practice mode, we're ready immediately - no need to generate questions
+          // Practice mode only has 1 question that was already generated
+          setIsLoading(false);
+          return;
+          // We still want to set the session ID to a temporary value so the question can be created later
+          // Actually, we should create the session only when the user submits an answer with feedback
+          // For now, we'll just set up the question without creating a session
+        } else {
+          // Create an interview session in the database for normal mode
+          if (user?.id) {
+            const sessionData = {
+              user_id: user.id,
+              job_posting: interviewContext.jobPosting,
+              company_info: interviewContext.companyInfo,
+              user_cv: interviewContext.userCv,
+              title: extractJobTitle(interviewContext.jobPosting),
+              total_questions: interviewQuestionsCount // Use the user-selected number of questions
+            };
+
+            const session = await createInterviewSession(sessionData);
+
+            if (session && session.id) {
+              setInterviewSessionId(session.id);
+            } else {
+              error('Failed to create interview session. Please try again.');
+              setInterviewStarted(false);
+              setIsLoading(false); // Reset loading state
+              return;
+            }
           }
-        }
 
-        // Generate the interview flow using Gemini API for normal mode
-        setIsGeneratingQuestions(true); // Set the flag to show skeleton loader immediately
-        await generateInterviewFlow();
+          // Generate the interview flow using Gemini API for normal mode
+          setIsGeneratingQuestions(true); // Set the flag to show skeleton loader immediately
+          await generateInterviewFlow();
+        }
+      } catch (err) {
+        error('Failed to start interview. Please try again.');
+        setInterviewStarted(false);
+        setIsGeneratingQuestions(false);
+        // DON'T reset hasAutoStarted here - this was causing the loop
+        // If there's an error, we want to prevent immediate retry
+      } finally {
+        setIsLoading(false);
       }
     } catch (err) {
-      error('Failed to start interview. Please try again.');
-      setInterviewStarted(false);
-      setIsGeneratingQuestions(false);
-    } finally {
-      setIsLoading(false);
+      error('Error checking credits. Please try again.');
+      console.error('Credit check error:', err);
     }
   };
 
@@ -401,9 +561,15 @@ export default function InterviewSessionPage() {
         connection, // Solana connection
         walletAdapter, // Solana wallet
         (message) => {
-          // onPaymentInitiated - show credit selection when payment is required
-          setShowCreditSelection(true);
-          info('Additional credits required. Please select a credit package to continue.');
+          // onPaymentInitiated - This should not happen in the centralized system
+          // Users should have been redirected to payment before reaching this point
+          console.warn('Payment initiated during interview generation - this should not happen in centralized system');
+          setPendingPaymentData({
+            description: `You need ${interviewQuestionsCount} credits to start an interview.`,
+            requiredCredits: interviewQuestionsCount
+          });
+          setShowPaymentModal(true);
+          info('Additional credits required. Please purchase credits to continue.');
         }, // onPaymentInitiated
         (message) => success(message), // onPaymentSuccess
         (message) => error(message) // onPaymentFailure
@@ -442,13 +608,19 @@ export default function InterviewSessionPage() {
       }
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
-        // CRITICAL: Stop all execution when payment is required
+        // In the centralized system, users should have been redirected to payment before reaching this point
+        // However, if this still happens, show a message and redirect to payment
+        console.warn('Payment required error reached interview session - redirecting to payment');
         setIsLoading(false);
         setIsGeneratingQuestions(false);
         setInterviewStarted(false); // Stop the interview completely
         setInterruptedOperation({ operation: 'generateInterviewFlow', data: null }); // Track interrupted operation
-        setShowCreditSelection(true);
-        info('Additional credits required. Please select a credit package to continue.');
+        setPendingPaymentData({
+          description: `You need ${interviewQuestionsCount} credits to start an interview.`,
+          requiredCredits: interviewQuestionsCount
+        });
+        setShowPaymentModal(true);
+        info('Additional credits required. Please purchase credits to continue.');
         return; // Exit immediately and STOP all interview flow
       } else if (err instanceof Error && (err.message?.includes('Rate limit exceeded') || (err as { status?: number }).status === 429)) {
         // Handle rate limit exceeded case
@@ -532,9 +704,15 @@ export default function InterviewSessionPage() {
         connection, // Solana connection
         walletAdapter, // Solana wallet
         (message) => {
-          // onPaymentInitiated - show credit selection when payment is required
-          setShowCreditSelection(true);
-          info('Additional credits required. Please select a credit package to continue.');
+          // onPaymentInitiated - This should not happen in the centralized system
+          // Users should have been redirected to payment before reaching this point
+          console.warn('Payment initiated during batch evaluation - this should not happen in centralized system');
+          setPendingPaymentData({
+            description: `You need credits to complete your interview evaluation.`,
+            requiredCredits: questions.length
+          });
+          setShowPaymentModal(true);
+          info('Additional credits required. Please purchase credits to continue.');
         }, // onPaymentInitiated
         (message) => success(message), // onPaymentSuccess
         (message) => error(message) // onPaymentFailure
@@ -625,12 +803,23 @@ export default function InterviewSessionPage() {
       // Update the interview session as completed in the database
       if (interviewSessionId && user?.id) {
         try {
-          const success = await updateInterviewSession(interviewSessionId, { completed: true });
+          console.log('🔄 MARKING SESSION AS COMPLETED:', interviewSessionId);
+          const success = await updateInterviewSession(interviewSessionId, {
+            completed: true,
+            total_questions: questions.length,
+            updated_at: new Date().toISOString()
+          });
 
-          // Refresh cache for the session and user after AI feedback is submitted
-          await cacheRefreshService.refreshCacheForSession(interviewSessionId);
-          await cacheRefreshService.refreshCacheForUser(user.id);
+          if (success) {
+            console.log('✅ Session successfully marked as completed');
+            // Refresh cache for the session and user after AI feedback is submitted
+            await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+            await cacheRefreshService.refreshCacheForUser(user.id);
+          } else {
+            console.error('❌ Failed to mark session as completed - API returned false');
+          }
         } catch (dbError) {
+          console.error('❌ Error marking session as completed:', dbError);
           // Log error to console but don't show to user as it's a background operation
         }
       }
@@ -639,20 +828,32 @@ export default function InterviewSessionPage() {
       if (batchAnalysis.remainingQuota !== undefined) {
       }
 
+      // Redirect to feedback page after successful completion and credit deduction
+      setTimeout(() => {
+        success('Interview completed! Redirecting to your feedback...');
+        router.push('/feedback');
+      }, 2000); // 2 second delay to ensure user sees the completion message
+
       // Reset loading state when not resuming
       if (!isResume) {
         setIsLoading(false);
       }
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
-        // CRITICAL: Stop all execution when payment is required
+        // In the centralized system, users should have been redirected to payment before reaching this point
+        // However, if this still happens, show a message and redirect to payment
+        console.warn('Payment required error reached interview session - redirecting to payment');
         if (!isResume) {
           setIsLoading(false);
         }
         setInterviewStarted(false); // Stop the interview completely
         setInterruptedOperation({ operation: 'completeInterviewWithBatchEvaluation', data: allAnswers, isResume: true }); // Track interrupted operation
-        setShowCreditSelection(true);
-        info('Additional credits required. Please select a credit package to continue.');
+        setPendingPaymentData({
+          description: `You need credits to complete your interview evaluation.`,
+          requiredCredits: questions.length
+        });
+        setShowPaymentModal(true);
+        info('Additional credits required. Please purchase credits to continue.');
         return; // Exit immediately and STOP all interview flow
       } else {
         if (!isResume) {
@@ -677,13 +878,17 @@ export default function InterviewSessionPage() {
             connection, // Solana connection
             walletAdapter, // Solana wallet
             (message) => {
-              // onPaymentInitiated - show credit selection when payment is required
+              // onPaymentInitiated - show payment modal when payment is required
               if (!isResume) {
                 setIsLoading(false);
               }
               setInterviewStarted(false); // Stop the interview completely
-              setShowCreditSelection(true);
-              info('Additional credits required. Please select a credit package to continue.');
+              setPendingPaymentData({
+                description: `You need 1 credit to continue your interview.`,
+                requiredCredits: 1
+              });
+              setShowPaymentModal(true);
+              info('Additional credits required. Please purchase credits to continue.');
               // Note: The return here only exits the callback, not the loop
             }, // onPaymentInitiated
             (message) => success(message), // onPaymentSuccess
@@ -774,12 +979,23 @@ export default function InterviewSessionPage() {
     // Update the interview session as completed in the database
     if (interviewSessionId && user?.id) {
       try {
-        const success = await updateInterviewSession(interviewSessionId, { completed: true });
+        console.log('🔄 MARKING SESSION AS COMPLETED (processAnswersIndividually):', interviewSessionId);
+        const success = await updateInterviewSession(interviewSessionId, {
+          completed: true,
+          total_questions: questions.length,
+          updated_at: new Date().toISOString()
+        });
 
-        // Refresh cache for the session and user after AI feedback is submitted
-        await cacheRefreshService.refreshCacheForSession(interviewSessionId);
-        await cacheRefreshService.refreshCacheForUser(user.id);
+        if (success) {
+          console.log('✅ Session successfully marked as completed (processAnswersIndividually)');
+          // Refresh cache for the session and user after AI feedback is submitted
+          await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+          await cacheRefreshService.refreshCacheForUser(user.id);
+        } else {
+          console.error('❌ Failed to mark session as completed (processAnswersIndividually) - API returned false');
+        }
       } catch (dbError) {
+        console.error('❌ Error marking session as completed (processAnswersIndividually):', dbError);
         // Log error to console but don't show to user as it's a background operation
       }
     }
@@ -813,9 +1029,15 @@ export default function InterviewSessionPage() {
         connection, // Solana connection
         walletAdapter, // Solana wallet
         () => {
-          // onPaymentInitiated - show credit selection and STOP execution
-          setShowCreditSelection(true);
-          info('Additional credits required. Please select a credit package to continue.');
+          // onPaymentInitiated - This should not happen in the centralized system
+          // Users should have been redirected to payment before reaching this point
+          console.warn('Payment initiated during practice question - this should not happen in centralized system');
+          setPendingPaymentData({
+            description: `You need 1 credit to practice a similar question.`,
+            requiredCredits: 1
+          });
+          setShowPaymentModal(true);
+          info('Additional credits required. Please purchase credits to continue.');
           paymentRequired = true; // Mark that payment is required
           throw new Error('PAYMENT_REQUIRED_STOP_FLOW'); // This will stop execution
         }, // onPaymentInitiated
@@ -870,12 +1092,23 @@ export default function InterviewSessionPage() {
 
             // Update the session as completed since it's just one question
             try {
-              const success = await updateInterviewSession(session.id, { completed: true });
+              console.log('🔄 MARKING SESSION AS COMPLETED (practice):', session.id);
+              const success = await updateInterviewSession(session.id, {
+                completed: true,
+                total_questions: 1,
+                updated_at: new Date().toISOString()
+              });
 
-              // Refresh cache for the session and user after AI feedback is submitted
-              await cacheRefreshService.refreshCacheForSession(session.id);
-              await cacheRefreshService.refreshCacheForUser(user.id);
+              if (success) {
+                console.log('✅ Session successfully marked as completed (practice)');
+                // Refresh cache for the session and user after AI feedback is submitted
+                await cacheRefreshService.refreshCacheForSession(session.id);
+                await cacheRefreshService.refreshCacheForUser(user.id);
+              } else {
+                console.error('❌ Failed to mark session as completed (practice) - API returned false');
+              }
             } catch (dbError) {
+              console.error('❌ Error marking session as completed (practice):', dbError);
               // Log error to console but don't show to user as it's a background operation
             }
           } else {
@@ -995,6 +1228,9 @@ export default function InterviewSessionPage() {
       console.log('Payment error caught:', err);
 
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
+        // In the centralized system, users should have been redirected to payment before reaching this point
+        // However, if this still happens, show a message and redirect to payment
+        console.warn('Payment required error reached interview session - redirecting to payment');
         console.log('Payment required condition met - stopping practice flow');
 
         // CRITICAL: Stop all execution when payment is required
@@ -1029,6 +1265,7 @@ export default function InterviewSessionPage() {
     setAnswers([]);
     setQuestions([]);
     setQuestion('');
+    setHasAutoStarted(false); // Reset auto-start flag
   };
 
   // Helper function to extract job title from job posting
@@ -1226,64 +1463,19 @@ export default function InterviewSessionPage() {
       );
     }
 
-    // If we have interview context but interview hasn't started yet,
-    // automatically start the interview (this happens when navigating from interview setup page)
-    if (interviewContext && !interviewStarted && !isLoading) {
+    // Auto-start interview if we have context but haven't started yet
+    // This is controlled by hasAutoStarted flag to prevent loops
+    if (interviewContext && !interviewStarted && !isLoading && !hasAutoStarted) {
+      setHasAutoStarted(true);
       startInterview();
-      return (
-        <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
-          <Navigation />
-          <main className="flex-1 p-4">
-            <div className="container mx-auto max-w-2xl py-8">
-              <Card className="shadow-xl dark:bg-gray-800">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
-                    AI Interview Session
-                  </CardTitle>
-                  <Progress value={0} className="h-2 mt-4" />
-                </CardHeader>
-                <CardContent className="flex flex-col items-center py-12">
-                  <div className="mb-8 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                    <p className="mt-4 text-gray-600 dark:text-gray-400">
-                      {isPracticeMode ? 'Preparing practice question...' : 'Starting your interview...'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </main>
-        </div>
-      );
     }
 
+    // Return minimal loading state with just circular loader
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
         <Navigation />
-        <main className="flex-1 p-4">
-          <div className="container mx-auto max-w-2xl py-8">
-            <Card className="shadow-xl dark:bg-gray-800">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
-                  AI Interview Session
-                </CardTitle>
-                <Progress value={0} className="h-2 mt-4" />
-              </CardHeader>
-              <CardContent className="flex flex-col items-center py-12">
-                <div className="mb-8 text-center">
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                    Prepare for your interview
-                  </h3>
-                  <p className="mt-2 text-gray-600 dark:text-gray-400">
-                    The AI interviewer is ready to simulate a realistic interview experience based on the job posting and your CV.
-                  </p>
-                </div>
-                <Button onClick={startInterview} disabled={isLoading} className="text-lg py-6 px-8">
-                  {isLoading ? 'Preparing Interview...' : 'Start Interview'}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
         </main>
       </div>
     );
@@ -1485,7 +1677,22 @@ export default function InterviewSessionPage() {
                   {showRecordingTips ? 'Hide Tips' : 'Recording Tips'}
                 </Button>
                 <Button
-                  onClick={submitAnswer}
+                  onClick={async () => {
+                    // Check if user has sufficient credits for submitting an answer
+                    const creditCheckResult = await checkCreditsBeforeOperation('reanswer_question');
+
+                    if (!creditCheckResult.sufficientCredits) {
+                      // Show payment modal for insufficient credits
+                      setPendingPaymentData({
+                        description: `You need 1 credit to re-answer this question.`,
+                        requiredCredits: 1
+                      });
+                      setShowPaymentModal(true);
+                      return;
+                    }
+
+                    await submitAnswer();
+                  }}
                   disabled={isLoading}
                 >
                   {isLoading ? 'Processing...' : isPracticeMode ? 'Submit Answer' : 'Next Question'}
@@ -1496,80 +1703,20 @@ export default function InterviewSessionPage() {
         </div>
       </main>
 
-      {/* Credit Selection Modal */}
-      {showCreditSelection && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Choose Credit Package
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Select the number of credits you'd like to purchase to continue your interview.
-            </p>
-
-            <div className="space-y-3 mb-6">
-              {[
-                { credits: 5, price: 0.50, popular: false },
-                { credits: 10, price: 0.90, popular: true, savings: '10% off' },
-                { credits: 25, price: 2.00, popular: false, savings: '20% off' },
-                { credits: 50, price: 3.50, popular: false, savings: '30% off' }
-              ].map((pkg) => (
-                <button
-                  key={pkg.credits}
-                  onClick={() => {
-                    const paymentData = {
-                      description: `Top up ${pkg.credits} credits for interview`,
-                      usdAmount: pkg.price,
-                      requiredCredits: pkg.credits
-                    };
-                    setPendingPaymentData(paymentData);
-                    setShowCreditSelection(false);
-                    setShowPaymentModal(true);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${pkg.popular
-                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-green-300'
-                    }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-white">
-                        {pkg.credits} Credits
-                        {pkg.popular && <span className="ml-2 text-xs bg-green-500 text-white px-2 py-1 rounded">Popular</span>}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        ${pkg.price.toFixed(2)} USD
-                        {pkg.savings && <span className="ml-2 text-green-600 font-medium">{pkg.savings}</span>}
-                      </div>
-                    </div>
-                    <div className="text-green-600 font-medium">
-                      ${(pkg.price / pkg.credits).toFixed(2)}/credit
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowCreditSelection(false);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Payment Modal */}
       <PaymentModal
         isOpen={showPaymentModal}
         onClose={() => {
           setShowPaymentModal(false);
           setPendingPaymentData(null);
+          // Clear the interrupted operation when user closes payment modal without completing
+          setInterruptedOperation(null);
+          // Reset interview state when user cancels
+          setInterviewStarted(false);
+          setIsLoading(false);
+          setHasAutoStarted(false); // Reset auto-start flag
+          // Clear form data if user cancels payment
+          localStorage.removeItem('interviewFormData');
         }}
         onSuccess={handlePaymentSuccess}
         paymentContext={pendingPaymentData || undefined}

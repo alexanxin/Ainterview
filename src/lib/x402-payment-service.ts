@@ -1,10 +1,5 @@
 // x402 payment integration
 import { SolanaPaymentService } from "./solana-payment-service";
-import {
-  createPaymentRecord,
-  updatePaymentRecordStatus,
-  getPaymentRecordByTransactionId,
-} from "./database";
 import { Logger } from "./logger";
 
 // Re-export the interface for compatibility
@@ -153,30 +148,6 @@ export class X402PaymentService {
       }
     }
 
-    // First, check if a payment record already exists for this transaction
-    const paymentRecord = await getPaymentRecordByTransactionId(transactionId);
-
-    if (!paymentRecord) {
-      // If no payment record exists, this might be a direct payment verification
-      // We'll create a payment record with minimal info and update its status
-      // This handles the case where payment was initiated outside the standard flow
-      try {
-        // We can't create a complete payment record without the user ID,
-        // but we can still update the status if the verification succeeds
-        Logger.info(
-          "No existing payment record found, proceeding with verification",
-          {
-            transactionId,
-          }
-        );
-      } catch (error) {
-        Logger.error("Error checking for existing payment record:", {
-          error: error instanceof Error ? error.message : String(error),
-          transactionId,
-        });
-      }
-    }
-
     Logger.info("Starting Solana payment verification", {
       transactionId,
       expectedAmount,
@@ -196,44 +167,6 @@ export class X402PaymentService {
       error: result.error,
       creditsAdded: result.creditsAdded,
     });
-
-    if (result.success) {
-      // Update the payment record status to confirmed
-      try {
-        const recordUpdated = await updatePaymentRecordStatus(
-          transactionId,
-          "confirmed"
-        );
-        if (!recordUpdated) {
-          Logger.warn("Failed to update payment record status to confirmed", {
-            transactionId,
-          });
-        }
-      } catch (error) {
-        Logger.error("Error updating payment record status:", {
-          error: error instanceof Error ? error.message : String(error),
-          transactionId,
-        });
-      }
-    } else {
-      // Update the payment record status to failed
-      try {
-        const recordUpdated = await updatePaymentRecordStatus(
-          transactionId,
-          "failed"
-        );
-        if (!recordUpdated) {
-          Logger.warn("Failed to update payment record status to failed", {
-            transactionId,
-          });
-        }
-      } catch (error) {
-        Logger.error("Error updating payment record status to failed:", {
-          error: error instanceof Error ? error.message : String(error),
-          transactionId,
-        });
-      }
-    }
 
     return result;
   }
