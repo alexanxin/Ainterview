@@ -1,4 +1,5 @@
 import Navigation from '@/components/navigation';
+import X402ComplianceBadge from '@/components/x402-compliance-badge';
 
 export default function AboutPage() {
   const features = [
@@ -273,7 +274,7 @@ export default function AboutPage() {
             <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-4">
               Our <span className="text-green-600">Mission</span>
             </h2>
-            <p className="text-gray-700 dark:text-gray-300 text-center max-w-3xl mx-auto">
+            <p className="text-gray-700 dark:text-gray-300 text-center max-w-3xl mx-auto mb-6">
               To empower job seekers with the tools and confidence they need to succeed in interviews by providing
               realistic, personalized practice experiences that build competence and reduce anxiety. We believe that
               everyone deserves a fair chance to showcase their skills, and proper preparation makes all the difference.
@@ -325,6 +326,11 @@ export default function AboutPage() {
                 No credit card required
               </div>
             </div>
+          </div>
+
+          {/* x402 Compliance Badge */}
+          <div className="flex justify-center mt-8">
+            <X402ComplianceBadge />
           </div>
         </div>
       </main>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Navigation from '@/components/navigation';
+import X402ComplianceBadge from '@/components/x402-compliance-badge';
 
 export default function Home() {
   const router = useRouter();
@@ -234,6 +235,11 @@ export default function Home() {
             <div className="inline-flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 px-4 py-2 rounded-full text-sm font-medium">
               💡 Pro Tip: Add this app to your home screen for the best mobile experience
             </div>
+          </div>
+
+          {/* x402 Compliance Badge */}
+          <div className="mt-8 text-center">
+            <X402ComplianceBadge />
           </div>
         </div>
       </main>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { X } from 'lucide-react';
+import X402ComplianceBadge from '@/components/x402-compliance-badge';
 import { x402Service } from '@/lib/x402-payment-service';
 import { useToast } from '@/lib/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -611,6 +612,11 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                 Solana
                             </span>
                         </div>
+                    </div>
+
+                    {/* x402 Compliance Badge */}
+                    <div className="flex justify-center pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <X402ComplianceBadge />
                     </div>
                 </CardContent>
             </Card>
