@@ -44,6 +44,7 @@ export async function verifyX402Payment(
     // The two-phase verification is more appropriate when you have the full X-PAYMENT header
     const verificationResult = await x402Service.verifySolanaPayment(
       transactionSignature,
+      userId,
       expectedAmount,
       expectedToken
     );

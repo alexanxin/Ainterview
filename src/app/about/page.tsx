@@ -310,15 +310,15 @@ export default function AboutPage() {
               Start Your <span className="text-green-600">Journey</span> Today
             </h2>
             <p className="text-gray-700 dark:text-gray-300 mb-6 max-w-2xl mx-auto">
-              Your first complete interview is completely free! After that, you'll get 2 additional AI interactions per day
-              to continue practicing. No credit card required to get started.
+              Get 2 free credits every day to practice interviews and get AI feedback.
+              No credit card required to get started.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <a
                 href="/interview"
                 className="inline-block bg-gradient-to-r from-green-600 to-lime-500 text-white hover:opacity-90 font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 text-base"
               >
-                Start Free Interview
+                Start Practice for Free
               </a>
               <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
                 <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>

@@ -117,7 +117,7 @@ export default function Home() {
                 className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                 onClick={() => router.push('/interview')}
               >
-                Start Free Interview Practice
+                Start Practice for Free
               </Button>
               <Button
                 variant="outline"
@@ -130,7 +130,7 @@ export default function Home() {
 
             <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
               <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
-              First interview completely free • No credit card required
+              5 free credits when you sign in and another 2 each day • No credit card required
             </div>
           </div>
 
@@ -217,7 +217,7 @@ export default function Home() {
                 className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                 onClick={() => router.push('/interview')}
               >
-                Start Your Free Interview
+                Start Practice for Free
               </Button>
               <Button
                 variant="outline"

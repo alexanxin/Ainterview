@@ -257,7 +257,7 @@ export default function AnalyticsDashboard() {
                                                         'Z'
                                                     ].join(' ');
 
-                                                    const color = `hsl(${(index * 137.5) % 360}, 70%, 50%)`;
+                                                    const color = action.action === "Analyze Answer" ? "#84cc16" : action.action === "Batch Evaluate" ? "#16a34a" : `hsl(${(index * 137.5) % 360}, 70%, 50%)`;
 
                                                     return (
                                                         <path
@@ -284,7 +284,7 @@ export default function AnalyticsDashboard() {
                                         <div key={index} className="flex items-center">
                                             <div
                                                 className="w-4 h-4 rounded mr-2 flex-shrink-0"
-                                                style={{ backgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)` }}
+                                                style={{ backgroundColor: action.action === "Analyze Answer" ? "#84cc16" : action.action === "Batch Evaluate" ? "#16a34a" : `hsl(${(index * 137.5) % 360}, 70%, 50%)` }}
                                             ></div>
                                             <div className="flex-1 text-sm truncate">{action.action}</div>
                                             <div className="text-sm font-medium ml-2">{action.count} ({action.percentage}%)</div>

@@ -10,9 +10,10 @@ import { useRouter } from 'next/navigation';
 interface CreditDisplayProps {
     className?: string;
     showTopUpButton?: boolean; // New prop to control whether to show the top-up button
+    showFreeCredits?: boolean; // New prop to show free vs purchased credits breakdown
 }
 
-export default function CreditDisplay({ className, showTopUpButton = true }: CreditDisplayProps) {
+export default function CreditDisplay({ className, showTopUpButton = true, showFreeCredits = false }: CreditDisplayProps) {
     const { user, session, loading } = useAuth();
     const { creditsRefreshTrigger } = useCreditRefresh();
     const [credits, setCredits] = useState<number | null>(null);
@@ -69,6 +70,11 @@ export default function CreditDisplay({ className, showTopUpButton = true }: Cre
             <div className="flex items-center space-x-1 text-green-600 dark:text-green-40">
                 <CreditCard className="h-4 w-4" />
                 <span>{credits} Credits</span>
+                {showFreeCredits && credits > 0 && (
+                    <span className="text-xs text-green-500 dark:text-green-400">
+                        (Free daily)
+                    </span>
+                )}
             </div>
             {showTopUpButton && (
                 <button

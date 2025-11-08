@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
@@ -8,11 +8,13 @@ import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { getInterviewSessionsByUser, InterviewSession, getAnswersBySession, InterviewAnswer } from '@/lib/database';
 import AnalyticsDashboard from '@/components/analytics-dashboard';
-import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronUp, BarChart3, Gift, CheckCircle, Clock } from 'lucide-react';
+import { useCreditRefresh } from '@/lib/credit-context';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, session, loading } = useAuth();
+  const { refreshCredits } = useCreditRefresh();
   const [interviews, setInterviews] = useState<InterviewSession[]>([]);
   const [completedInterviewsCount, setCompletedInterviewsCount] = useState(0);
   const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
@@ -20,8 +22,18 @@ export default function DashboardPage() {
   const [feedbackInsights, setFeedbackInsights] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [analyticsExpanded, setAnalyticsExpanded] = useState(false);
+  const [dailyCreditsStatus, setDailyCreditsStatus] = useState<{
+    hasClaimedToday: boolean;
+    todayUsageCount: number;
+    todayPurchased: number;
+    todayClaimed: number;
+    claimableCredits: number;
+    nextClaimDate: string;
+    currentCredits: number;
+  } | null>(null);
+  const [isClaimingCredits, setIsClaimingCredits] = useState(false);
 
-  // Load interviews from database on component mount
+  // Load interviews and daily credits status from database on component mount
   useEffect(() => {
     const loadInterviews = async () => {
       if (user) {
@@ -91,8 +103,31 @@ export default function DashboardPage() {
       }
     };
 
+    const loadDailyCreditsStatus = async () => {
+      if (user && session) {
+        try {
+          const response = await fetch('/api/credits/claim-daily', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setDailyCreditsStatus(data);
+          } else {
+            console.error('Failed to fetch daily credits status:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching daily credits status:', error);
+        }
+      }
+    };
+
     loadInterviews();
-  }, [user]);
+    loadDailyCreditsStatus();
+  }, [user, session]);
 
   // Show loading state while checking auth
   if (loading) {
@@ -246,35 +281,133 @@ export default function DashboardPage() {
 
             <Card className="dark:bg-gray-800">
               <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                <CardTitle className="text-gray-900 dark:text-white">AI Usage</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Daily Credits</CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="bg-blue-500 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                     <h3 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center">
                       <span className="mr-2">ℹ️</span>
-                      Usage Information
+                      Free Daily Credits
                     </h3>
                     <p className="text-blue-700 dark:text-blue-300 text-sm mt-1">
-                      Your first complete interview is free! After that, you get 2 additional AI interactions per day.
+                      Claim 2 free credits every day to practice interviews and get AI feedback.
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Daily Quota</span>
-                    <span className="font-medium text-gray-900 dark:text-white">0/2 used</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div className="bg-green-600 h-2.5 rounded-full" style={{ width: '0%' }}></div>
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    You have 2 free AI interactions remaining for today.
-                  </p>
+                  {dailyCreditsStatus ? (
+                    <>
+                      {dailyCreditsStatus.hasClaimedToday ? (
+                        <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <div className="flex items-center">
+                            <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                            <span className="text-green-800 dark:text-green-200 font-medium">Credits Claimed Today</span>
+                          </div>
+                          <span className="text-green-600 font-semibold">+2 Credits</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <div className="flex items-center">
+                            <Gift className="h-5 w-5 text-yellow-600 mr-2" />
+                            <span className="text-yellow-800 dark:text-yellow-200 font-medium">Claim Available</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90"
+                            onClick={async () => {
+                              setIsClaimingCredits(true);
+                              try {
+                                const response = await fetch('/api/credits/claim-daily', {
+                                  method: 'POST',
+                                  headers: {
+                                    Authorization: `Bearer ${session?.access_token}`,
+                                  },
+                                });
+
+                                if (response.ok) {
+                                  const data = await response.json();
+                                  // Refresh the daily credits status
+                                  const statusResponse = await fetch('/api/credits/claim-daily', {
+                                    method: 'GET',
+                                    headers: {
+                                      Authorization: `Bearer ${session?.access_token}`,
+                                    },
+                                  });
+                                  if (statusResponse.ok) {
+                                    const statusData = await statusResponse.json();
+                                    setDailyCreditsStatus(statusData);
+                                  }
+                                  // Trigger credit refresh for the header component
+                                  refreshCredits();
+                                } else {
+                                  console.error('Failed to claim credits:', response.statusText);
+                                }
+                              } catch (error) {
+                                console.error('Error claiming credits:', error);
+                              } finally {
+                                setIsClaimingCredits(false);
+                              }
+                            }}
+                            disabled={isClaimingCredits}
+                          >
+                            {isClaimingCredits ? (
+                              <>
+                                <Clock className="h-4 w-4 mr-1 animate-spin" />
+                                Claiming...
+                              </>
+                            ) : (
+                              'Claim 2 Credits'
+                            )}
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Today's Usage</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {dailyCreditsStatus.todayUsageCount} used
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                        <div className="flex h-2.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-lime-500 transition-all duration-300"
+                            style={{ width: `${Math.min((Math.abs(dailyCreditsStatus.todayPurchased || 0) / (dailyCreditsStatus.todayUsageCount + Math.abs(dailyCreditsStatus.todayPurchased || 0) + (dailyCreditsStatus.todayClaimed || 0))) * 100, 100)}%` }}
+                          ></div>
+                          <div
+                            className="bg-blue-500 transition-all duration-300"
+                            style={{ width: `${Math.min(((dailyCreditsStatus.todayClaimed || 0) / (dailyCreditsStatus.todayUsageCount + Math.abs(dailyCreditsStatus.todayPurchased || 0) + (dailyCreditsStatus.todayClaimed || 0))) * 100, 100)}%` }}
+                          ></div>
+                          <div
+                            className="bg-green-600 transition-all duration-300"
+                            style={{ width: `${Math.min((dailyCreditsStatus.todayUsageCount / (dailyCreditsStatus.todayUsageCount + Math.abs(dailyCreditsStatus.todayPurchased || 0) + (dailyCreditsStatus.todayClaimed || 0))) * 100, 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>Purchased: {Math.abs(dailyCreditsStatus.todayPurchased || 0)}</span>
+                        <span>Claimed: {dailyCreditsStatus.todayClaimed || 0}</span>
+                        <span>Used: {dailyCreditsStatus.todayUsageCount}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                        {dailyCreditsStatus.hasClaimedToday
+                          ? `You've used ${dailyCreditsStatus.todayUsageCount} credits today.`
+                          : `Claim your 2 free credits to start practicing!`
+                        }
+                      </p>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Loading credit status...</p>
+                    </div>
+                  )}
+
                   <Button
                     className="w-full mt-4 bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90"
                     onClick={() => router.push('/interview')}
                   >
-                    Practice More
+                    Practice Interview
                   </Button>
                 </div>
               </CardContent>

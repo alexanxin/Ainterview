@@ -135,6 +135,7 @@ export class X402PaymentService {
   // New x402-specific method for verifying payments
   async verifySolanaPayment(
     transactionId: string,
+    userId: string,
     expectedAmount?: number,
     expectedToken?: "USDC" | "USDT" | "CASH"
   ): Promise<X402PaymentResult> {
@@ -152,13 +153,15 @@ export class X402PaymentService {
       transactionId,
       expectedAmount,
       expectedToken,
+      userId,
     });
 
     // Use the Solana service to verify the payment
     const result = await this.solanaService.verifyPayment(
       transactionId,
       expectedAmount,
-      expectedToken
+      expectedToken,
+      userId
     );
 
     Logger.info("Solana payment verification completed", {

@@ -15,7 +15,17 @@ import { useCreditRefresh } from '@/lib/credit-context';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction, PublicKey } from '@solana/web3.js';
-import { createTransferInstruction, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import {
+    createTransferInstruction,
+    getAssociatedTokenAddress,
+    createAssociatedTokenAccountInstruction,
+    getMint,
+    transferCheckedWithFee,
+    createTransferCheckedInstruction
+} from '@solana/spl-token';
+
+// Define TOKEN_2022_PROGRAM_ID manually since it's not exported from @solana/spl-token
+const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
 const CREDIT_TO_USD_RATE = 0.10; // 1 credit = $0.10 USD
 const MIN_CREDITS = 5; // Minimum purchase of $0.50 USD
@@ -122,15 +132,25 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                         const tokenMintPublicKey = new PublicKey(tokenMintAddress);
                         const recipientPublicKey = new PublicKey(paymentData.recipientPublicKey);
 
-                        // Get associated token accounts
+                        // Use TOKEN_2022_PROGRAM_ID for PYUSD since it's a Token-2022 token
+                        const programId = selectedToken === 'PYUSD' ? TOKEN_2022_PROGRAM_ID : undefined;
+
+                        // Fetch mint info to check for extensions
+                        const mintInfo = await getMint(connection, tokenMintPublicKey, 'confirmed', programId);
+
+                        // Get associated token accounts with programId
                         const senderTokenAccount = await getAssociatedTokenAddress(
                             tokenMintPublicKey,
-                            publicKey
+                            publicKey,
+                            false,
+                            programId
                         );
 
                         const recipientTokenAccount = await getAssociatedTokenAddress(
                             tokenMintPublicKey,
-                            recipientPublicKey
+                            recipientPublicKey,
+                            false,
+                            programId
                         );
 
                         // Check if recipient token account exists, if not create it
@@ -163,9 +183,11 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                     };
 
                                     // Get the RPC endpoint from environment or connection
-                                    const rpcEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-                                        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ||
-                                        "https://api.devnet.solana.com";
+                                    // Use devnet RPC for devnet network, mainnet RPC for mainnet
+                                    const isDevnet = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "devnet";
+                                    const rpcEndpoint = isDevnet
+                                        ? (process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL || "https://api.devnet.solana.com")
+                                        : (process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com");
 
                                     console.log(`Checking balance via RPC:`, rpcEndpoint);
 
@@ -248,8 +270,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             console.log('Added instruction to create recipient token account (fallback)');
                         }
 
-                        // Calculate amount in token units
-                        const tokenAmount = BigInt(Math.round(parseFloat(usdAmount) * 1_000_000));
+                        // Calculate amount in token units (USDC/USDT have 6 decimals)
+                        const decimals = 6;
+                        const rawAmount = BigInt(Math.round(parseFloat(usdAmount) * Math.pow(10, decimals))); // Convert USD to token units
 
                         // Debug logging
                         console.log('Payment details:', {
@@ -258,22 +281,58 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             senderTokenAccount: senderTokenAccount.toString(),
                             recipient: recipientPublicKey.toString(),
                             recipientTokenAccount: recipientTokenAccount.toString(),
-                            tokenAmount: tokenAmount.toString(),
+                            rawAmount: rawAmount.toString(),
                             usdAmount,
-                            selectedToken
+                            selectedToken,
+                            hasTransferFeeExtension: !!mintInfo.transferFeeConfig
                         });
 
-                        // Create token transfer instruction
-                        // Note: PYUSD on devnet may require Token-2022 program, but for now we'll use standard transfer
-                        // If PYUSD transactions still fail, the issue is likely that PYUSD tokens aren't available on devnet
-                        const transferInstruction = createTransferInstruction(
-                            senderTokenAccount,
-                            recipientTokenAccount,
-                            publicKey,
-                            tokenAmount
-                        );
+                        // Handle transfer instruction based on transfer fee extension
+                        if (mintInfo.transferFeeConfig) {
+                            // Calculate expected fee (even if 0)
+                            const feeBasisPoints = mintInfo.transferFeeConfig.transferFeeBasisPoints;
+                            const maxFee = mintInfo.transferFeeConfig.maximumFee;
+                            const calculatedFee = (rawAmount * BigInt(feeBasisPoints)) / BigInt(10000);
+                            const expectedFee = calculatedFee > maxFee ? maxFee : calculatedFee;
 
-                        transaction.add(transferInstruction);
+                            console.log('Using transferCheckedWithFee:', {
+                                feeBasisPoints,
+                                maxFee: maxFee.toString(),
+                                calculatedFee: calculatedFee.toString(),
+                                expectedFee: expectedFee.toString()
+                            });
+
+                            // Use transferCheckedWithFee for tokens with fee extension
+                            const transferInstruction = transferCheckedWithFee(
+                                senderTokenAccount,
+                                tokenMintPublicKey,
+                                recipientTokenAccount,
+                                publicKey,
+                                rawAmount,
+                                decimals,
+                                expectedFee,
+                                [], // multiSigners
+                                programId
+                            );
+
+                            transaction.add(transferInstruction);
+                        } else {
+                            console.log('Using createTransferCheckedInstruction (no fee extension)');
+
+                            // Fallback to checked transfer for standard tokens
+                            const transferInstruction = createTransferCheckedInstruction(
+                                senderTokenAccount,
+                                tokenMintPublicKey,
+                                recipientTokenAccount,
+                                publicKey,
+                                rawAmount,
+                                decimals,
+                                [], // multiSigners
+                                programId
+                            );
+
+                            transaction.add(transferInstruction);
+                        }
 
                         // Get the latest blockhash for the transaction
                         const { blockhash } = await connection.getLatestBlockhash();
@@ -329,66 +388,43 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
 
                         success('Transaction confirmed! Adding credits to your account...');
 
-                        // Verify the transaction and add credits via server-side API
-                        const verificationResponse = await fetch('/api/payment/verify', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                transactionId: signature,
-                                expectedAmount: Math.round(parseFloat(usdAmount) * 1000000), // Convert USD to atomic units
-                                expectedToken: selectedToken,
-                            }),
-                        });
+                        // Verify the transaction using x402 service (for hackathon compliance)
+                        const verificationResult = await x402Service.verifySolanaPayment(signature, user.id, creditsToBuy, selectedToken as "USDC" | "USDT" | "CASH");
 
-                        if (!verificationResponse.ok) {
-                            throw new Error('Payment verification failed');
-                        }
-
-                        const verificationResult = await verificationResponse.json();
                         if (verificationResult.success) {
-                            const creditsToAdd = verificationResult.creditsAdded || creditsToBuy;
-
-                            // Add credits to user account via API call
-                            try {
-                                console.log('Calling /api/user/credits with:', {
-                                    usdAmount: parseFloat(usdAmount),
+                            // Now call the API to update database records and add credits
+                            const apiResponse = await fetch('/api/payment/verify', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
                                     transactionId: signature,
-                                    authToken: session?.access_token ? 'present' : 'missing'
-                                });
+                                    expectedAmount: parseFloat(usdAmount), // USD amount
+                                    expectedToken: selectedToken,
+                                    userId: user.id,
+                                }),
+                            });
 
-                                const response = await fetch('/api/user/credits', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${session?.access_token || ''}`,
-                                    },
-                                    body: JSON.stringify({
-                                        usdAmount: parseFloat(usdAmount),
-                                        transactionId: signature
-                                    }),
-                                });
+                            if (!apiResponse.ok) {
+                                throw new Error('Database update failed');
+                            }
 
-                                console.log('Response status:', response.status, response.statusText);
+                            const apiResult = await apiResponse.json();
+                            if (apiResult.success) {
+                                const creditsToAdd = apiResult.creditsAdded || creditsToBuy;
 
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    success(`Payment confirmed! ${data.message || `${creditsToAdd} credits have been added to your account.`}`);
-                                    refreshCredits(); // Trigger credit refresh after successful payment
+                                success(`Payment confirmed! ${creditsToAdd} credits have been added to your account.`);
+                                refreshCredits(); // Trigger credit refresh after successful payment
 
-                                    // Call success callback and close modal
-                                    if (onSuccess) {
-                                        onSuccess();
-                                    }
-                                    onClose();
-                                } else {
-                                    const errorData = await response.json();
-                                    error(`Payment verified but failed to add credits: ${errorData.error || 'Unknown error'}`);
+                                // Call success callback and close modal
+                                if (onSuccess) {
+                                    onSuccess();
                                 }
-                            } catch (apiError) {
-                                console.error('Error adding credits:', apiError);
-                                error('Payment verified but failed to add credits. Please contact support.');
+                                onClose();
+                            } else {
+                                error('Payment verified but database update failed. Please contact support.');
+                                // Don't close modal on database failure - let user retry or contact support
                             }
                         } else {
                             error('Payment verification failed. Please contact support if you were charged.');

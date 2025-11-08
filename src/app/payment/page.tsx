@@ -344,55 +344,45 @@ export default function PaymentPage() {
               return;
             }
 
-            // Verify the transaction and add credits
-            const verificationResult = await x402Service.verifySolanaPayment(signature, creditsToBuy);
+            success('Transaction confirmed! Adding credits to your account...');
+
+            // Verify the transaction using x402 service (for hackathon compliance)
+            const verificationResult = await x402Service.verifySolanaPayment(signature, user.id, creditsToBuy, selectedToken as "USDC" | "USDT" | "CASH");
+
             if (verificationResult.success) {
-              // Calculate credits based on the purchased amount
-              const creditsToAdd = verificationResult.creditsAdded || creditsToBuy;
+              // Now call the API to update database records and add credits
+              const apiResponse = await fetch('/api/payment/verify', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  transactionId: signature,
+                  expectedAmount: parseFloat(usdAmount), // USD amount
+                  expectedToken: selectedToken,
+                  userId: user.id,
+                }),
+              });
 
-              // Add credits to user account via API call
-              try {
-                const response = await fetch('/api/user/credits', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || ''}`, // Use session access token
-                  },
-                  body: JSON.stringify({
-                    usdAmount: parseFloat(usdAmount),
-                    transactionId: signature
-                  }),
-                });
+              if (!apiResponse.ok) {
+                throw new Error('Database update failed');
+              }
 
-                if (response.ok) {
-                  const data = await response.json();
-                  success(`Payment confirmed! ${data.message || `${creditsToAdd} credits have been added to your account.`}`);
-                  refreshCredits(); // Trigger credit refresh after successful payment
-                  // Redirect to return URL if provided, otherwise to dashboard
-                  if (returnUrl) {
-                    router.push(returnUrl);
-                  } else {
-                    router.push('/dashboard');
-                  }
-                } else {
-                  const errorData = await response.json();
-                  error(`Payment verified but failed to add credits: ${errorData.error || 'Unknown error'}`);
-                  // Redirect to return URL if provided, otherwise to dashboard
-                  if (returnUrl) {
-                    router.push(returnUrl);
-                  } else {
-                    router.push('/dashboard');
-                  }
-                }
-              } catch (apiError) {
-                console.error('Error adding credits:', apiError);
-                error('Payment verified but failed to add credits. Please contact support.');
+              const apiResult = await apiResponse.json();
+              if (apiResult.success) {
+                const creditsToAdd = apiResult.creditsAdded || creditsToBuy;
+
+                success(`Payment confirmed! ${creditsToAdd} credits have been added to your account.`);
+                refreshCredits(); // Trigger credit refresh after successful payment
                 // Redirect to return URL if provided, otherwise to dashboard
                 if (returnUrl) {
                   router.push(returnUrl);
                 } else {
                   router.push('/dashboard');
                 }
+              } else {
+                error('Payment verified but database update failed. Please contact support.');
+                // Don't redirect on database failure - let user retry or contact support
               }
             } else {
               error('Payment verification failed. Please contact support if you were charged.');

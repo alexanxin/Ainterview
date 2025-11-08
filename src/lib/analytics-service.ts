@@ -162,21 +162,46 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics | null> {
     // For user growth, we would query the profiles table
     const userGrowth: UserGrowth[] = []; // Placeholder for now
 
-    // Calculate payment analytics based on actual usage costs
-    const totalRevenue = Math.abs(
-      dailyUsage.reduce((sum, day) => sum + day.creditsUsed, 0)
+    // Calculate payment analytics from payment_records table
+    const paymentRecordsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status, expected_amount")
+      .eq("status", "confirmed");
+
+    if (paymentRecordsResponse.error) {
+      Logger.error("Error getting payment records:", {
+        error: paymentRecordsResponse.error.message,
+      });
+      return null;
+    }
+
+    const confirmedPayments = paymentRecordsResponse.data || [];
+    const successfulPayments = confirmedPayments.length;
+    const totalRevenue = confirmedPayments.reduce(
+      (sum, payment) => sum + Math.abs(payment.expected_amount),
+      0
     );
 
-    // Count days with usage as "successful payments" (any day with credits used)
-    const successfulPayments = dailyUsage.filter(
-      (day) => day.creditsUsed > 0
-    ).length;
+    // Get total payments (including pending/failed)
+    const allPaymentsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status", { count: "exact", head: true });
+
+    const totalPayments = allPaymentsResponse.count ?? 0;
+
+    // Get failed payments
+    const failedPaymentsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status", { count: "exact", head: true })
+      .eq("status", "failed");
+
+    const failedPayments = failedPaymentsResponse.count ?? 0;
 
     const paymentAnalytics: PaymentAnalytics = {
-      totalPayments: successfulPayments,
+      totalPayments,
       totalRevenue,
       successfulPayments,
-      failedPayments: 0, // Placeholder
+      failedPayments,
       averagePaymentAmount:
         successfulPayments > 0 ? totalRevenue / successfulPayments : 0,
     };
@@ -331,21 +356,50 @@ export async function getUserUsageAnalytics(
     // For user growth, we would query the profiles table
     const userGrowth: UserGrowth[] = []; // Placeholder for now
 
-    // Calculate payment analytics for user based on actual usage costs
-    const totalRevenue = Math.abs(
-      dailyUsage.reduce((sum, day) => sum + day.creditsUsed, 0)
+    // Calculate payment analytics for user from payment_records table
+    const userPaymentRecordsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status, expected_amount")
+      .eq("user_id", userId)
+      .eq("status", "confirmed");
+
+    if (userPaymentRecordsResponse.error) {
+      Logger.error("Error getting user payment records:", {
+        error: userPaymentRecordsResponse.error.message,
+        userId,
+      });
+      return null;
+    }
+
+    const userConfirmedPayments = userPaymentRecordsResponse.data || [];
+    const successfulPayments = userConfirmedPayments.length;
+    const totalRevenue = userConfirmedPayments.reduce(
+      (sum, payment) => sum + Math.abs(payment.expected_amount),
+      0
     );
 
-    // Count days with usage as "successful payments" (any day with credits used)
-    const successfulPayments = dailyUsage.filter(
-      (day) => day.creditsUsed > 0
-    ).length;
+    // Get total payments for user (including pending/failed)
+    const userAllPaymentsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    const totalPayments = userAllPaymentsResponse.count ?? 0;
+
+    // Get failed payments for user
+    const userFailedPaymentsResponse = await supabaseServer
+      .from("payment_records")
+      .select("status", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "failed");
+
+    const failedPayments = userFailedPaymentsResponse.count ?? 0;
 
     const paymentAnalytics: PaymentAnalytics = {
-      totalPayments: successfulPayments,
+      totalPayments,
       totalRevenue,
       successfulPayments,
-      failedPayments: 0, // Placeholder
+      failedPayments,
       averagePaymentAmount:
         successfulPayments > 0 ? totalRevenue / successfulPayments : 0,
     };

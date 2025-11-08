@@ -1,6 +1,7 @@
 // Solana payment integration for x402 protocol
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Logger } from "./logger";
+import { paymentRecordsService } from "./payment-records-service";
 import {
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
@@ -156,7 +157,8 @@ export class SolanaPaymentService {
   async verifyPayment(
     transactionId: string,
     expectedAmount?: number,
-    expectedToken?: "USDC" | "USDT" | "CASH"
+    expectedToken?: "USDC" | "USDT" | "CASH",
+    userId?: string
   ): Promise<SolanaPaymentResult> {
     if (!this.isInitialized) {
       const initSuccess = await this.initialize();
@@ -173,6 +175,32 @@ export class SolanaPaymentService {
       expectedAmount,
       expectedToken,
     });
+
+    // Insert pending record at the start of verification
+    if (userId && expectedAmount && expectedToken) {
+      const recipientWallet =
+        process.env.NEXT_PUBLIC_PAYMENT_WALLET || "DUMMY_WALLET_ADDRESS";
+      const pendingRecord = await paymentRecordsService.insertPendingRecord({
+        user_id: userId,
+        transaction_id: transactionId,
+        expected_amount: expectedAmount,
+        token: expectedToken,
+        recipient: recipientWallet,
+      });
+
+      if (!pendingRecord) {
+        Logger.warn("Failed to create pending payment record", {
+          transactionId,
+          userId,
+        });
+        // Continue with verification even if record creation fails
+      } else {
+        Logger.info("Created pending payment record", {
+          transactionId,
+          recordId: pendingRecord.id,
+        });
+      }
+    }
 
     let endpoint: string = ""; // Initialize endpoint
     let statusEndpoint: string = ""; // Initialize statusEndpoint
@@ -278,6 +306,15 @@ export class SolanaPaymentService {
                 error: JSON.stringify(signatureStatus.err),
                 solanaEndpoint: statusEndpoint,
               });
+
+              // Update record to failed status
+              if (userId) {
+                await paymentRecordsService.updateRecordStatus(
+                  transactionId,
+                  "failed"
+                );
+              }
+
               return {
                 success: false,
                 error: `Transaction failed on blockchain: ${JSON.stringify(
@@ -302,6 +339,15 @@ export class SolanaPaymentService {
           transactionId,
           solanaEndpoint: statusEndpoint,
         });
+
+        // Update record to failed status
+        if (userId) {
+          await paymentRecordsService.updateRecordStatus(
+            transactionId,
+            "failed"
+          );
+        }
+
         return {
           success: false,
           error: "Transaction not confirmed within timeout",
@@ -384,10 +430,19 @@ export class SolanaPaymentService {
         expectedAmount,
         solanaEndpoint: endpoint,
       });
+
+      // Update record to confirmed status
+      if (userId) {
+        await paymentRecordsService.updateRecordStatus(
+          transactionId,
+          "confirmed"
+        );
+      }
+
       return {
         success: true,
         transactionId,
-        creditsAdded: expectedAmount || 10, // Use expected amount if provided
+        creditsAdded: expectedAmount ? Math.round(expectedAmount * 10) : 10, // Convert USD to credits (1 USD = 10 credits)
         solanaEndpoint: endpoint,
       };
     } catch (error) {

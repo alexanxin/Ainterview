@@ -15,12 +15,26 @@ export async function POST(req: NextRequest) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased timeout to 15 seconds
 
-    // Fetch the content from the URL
+    // Fetch the content from the URL with redirect handling
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Ainterview Bot)",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        Connection: "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        DNT: "1", // Do Not Track
       },
+      redirect: "follow", // Follow redirects
     });
 
     clearTimeout(timeoutId);
@@ -30,9 +44,13 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       console.log("Fetch failed with status:", response.status);
+      // Return 400 instead of the external URL's status code to distinguish
+      // between internal server errors and external URL issues
       return Response.json(
-        { error: "Failed to fetch content from URL" },
-        { status: response.status }
+        {
+          error: `Failed to fetch content from URL. The URL returned status: ${response.status}`,
+        },
+        { status: 400 }
       );
     }
 
