@@ -572,7 +572,7 @@ export default function FeedbackPage() {
                                   onClick={() => handlePracticeSimilarQuestion(item.question)}
                                   disabled={isLoading}
                                 >
-                                  <span className="mr-2">🔄</span>
+                                  {/* <span className="mr-2">🔄</span> */}
                                   {isLoading ? 'Generating...' : 'Practice Similar Question'}
                                 </Button>
                               </div>
