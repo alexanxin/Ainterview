@@ -168,6 +168,31 @@ export async function POST(req: NextRequest) {
         },
         {
           status: x402Response.status, // Use the standard 402 status
+          headers: {
+            // Add x402-compliant headers
+            "X-Payment-Required": "true",
+            "X-Payment-Operation": action,
+            "X402-Version": "1.0",
+            "X-Payment-Amount":
+              usageCheck.paymentRequired?.amount?.toString() || "0.05",
+            "X-Payment-Currency": usageCheck.paymentRequired?.currency || "USD",
+            "X-Payment-Description": `AI ${action} service - ${usageCheck.cost} credits`,
+            "X-Payment-Timeout": "300", // 5 minutes
+            "X-Payment-Recipient":
+              process.env.NEXT_PUBLIC_PAYMENT_WALLET || "YOUR_WALLET_ADDRESS",
+            "X-Payment-Network": "solana",
+            "X-Payment-Tokens": "USDC,USDT,CASH",
+            "X-Payment-URL": `${
+              process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+            }/payment?operation=${action}&amount=${usageCheck.cost}`,
+            "X-Payment-Metadata": JSON.stringify({
+              action,
+              cost: usageCheck.cost,
+              creditsAvailable: usageCheck.creditsAvailable,
+              userId: userId || "anonymous",
+              timestamp: new Date().toISOString(),
+            }),
+          },
         }
       );
 
@@ -1090,10 +1115,23 @@ export async function POST(req: NextRequest) {
           txHash: "simulated_tx_hash_" + Date.now(), // In a real implementation, this would be the actual transaction signature
           networkId: "solana",
           explorerUrl: `https://explorer.solana.com/tx/simulated_tx_hash_${Date.now()}`,
+          creditsAdded: cost, // Include credits added for transparency
+          operation: action, // Include the operation that was performed
+          timestamp: new Date().toISOString(),
+          userId: userId || "anonymous",
         };
 
         const encodedPaymentResponse = btoa(JSON.stringify(paymentResponse));
         response.headers.set("X-PAYMENT-RESPONSE", encodedPaymentResponse);
+
+        // Add additional x402 metadata headers for successful transactions
+        response.headers.set("X402-Version", "1.0");
+        response.headers.set("X-Payment-Status", "completed");
+        response.headers.set("X-Payment-TxHash", paymentResponse.txHash);
+        response.headers.set("X-Payment-Network", "solana");
+        response.headers.set("X-Payment-Credits-Added", cost.toString());
+        response.headers.set("X-Payment-Operation", action);
+        response.headers.set("X-Payment-Timestamp", paymentResponse.timestamp);
       }
     }
 

@@ -909,6 +909,39 @@ export function getX402PaymentResponse(paymentRequired: {
     body: {
       x402Version: 1,
       accepts: [paymentRequirements],
+      // Add comprehensive x402 metadata for better protocol compliance
+      paymentMetadata: {
+        protocol: "x402",
+        version: "1.0",
+        operation: "micropayment",
+        service: "AI Interview Preparation",
+        costPerCredit: 0.1, // $0.10 per credit
+        supportedTokens: ["USDC", "USDT", "CASH"],
+        blockchain: paymentRequired.chain,
+        paymentUrl: `${
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+        }/payment`,
+        termsUrl: `${
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+        }/terms`,
+        privacyUrl: `${
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+        }/privacy`,
+        supportEmail: "support@ainterview.com",
+        merchantName: "Ainterview",
+        merchantId: "ainterview-ai-service",
+        timestamp: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now
+      },
+      // Include detailed payment instructions for agents
+      paymentInstructions: {
+        step1: "Navigate to the payment URL provided",
+        step2: "Connect your Solana wallet (Phantom recommended)",
+        step3: "Select the desired token (USDC, USDT, or CASH)",
+        step4: "Approve the transaction in your wallet",
+        step5: "Credits will be added to your account automatically",
+        note: "Transactions are verified on the Solana blockchain for security",
+      },
     },
   };
 }

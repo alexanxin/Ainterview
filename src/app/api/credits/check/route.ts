@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getUserCredits } from "@/lib/database";
 import { supabaseServer } from "@/lib/supabase-server";
 import { X402PaymentRequirements } from "@/lib/x402-client";
+import { getX402PaymentResponse } from "@/lib/x402-utils";
 
 interface CreditCheckRequest {
   action: "start_interview" | "reanswer_question";
@@ -20,12 +21,9 @@ interface CreditCheckResponse {
   operation: string;
   redirectToPayment?: boolean;
   paymentUrl?: string;
-
-  // X402 compliance fields
-  x402Version: number;
-  accepts: X402PaymentRequirements[];
   status: 200 | 402;
   message: string;
+  // X402 compliance fields are now included dynamically from getX402PaymentResponse
 }
 
 // Helper function to get credit requirements
@@ -176,8 +174,6 @@ export async function POST(request: NextRequest) {
         requiredCredits,
         currentCredits,
         operation: action,
-        x402Version: 1,
-        accepts: [],
         status: 200,
         message: "Sufficient credits available",
       };
@@ -187,11 +183,17 @@ export async function POST(request: NextRequest) {
         headers: { "Content-Type": "application/json" },
       });
     } else {
-      // User needs to purchase credits
-      const paymentRequirements = generatePaymentRequirements(
-        requiredCredits,
-        action
-      );
+      // User needs to purchase credits - use enhanced x402 response
+      const usdAmount = requiredCredits * 0.1; // $0.10 per credit
+
+      const x402Response = getX402PaymentResponse({
+        amount: usdAmount,
+        currency: "USDC",
+        chain: "solana",
+        recipient: process.env.SOLANA_WALLET_ADDRESS || "YourWalletAddress",
+        memo: `${requiredCredits} credits for ${action}`,
+        description: `${requiredCredits} credits for ${action}`,
+      });
 
       response = {
         sufficientCredits: false,
@@ -200,20 +202,40 @@ export async function POST(request: NextRequest) {
         operation: action,
         redirectToPayment: true,
         paymentUrl: `/payment?amount=${requiredCredits}&operation=${action}`,
-        x402Version: 1,
-        accepts: [paymentRequirements],
+        ...x402Response.body, // Include the full x402 response body
         status: 402,
         message: "Additional credits required",
       };
 
-      // Return 402 status with X402 compliance headers
+      // Return 402 status with comprehensive x402 compliance headers
+      const headers = new Headers({
+        "Content-Type": "application/json",
+        "X-Payment-Required": "true",
+        "X-Payment-Operation": action,
+        "X402-Version": "1.0",
+        "X-Payment-Amount": usdAmount.toString(),
+        "X-Payment-Currency": "USDC",
+        "X-Payment-Description": `${requiredCredits} credits for ${action}`,
+        "X-Payment-Timeout": "300",
+        "X-Payment-Recipient":
+          process.env.SOLANA_WALLET_ADDRESS || "YourWalletAddress",
+        "X-Payment-Network": "solana",
+        "X-Payment-Tokens": "USDC,USDT,CASH",
+        "X-Payment-URL": `${
+          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+        }/payment?amount=${requiredCredits}&operation=${action}`,
+        "X-Payment-Metadata": JSON.stringify({
+          action,
+          cost: requiredCredits,
+          creditsAvailable: currentCredits,
+          userId,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
       return new Response(JSON.stringify(response), {
         status: 402,
-        headers: {
-          "Content-Type": "application/json",
-          "X-Payment-Required": "true",
-          "X-Payment-Operation": action,
-        },
+        headers,
       });
     }
   } catch (error) {
