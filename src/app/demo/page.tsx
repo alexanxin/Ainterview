@@ -208,10 +208,10 @@ export default function DemoPage() {
                     {/* Header */}
                     <div className="text-center mb-8">
                         <div className="flex justify-center mb-4">
-                            <X402ComplianceBadge />
+                            {/* <X402ComplianceBadge /> */}
                         </div>
                         <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
-                            x402 Payment Protocol Demo
+                            Ainterview x402 Payment Protocol Demo
                         </h1>
                         <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto">
                             Experience the complete x402 micropayment flow without real wallets or authentication
@@ -344,7 +344,7 @@ export default function DemoPage() {
                                     </div>
 
                                     {/* Last Response Display */}
-                                    {lastResponse && (
+                                    {lastResponse && currentStep <= 2 && (
                                         <div className="mt-4">
                                             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                                                 Last API Response (HTTP 402)
@@ -353,6 +353,29 @@ export default function DemoPage() {
                                                 <pre className="overflow-x-auto">
                                                     {JSON.stringify(lastResponse, null, 2)}
                                                 </pre>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Transaction Details Display */}
+                                    {currentStep >= 3 && (
+                                        <div className="mt-4">
+                                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                                                Transaction Details
+                                            </h3>
+                                            <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-sm">
+                                                <div className="space-y-2">
+                                                    <div><strong>Status:</strong> {currentStep >= 5 ? 'Verified & Completed' : currentStep >= 4 ? 'Verifying...' : 'Payment Initiated'}</div>
+                                                    <div><strong>Amount:</strong> $0.50 USD (10 credits)</div>
+                                                    <div><strong>Token:</strong> USDC</div>
+                                                    <div><strong>Blockchain:</strong> Solana</div>
+                                                    {currentStep >= 4 && (
+                                                        <div><strong>Verification:</strong> ✅ Confirmed on blockchain</div>
+                                                    )}
+                                                    {currentStep >= 5 && (
+                                                        <div><strong>Credits Added:</strong> ✅ 10 credits added to account</div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
