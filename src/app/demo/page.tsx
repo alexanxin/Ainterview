@@ -153,8 +153,8 @@ export default function DemoPage() {
         // Mock transaction data
         const transactionData = {
             transactionId: `demo-tx-${Date.now()}`,
-            amount: 0.50, // $0.50 for 10 credits
-            credits: 10,
+            amount: 0.50, // $0.50 for 5 credits
+            credits: 5,
             token: 'USDC',
             timestamp: new Date().toISOString()
         };
@@ -179,7 +179,7 @@ export default function DemoPage() {
         };
 
         addLog('success', 'Payment verified on blockchain', verificationData);
-        setCredits(prev => prev + 10); // Add credits after verification
+        setCredits(prev => prev + 5); // Add credits after verification
         setCurrentStep(5);
     };
 
@@ -264,7 +264,7 @@ export default function DemoPage() {
                                                 onClick={() => setCurrentStep(3)}
                                                 className="w-full bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                                             >
-                                                Initialize Payment
+                                                Open Payment Modal
                                             </Button>
                                         )}
 
@@ -273,7 +273,7 @@ export default function DemoPage() {
                                                 onClick={handleBuyCredits}
                                                 className="w-full bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
                                             >
-                                                Wallet Approve 10 Credits ($0.50)
+                                                💳 Wallet: Buy 5 Credits ($0.50)
                                             </Button>
                                         )}
 
@@ -357,24 +357,105 @@ export default function DemoPage() {
                                         </div>
                                     )}
 
+                                    {/* Mock Payment Modal Display */}
+                                    {currentStep >= 2 && currentStep <= 4 && (
+                                        <div className="mt-4">
+                                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                                                Payment Modal (Mock) opens automatically in real app on 402 response
+                                            </h3>
+                                            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+                                                {/* Modal Header */}
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                                                        Purchase Interview Credits
+                                                    </h4>
+                                                    <div className="text-gray-400">✕</div>
+                                                </div>
+
+                                                {/* Wallet Connection */}
+                                                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <div className="font-semibold text-blue-800 dark:text-blue-200 text-sm">
+                                                                Connect Your Solana Wallet
+                                                            </div>
+                                                            <div className="text-xs text-blue-700 dark:text-blue-300">
+                                                                Required for x402 payments
+                                                            </div>
+                                                        </div>
+                                                        <div className="px-3 py-1 bg-blue-600 text-white text-xs rounded">
+                                                            {currentStep >= 3 ? '✅ Connected' : '🔗 Connect Wallet'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Token Selection */}
+                                                <div className="mb-4">
+                                                    <h5 className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">
+                                                        Select Payment Token
+                                                    </h5>
+                                                    <div className="flex gap-2">
+                                                        <button className="px-3 py-1 bg-green-600 text-white text-xs rounded">
+                                                            USDC
+                                                        </button>
+                                                        <button className="px-3 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs rounded">
+                                                            PYUSD
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Credit Amount */}
+                                                <div className="mb-4">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="font-medium text-sm">Credits to Buy: <span className="text-green-600">5</span></span>
+                                                        <span className="font-bold text-green-600">$0.50 USD</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '10%' }}></div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Payment Button */}
+                                                <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                    <div>
+                                                        <div className="font-semibold">Total: $0.50 USD</div>
+                                                        <div className="text-sm text-gray-600 dark:text-gray-400">5 credits</div>
+                                                    </div>
+                                                    <button
+                                                        className={`px-4 py-2 rounded text-sm font-medium ${currentStep >= 3
+                                                            ? 'bg-gradient-to-r from-green-600 to-lime-500 text-white hover:opacity-90'
+                                                            : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                                            }`}
+                                                        disabled={currentStep < 3}
+                                                    >
+                                                        {currentStep >= 4 ? 'Processing...' : '💳 Pay with USDC ($0.50)'}
+                                                    </button>
+                                                </div>
+
+                                                {/* x402 Badge */}
+                                                <div className="flex justify-center mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                    <div className="px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 text-xs rounded-full">
+                                                        x402 Compliant
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Transaction Details Display */}
-                                    {currentStep >= 3 && (
+                                    {currentStep >= 5 && (
                                         <div className="mt-4">
                                             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                                                 Transaction Details
                                             </h3>
                                             <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-sm">
                                                 <div className="space-y-2">
-                                                    <div><strong>Status:</strong> {currentStep >= 5 ? 'Verified & Completed' : currentStep >= 4 ? 'Verifying...' : 'Payment Initiated'}</div>
-                                                    <div><strong>Amount:</strong> $0.50 USD (10 credits)</div>
+                                                    <div><strong>Status:</strong> Verified & Completed ✅</div>
+                                                    <div><strong>Amount:</strong> $0.50 USD (5 credits)</div>
                                                     <div><strong>Token:</strong> USDC</div>
                                                     <div><strong>Blockchain:</strong> Solana</div>
-                                                    {currentStep >= 4 && (
-                                                        <div><strong>Verification:</strong> ✅ Confirmed on blockchain</div>
-                                                    )}
-                                                    {currentStep >= 5 && (
-                                                        <div><strong>Credits Added:</strong> ✅ 10 credits added to account</div>
-                                                    )}
+                                                    <div><strong>Verification:</strong> ✅ Confirmed on blockchain</div>
+                                                    <div><strong>Credits Added:</strong> ✅ 5 credits added to account</div>
                                                 </div>
                                             </div>
                                         </div>
