@@ -5,71 +5,46 @@ import { addUserCredits, recordUsage } from "@/lib/database";
 
 // Helper functions to call the payment records API
 async function getPaymentRecordByTransactionId(transactionId: string) {
-  const response = await fetch(
-    `${
-      process.env.NEXTAUTH_URL || "http://localhost:3000"
-    }/api/payment/records?transaction_id=${encodeURIComponent(transactionId)}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
+  // Use direct database access instead of API calls to avoid URL parsing issues
+  const { getPaymentRecordByTransactionId: dbGetPaymentRecord } = await import(
+    "@/lib/database"
   );
-
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    throw new Error(`Failed to fetch payment record: ${response.status}`);
-  }
-
-  return await response.json();
+  return await dbGetPaymentRecord(transactionId);
 }
 
 async function updatePaymentRecordStatus(
   transactionId: string,
   status: "confirmed" | "failed"
 ) {
-  const response = await fetch(
-    `${
-      process.env.NEXTAUTH_URL || "http://localhost:3000"
-    }/api/payment/records?transaction_id=${encodeURIComponent(transactionId)}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to update payment record: ${response.status}`);
-  }
-
-  return true;
+  // Use direct database access instead of API calls to avoid URL parsing issues
+  const { updatePaymentRecordStatus: dbUpdatePaymentRecordStatus } =
+    await import("@/lib/database");
+  return await dbUpdatePaymentRecordStatus(transactionId, status);
 }
 
 async function getPendingPaymentRecordsByUser(
   userId: string,
   minutesBack: number = 10
 ): Promise<Array<{ transaction_id: string }>> {
-  // This is a bit tricky to implement via API, so we'll use a different approach
-  // For now, we'll return an empty array since the main flow should work with existing records
-  Logger.warn(
-    "getPendingPaymentRecordsByUser called in API route - this should be handled differently"
-  );
-  return [];
+  // Use direct database access instead of API calls to avoid URL parsing issues
+  const { getPendingPaymentRecordsByUser: dbGetPendingPaymentRecords } =
+    await import("@/lib/database");
+  const records = await dbGetPendingPaymentRecords(userId, minutesBack);
+  return records.map((r) => ({ transaction_id: r.transaction_id }));
 }
 
 async function updatePaymentRecordTransactionId(
   tempTransactionId: string,
   actualTransactionId: string
 ) {
-  // This is complex to implement via API, so we'll skip for now
-  Logger.warn(
-    "updatePaymentRecordTransactionId called in API route - this should be handled differently"
+  // Use direct database access instead of API calls to avoid URL parsing issues
+  const {
+    updatePaymentRecordTransactionId: dbUpdatePaymentRecordTransactionId,
+  } = await import("@/lib/database");
+  return await dbUpdatePaymentRecordTransactionId(
+    tempTransactionId,
+    actualTransactionId
   );
-  return false;
 }
 
 async function createPaymentRecord(paymentData: {
@@ -79,30 +54,17 @@ async function createPaymentRecord(paymentData: {
   token: string;
   recipient: string;
 }) {
-  const response = await fetch(
-    `${
-      process.env.NEXTAUTH_URL || "http://localhost:3000"
-    }/api/payment/records`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: paymentData.user_id,
-        transaction_id: paymentData.transaction_id,
-        expected_amount: paymentData.expected_amount,
-        token: paymentData.token,
-        recipient: paymentData.recipient,
-      }),
-    }
+  // Use direct database access instead of API calls to avoid URL parsing issues
+  const { createPaymentRecord: dbCreatePaymentRecord } = await import(
+    "@/lib/database"
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to create payment record: ${response.status}`);
-  }
-
-  return await response.json();
+  return await dbCreatePaymentRecord({
+    user_id: paymentData.user_id,
+    transaction_id: paymentData.transaction_id,
+    expected_amount: paymentData.expected_amount,
+    token: paymentData.token as "USDC" | "USDT" | "CASH",
+    recipient: paymentData.recipient,
+  });
 }
 
 export async function POST(req: NextRequest) {
