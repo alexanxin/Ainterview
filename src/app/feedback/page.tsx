@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -38,7 +38,7 @@ interface InterviewWithFeedback {
   feedbackItems: FeedbackItem[];
 }
 
-export default function FeedbackPage() {
+function FeedbackPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
@@ -671,5 +671,28 @@ export default function FeedbackPage() {
         }}
       />
     </div>
+  );
+}
+
+// Wrapper component that handles the Suspense boundary
+export default function FeedbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+        <Navigation />
+        <main className="flex-1 p-4 relative z-10">
+          <div className="container mx-auto max-w-6xl py-8">
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-green-500 border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+              <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">
+                Loading your interview feedback...
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    }>
+      <FeedbackPageContent />
+    </Suspense>
   );
 }

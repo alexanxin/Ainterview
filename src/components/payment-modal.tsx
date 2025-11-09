@@ -29,7 +29,7 @@ import {
 const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
 const CREDIT_TO_USD_RATE = 0.10; // 1 credit = $0.10 USD
-const MIN_CREDITS = 5; // Minimum purchase of $0.50 USD
+const MIN_CREDITS = 1; // Minimum purchase of $0.10 USD
 const MAX_CREDITS = 100; // Maximum purchase of $10.00 USD
 
 interface PaymentModalProps {
@@ -77,7 +77,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
         }
 
         if (creditsToBuy < MIN_CREDITS) {
-            error(`Minimum purchase is ${MIN_CREDITS} credits.`);
+            error(`Minimum purchase is ${MIN_CREDITS} credit.`);
             return;
         }
 
@@ -573,7 +573,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                 className="w-full"
                             />
                             <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                                <span>{MIN_CREDITS} Credits (${(MIN_CREDITS * CREDIT_TO_USD_RATE).toFixed(2)})</span>
+                                <span>{MIN_CREDITS} Credit (${(MIN_CREDITS * CREDIT_TO_USD_RATE).toFixed(2)})</span>
                                 <span>{MAX_CREDITS} Credits (${(MAX_CREDITS * CREDIT_TO_USD_RATE).toFixed(2)})</span>
                             </div>
                         </div>
