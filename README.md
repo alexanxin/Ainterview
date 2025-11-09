@@ -14,7 +14,6 @@ Ainterview is participating in the x402 Hackathon with applications for multiple
 - **Best x402 API Integration** ($10,000) - Full HTTP 402 protocol compliance
 - **Best use of CASH** ($10,000 in $CASH) - Phantom CASH token integration
 
-**Total Potential: $30,000**
 
 ## 📖 Complete Judge Documentation
 
