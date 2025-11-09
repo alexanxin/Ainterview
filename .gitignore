@@ -67,5 +67,11 @@ yarn-error.log*
 *.tmp
 *.temp
 
+# Database files
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
 # OS generated files
 Thumbs.db
