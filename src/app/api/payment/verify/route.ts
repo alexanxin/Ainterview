@@ -143,14 +143,32 @@ export async function POST(req: NextRequest) {
 
     // If verification was successful, update the payment record and add credits
     if (result.success && result.creditsAdded && result.creditsAdded > 0) {
+      Logger.info("Starting database update process", {
+        transactionId,
+        creditsToAdd: result.creditsAdded,
+        userId,
+      });
+
       try {
         // First, try to find an existing payment record with this transaction ID
         const existingRecord = await getPaymentRecordByTransactionId(
           transactionId
         );
 
+        Logger.info("Payment record lookup result", {
+          transactionId,
+          existingRecordFound: !!existingRecord,
+          existingRecordUserId: existingRecord?.user_id,
+          existingRecordStatus: existingRecord?.status,
+        });
+
         if (existingRecord) {
-          // Update the existing record status to confirmed
+          // Update the existing record status to confirmed FIRST
+          Logger.info("Updating existing payment record status to confirmed", {
+            transactionId,
+            currentStatus: existingRecord.status,
+          });
+
           const statusUpdated = await updatePaymentRecordStatus(
             transactionId,
             "confirmed"
@@ -166,12 +184,24 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Add credits to the user
+          // Add credits to the user AFTER payment record is confirmed
           if (result.creditsAdded && result.creditsAdded > 0) {
+            Logger.info("Attempting to add credits to user", {
+              userId: existingRecord.user_id,
+              creditsToAdd: result.creditsAdded,
+            });
+
             const creditsAdded = await addUserCredits(
               existingRecord.user_id,
               result.creditsAdded
             );
+
+            Logger.info("addUserCredits result", {
+              userId: existingRecord.user_id,
+              creditsToAdd: result.creditsAdded,
+              creditsAdded: creditsAdded,
+            });
+
             if (creditsAdded) {
               Logger.info("Successfully added credits to user", {
                 userId: existingRecord.user_id,
@@ -193,18 +223,50 @@ export async function POST(req: NextRequest) {
             }
           }
         } else {
+          Logger.info(
+            "No existing payment record found, checking for pending records",
+            {
+              transactionId,
+              userId,
+            }
+          );
+
           // No existing record found, check for pending records if userId is provided
           if (userId) {
             const pendingRecords = await getPendingPaymentRecordsByUser(userId);
+
+            Logger.info("Pending records lookup result", {
+              userId,
+              pendingRecordsCount: pendingRecords.length,
+              pendingRecords: pendingRecords.map((r) => ({
+                id: r.transaction_id,
+              })),
+            });
 
             if (pendingRecords.length > 0) {
               // Update the most recent pending record with the actual transaction ID
               const mostRecentRecord = pendingRecords[0];
 
+              Logger.info(
+                "Attempting to update pending record transaction ID",
+                {
+                  userId,
+                  oldTransactionId: mostRecentRecord.transaction_id,
+                  newTransactionId: transactionId,
+                }
+              );
+
               const updateResult = await updatePaymentRecordTransactionId(
                 mostRecentRecord.transaction_id,
                 transactionId
               );
+
+              Logger.info("Transaction ID update result", {
+                userId,
+                oldTransactionId: mostRecentRecord.transaction_id,
+                newTransactionId: transactionId,
+                updateResult,
+              });
 
               if (updateResult) {
                 Logger.info(
@@ -217,9 +279,26 @@ export async function POST(req: NextRequest) {
                 );
 
                 // Now update the status to confirmed
+                Logger.info(
+                  "Updating status to confirmed after transaction ID update",
+                  {
+                    userId,
+                    transactionId,
+                  }
+                );
+
                 const statusUpdateResult = await updatePaymentRecordStatus(
                   transactionId,
                   "confirmed"
+                );
+
+                Logger.info(
+                  "Status update result after transaction ID update",
+                  {
+                    userId,
+                    transactionId,
+                    statusUpdateResult,
+                  }
                 );
 
                 if (statusUpdateResult) {
@@ -240,12 +319,24 @@ export async function POST(req: NextRequest) {
                   );
                 }
 
-                // Add credits to the user
+                // Add credits to the user AFTER payment record is confirmed
                 if (result.creditsAdded && result.creditsAdded > 0) {
+                  Logger.info("Adding credits to user from pending record", {
+                    userId,
+                    creditsToAdd: result.creditsAdded,
+                  });
+
                   const creditsAdded = await addUserCredits(
                     userId,
                     result.creditsAdded
                   );
+
+                  Logger.info("Credits addition result from pending record", {
+                    userId,
+                    creditsToAdd: result.creditsAdded,
+                    creditsAdded,
+                  });
+
                   if (creditsAdded) {
                     Logger.info(
                       "Successfully added credits to user from pending record",
@@ -283,6 +374,16 @@ export async function POST(req: NextRequest) {
                 );
               }
             } else {
+              Logger.info(
+                "No pending records found, creating new confirmed record",
+                {
+                  userId,
+                  transactionId,
+                  expectedAmount,
+                  expectedToken,
+                }
+              );
+
               // No pending records found, create a new confirmed record
               Logger.info(
                 "No pending payment records found, creating new confirmed record",
@@ -295,6 +396,14 @@ export async function POST(req: NextRequest) {
               const usdAmount = expectedAmount || 0.5; // Default to $0.5 if not provided
               const creditsToAdd = Math.round(usdAmount * 10); // Convert USD to credits (1 USD = 10 credits)
 
+              Logger.info("Creating new payment record", {
+                userId,
+                transactionId,
+                usdAmount,
+                creditsToAdd,
+                expectedToken,
+              });
+
               const newRecord = await createPaymentRecord({
                 user_id: userId,
                 transaction_id: transactionId,
@@ -305,12 +414,31 @@ export async function POST(req: NextRequest) {
                   "YOUR_WALLET_ADDRESS",
               });
 
+              Logger.info("New payment record creation result", {
+                userId,
+                transactionId,
+                newRecordCreated: !!newRecord,
+                newRecordId: newRecord?.id,
+              });
+
               if (newRecord) {
                 // Update status to confirmed
+                Logger.info("Updating new record status to confirmed", {
+                  userId,
+                  transactionId,
+                });
+
                 const statusUpdated = await updatePaymentRecordStatus(
                   transactionId,
                   "confirmed"
                 );
+
+                Logger.info("New record status update result", {
+                  userId,
+                  transactionId,
+                  statusUpdated,
+                });
+
                 if (statusUpdated) {
                   Logger.info("Created and confirmed new payment record", {
                     userId,
@@ -318,8 +446,20 @@ export async function POST(req: NextRequest) {
                   });
                 }
 
-                // Add credits to the user
+                // Add credits to the user AFTER payment record is confirmed
+                Logger.info("Adding credits for new record", {
+                  userId,
+                  creditsToAdd,
+                });
+
                 const creditsAdded = await addUserCredits(userId, creditsToAdd);
+
+                Logger.info("Credits addition result for new record", {
+                  userId,
+                  creditsToAdd,
+                  creditsAdded,
+                });
+
                 if (creditsAdded) {
                   Logger.info(
                     "Successfully added credits to user for new record",
@@ -369,6 +509,14 @@ export async function POST(req: NextRequest) {
         result.error = "Database update failed";
       }
     } else {
+      Logger.info(
+        "Payment verification failed, attempting to update record status to failed",
+        {
+          transactionId,
+          verificationError: result.error,
+        }
+      );
+
       // Payment verification failed, update record status to failed if it exists
       try {
         const statusUpdated = await updatePaymentRecordStatus(
@@ -377,6 +525,10 @@ export async function POST(req: NextRequest) {
         );
         if (statusUpdated) {
           Logger.info("Updated payment record status to failed", {
+            transactionId,
+          });
+        } else {
+          Logger.warn("Failed to update payment record status to failed", {
             transactionId,
           });
         }
@@ -389,7 +541,20 @@ export async function POST(req: NextRequest) {
       // Ensure result reflects failure
       result.success = false;
       result.error = result.error || "Payment verification failed";
+
+      Logger.info("Final result for failed payment verification", {
+        transactionId,
+        success: result.success,
+        error: result.error,
+      });
     }
+
+    Logger.info("Returning final result from payment verification API", {
+      transactionId,
+      success: result.success,
+      creditsAdded: result.creditsAdded,
+      error: result.error,
+    });
 
     return NextResponse.json(result);
   } catch (error) {

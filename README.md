@@ -28,6 +28,7 @@ The platform addresses the significant gap in personalized, on-demand interview 
 ## Development Setup
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
@@ -35,11 +36,12 @@ The platform addresses the significant gap in personalized, on-demand interview 
 2. Create a `.env.local` file with your API keys (see `.env.example` for required variables)
 
 3. Run the development server:
+
    ```bash
    npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+4. Open [https://theainterview.vercel.app](https://theainterview.vercel.app) in your browser.
 
 ## Contributing
 
