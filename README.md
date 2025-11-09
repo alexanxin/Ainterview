@@ -4,436 +4,211 @@
 [![Solana](https://img.shields.io/badge/Blockchain-Solana-purple)](https://solana.com)
 [![AI Powered](https://img.shields.io/badge/AI-Gemini-blue)](https://gemini.google.com)
 
-Ainterview is an AI-powered interview preparation platform that connects job applicants with AI interviewers specially trained for each application. The system creates highly realistic interview simulations by analyzing job postings, company information, and applicant backgrounds.
+## Project Overview
 
-## 🏆 x402 Hackathon Prize Applications
+Ainterview is an innovative AI-powered interview preparation platform that connects job applicants with AI interviewers specially trained for each application. These AI interviewers have deep insights from job postings, company information scraped from websites, and applicant CVs and cover letters to create highly realistic interview simulations.
 
-Ainterview is participating in the x402 Hackathon with applications for multiple prize categories:
+Project overview videos:
 
-- **Best x402 Agent Application** ($10,000) - Seamless AI service micropayments
-- **Best x402 API Integration** ($10,000) - Full HTTP 402 protocol compliance
-- **Best use of CASH** ($10,000 in $CASH) - Phantom CASH token integration
+https://www.youtube.com/watch?v=IWqbMx01vVs
+https://www.youtube.com/watch?v=HZQrrLLOciM
+https://www.youtube.com/watch?v=mlCBCCdj9HA&t=217s
 
+### Key Features
 
-## 📖 Complete Judge Documentation
+- **Hyper-Personalization**: Creates interview simulations specifically tailored to each job application and company
+- **Dynamic AI Interviewers**: AI agents specifically trained on job posting requirements and company culture
+- **Seamless Integration**: Incorporates information from user's CV and cover letter into the interview simulation
+- **On-Demand Availability**: Access completely personalized interview practice sessions anytime
+- **Intelligent Feedback System**: Provides detailed feedback on both content and delivery
+- **x402 Protocol Payment Integration**: Implements x402 protocol for all platform transactions, enabling instant and reliable stablecoin payments
 
-For comprehensive information for judges and reviewers, see our dedicated hackathon documentation:
+## Technology Stack
 
-### 🎯 **Executive Summary**
+- **Frontend**: React.js with TypeScript as a Next.js application
+- **Backend**: Next.js API routes deployed on Vercel
+- **Database**: Supabase for PostgreSQL database with real-time subscriptions and authentication
+- **AI/ML**: Google's Gemini for core AI interviewer functionality
+- **Blockchain**: Solana integration for x402 protocol transactions
+- **Payment**: x402 protocol implementation for stablecoin payments
+- **Hosting**: Vercel for global CDN distribution
+- **UI Components**: Radix UI primitives and Tailwind CSS
 
-[Executive Summary: x402 Payment Protocol Implementation](docs/showcase-materials/executive-summary.md)
+## Core Architecture
 
-**Key Highlights:**
+The application is structured as a Progressive Web Application (PWA) with the following key components:
 
-- Complete x402 Protocol Compliance with HTTP 402 responses
-- Two-Phase Verification System for security
-- Multi-Token Support (USDC, USDT, Phantom CASH)
-- 97% Cost Reduction from traditional payment processing
+- **AI Interviewer Creation**: Generates AI interviewers based on job posting text input
+- **Text-Based Interview Simulation**: Platform for users to engage in text-based conversations with AI interviewers
+- **User Profile System**: Basic user profiles where job seekers can input their CV/resume and cover letter information
+- **Job Posting Integration**: Mechanism for users to input job posting information to customize the AI interviewer
+- **Payment Processing**: x402 protocol integration for all platform transactions
+- **Feedback System**: Feedback on user responses based on alignment with job requirements
 
-### 🏗️ **Technical Architecture**
+## x402 Protocol Integration
 
-[Complete Technical Documentation](docs/showcase-materials/x402-hackathon-technical-architecture.md)
+Ainterview features innovative integration with the x402 protocol, representing a significant advancement in autonomous digital transactions. This protocol enables AI-driven commerce where automated systems can execute transactions without human intervention, positioning Ainterview at the forefront of autonomous payment systems.
 
-**Technical Implementation:**
+- Solana blockchain integration for high-speed, low-cost transactions
+- Support for Solana-based stablecoins for x402 transactions
+- Integration with Phantom and other Solana-compatible wallets
+- Real-time monitoring of Solana-based x402 transactions
+- Smart contract integration for automated subscription management
 
-- Two-Phase Payment Verification System
-- HTTP 402 Response Format with protocol headers
-- Security Architecture with dual verification
-- Performance & Scalability optimizations
-
-### 🎮 **Demo Guide & Credentials**
-
-[Complete Demo Guide for Judges](docs/showcase-materials/x402-hackathon-demo-guide.md)
-
-**Live Demo Access:**
-
-- **Production URL:** `https://theainterview.vercel.app`
-- **Demo Page:** `https://theainterview.vercel.app/demo`
-- **Payment:** `https://theainterview.vercel.app/payment`
-
-**Demo Scenarios:**
-
-- Complete user journey (free trial → payment)
-- API integration testing
-- Multi-token payment demonstration
-
-### 💼 **Business Case & Market Analysis**
-
-[Complete Business Case](docs/showcase-materials/x402-hackathon-business-case.md)
-
-**Business Impact:**
-
-- $18B+ market opportunity in career development
-- 97% payment processing cost reduction
-- Clear path to $750K ARR
-- Strong unit economics: $300 LTV, $15 CAC
-
-### 🎤 **Presentation Outline**
-
-[Presentation Guide for Judges](docs/showcase-materials/x402-hackathon-presentation-outline.md)
-
-**Presentation Structure (15 minutes):**
-
-1. Opening Hook & Problem Statement
-2. Technical Implementation Deep Dive
-3. User Experience Walkthrough
-4. Business Model & Prize Alignment
-
-### 🔑 **Demo Credentials**
-
-[Demo Credentials & Access Information](docs/showcase-materials/demo-credentials.md)
-
-**Test Environment:**
-
-- Pre-configured test wallets
-- Token faucet links for devnet
-- Troubleshooting guide
-- Performance benchmarks
-
-## 🚀 Quick Start for Judges
-
-### 1. **Immediate Demo Access**
-
-```bash
-# Navigate to live demo
-https://theainterview.vercel.app/demo
-
-# Or test API directly
-curl -X POST https://theainterview.vercel.app/api/gemini \
-  -H "Content-Type: application/json" \
-  -d '{"action":"generateQuestion","userId":"demo"}'
-```
-
-### 2. **x402 Protocol Validation**
-
-- Open browser network tab
-- Use platform until credits exhausted
-- Observe HTTP 402 response with x402 headers
-- Complete payment flow with test tokens
-
-### 3. **Technical Assessment**
-
-- Review HTTP 402 compliance in [technical architecture](docs/showcase-materials/x402-hackathon-technical-architecture.md)
-- Examine API responses and error handling
-- Validate multi-token support (USDC/PYUSD/CASH?)
-- Check performance metrics and benchmarks
-
-## 🎯 Project Overview
-
-**Problem Solved**: Job applicants have only one chance to make a first impression in interviews, yet most have limited practice with role-specific questions relevant to their target companies. Traditional interview preparation methods lack personalization and don't reflect actual interview styles.
-
-**Solution**: Ainterview provides infinitely available, completely personalized interview practice sessions that adapt to each specific job application using AI trained on actual job requirements and company culture.
-
-## 🚀 Key Features
-
-### MVP Features
-
-- **AI Interviewer Creation**: Generate AI interviewers based on job posting text input
-- **Text-Based Interview Simulation**: Engage in realistic text conversations with AI interviewers
-- **User Profile Creation**: Input CV/resume and cover letter information for personalization
-- **Job Posting Integration**: Input job postings via URL or text to customize the AI interviewer
-- **x402 Protocol Payment Integration**: Instant stablecoin payments on Solana blockchain
-- **Feedback System**: Receive feedback on responses based on job requirements
-- **User Dashboard**: View past interview sessions and manage profiles
-- **Authentication System**: Secure user sign-up and login
-
-### Advanced Features (Post-MVP)
-
-- Voice and video interview capabilities - soon
-- Advanced analytics dashboard
-- Industry-specific AI models
-- Mobile applications
-- Corporate solutions
-- AI agent marketplace
-
-## 🛠 Tech Stack
-
-### Frontend
-
-- **Framework**: Next.js 16.0.1 with React 19.2.0
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS v4
-- **UI Components**: Radix UI primitives
-- **Icons**: Lucide React
-
-### Backend & Infrastructure
-
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
-- **Hosting**: Vercel
-- **AI/ML**: Google Gemini API
-- **Blockchain**: Solana
-- **Payment Protocol**: x402
-
-### Key Dependencies
-
-- `@solana/web3.js` - Solana blockchain integration
-- `@supabase/supabase-js` - Database and authentication
-- `@google/generative-ai` - AI interviewer functionality
-- `cheerio` - Web scraping for job postings
-- `pdfjs-dist` - PDF parsing for resumes
-
-## 📁 Project Structure
-
-```
-.
-├── app/                          # Next.js application
-│   ├── src/
-│   │   ├── app/                  # App router pages
-│   │   ├── components/           # React components
-│   │   └── lib/                  # Utility libraries
-│   ├── package.json
-│   └── .env.local               # Environment variables
-├── docs/                        # Documentation
-│   └── showcase-materials/      # x402 hackathon materials
-├── test-*.js                    # Test scripts
-├── package.json                 # Root package.json
-└── database-schema.sql          # Database schema
-```
-
-## 🚦 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
-- Supabase account
-- Google Gemini API key
-- Solana wallet (for x402 payments)
+- Node.js (version 18 or higher)
+- npm or yarn package manager
+- Access to Google Gemini API
+- Supabase account for database services
+- Solana wallet for x402 transactions
 
 ### Installation
 
-1. **Clone the repository**
+1. Clone the repository:
 
    ```bash
    git clone <repository-url>
    cd ainterview
    ```
 
-2. **Install dependencies**
-
-   ```bash
-   # Install root dependencies
-   npm install
-
-   # Install app dependencies
-   cd app
-   npm install
-   cd ..
-   ```
-
-3. **Set up environment variables**
-
-   Create `.env.local` in the `app/` directory:
-
-   ```bash
-   # Supabase Configuration
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-   # Google Gemini AI
-   GEMINI_API_KEY=your_gemini_api_key
-
-   # Solana/x402 Configuration
-   NEXT_PUBLIC_SOLANA_RPC_URL=your_solana_rpc_url
-   NEXT_PUBLIC_SOLANA_NETWORK=devnet
-   ```
-
-4. **Set up database**
-
-   Run the database schema in your Supabase SQL editor:
-
-   ```bash
-   # From the project root
-   cat database-schema.sql
-   ```
-
-   Copy and execute the SQL in Supabase dashboard.
-
-5. **Run the development server**
+2. Install dependencies:
 
    ```bash
    cd app
+   npm install
+   ```
+
+3. Set up environment variables:
+
+   ```bash
+   cp .env.example .env.local
+   # Add your API keys and configuration
+   ```
+
+4. Run the development server:
+
+   ```bash
    npm run dev
    ```
 
-   Open [https://theainterview.vercel.app](https://theainterview.vercel.app) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## 🔐 Authentication & Security
+## Project Structure
 
-### Row Level Security (RLS)
+```
+ainterview/
+├── app/                    # Next.js application
+│   ├── src/
+│   │   ├── app/           # Application routes and pages
+│   │   ├── lib/           # Utility functions and libraries
+│   │   └── components/    # React components
+├── docs/                  # Documentation files
+├── public/                # Static assets
+├── package.json          # Main package configuration
+└── app/package.json      # Next.js application package configuration
+```
 
-The application uses Supabase RLS policies to ensure data security. Tests may require:
+## Target Users
 
-- Authenticated user sessions
-- Service role key for testing (bypasses RLS)
+### Primary: Mid to Senior-Level Tech Professionals (2-8 years experience)
 
-### Environment Variables
+- Age: 25-35 years old
+- Education: Bachelor's or higher degree in technical field
+- Income level: $60,000-$150,000 annually
 
-**Required:**
+### Secondary: New Graduates and Early Career Professionals (0-2 years experience)
 
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
-- `GEMINI_API_KEY` - Google Gemini API key
+- Age: 22-28 years old
+- Current situation: Recent graduates, junior roles, or career changers
 
-**Optional (for testing):**
+### Tertiary: Career Changers
 
-- `SUPABASE_SERVICE_ROLE_KEY` - Bypasses RLS during testing
+- Age: 28-45 years old
+- Experience: 3-15 years in a different industry or role
 
-## 💳 Payment Integration (x402)
+## Goals & Success Metrics
 
-The platform integrates with the x402 protocol for seamless micropayments:
+### Business Objectives:
 
-- **Protocol**: x402 (HTTP 402 Payment Required)
-- **Blockchain**: Solana
-- **Token**: Stablecoins (USDC, PYUSD, CASH?)
-- **Use Cases**: AI service micropayments
+- Achieve 10,000 registered users within the first 12 months
+- Generate $500,000 in annual recurring revenue by month 18
+- Establish Ainterview as the leading AI-powered interview preparation tool for mid to senior-level tech professionals by year 2
 
-### x402 Features
+### User Success Metrics:
 
-- Complete HTTP 402 protocol compliance
-- Multi-token support (USDC, PYUSD, Phantom CASH?)
-- Two-phase verification system
-- Real-time transaction processing
-- Sub-3 second confirmations
+- Improve user interview-to-offer ratio by 25% compared to industry average
+- Achieve a 40% increase in user confidence scores after completing 3 interview simulations
+- Reduce average time from job application to offer by 15% for active Ainterview users
 
-## 🤖 AI Interviewer
+## Post-MVP Vision
 
-The AI interviewer is powered by Google Gemini and:
+### Phase 2 Features:
 
-1. Analyzes job postings and company information
-2. Generates role-specific interview questions
-3. Provides personalized feedback on responses
-4. Adapts to user background and experience level
-
-### AI Integration Points
-
-- Job posting analysis
-- Question generation
-- Response evaluation
-- Feedback generation
-
-## 📊 Database Schema
-
-Key tables:
-
-- `profiles` - User profiles and information
-- `interview_sessions` - Interview session records
-- `interview_questions` - Generated interview questions
-- `interview_answers` - User answers and AI feedback
-- `user_credits` - Credit management and payment tracking
-- `payment_records` - x402 transaction records
-
-## 🚀 Deployment
-
-### Vercel Deployment
-
-1. Push code to GitHub
-2. Connect repository to Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy
-
-### Environment Setup
-
-Configure these in Vercel:
-
-- All variables from `.env.local`
-- Build command: `cd app && npm run build`
-- Output directory: `app/.next`
-
-## 📈 Monitoring & Analytics
-
-- **Performance**: Vercel analytics
-- **Database**: Supabase monitoring
-- **Errors**: Vercel error tracking
-- **Usage**: Custom usage tracking system
-- **Payments**: Transaction monitoring and verification
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
-
-## 📚 Documentation
-
-### Hackathon Judge Materials
-
-- [Project Brief](docs/brief.md) - Comprehensive project overview
-- [x402 Implementation](docs/X402_IMPLEMENTATION.md) - Payment system details
-- [Database Test Documentation](docs/TEST_DATABASE.md) - Testing guide
-- [API Documentation](docs/api-lifecycle.md) - API design patterns
-
-### Technical Documentation
-
-- [Business Case](docs/showcase-materials/x402-hackathon-business-case.md)
-- [Technical Architecture](docs/showcase-materials/x402-hackathon-technical-architecture.md)
-- [Demo Guide](docs/showcase-materials/x402-hackathon-demo-guide.md)
-- [Presentation Outline](docs/showcase-materials/x402-hackathon-presentation-outline.md)
-
-## 🎯 Success Metrics
-
-### Business Metrics
-
-- 10,000 registered users in 12 months
-- $500K ARR by month 18
-- 70% monthly retention rate
-- 25% free-to-paid conversion rate
-
-### User Success Metrics
-
-- 25% improvement in interview-to-offer ratio
-- 40% increase in user confidence scores
-- 15% reduction in time-to-placement
-
-### Technical Metrics (x402)
-
-- 100% HTTP 402 protocol compliance
-- <3 second transaction times
-- 99.9% payment success rate
-- Multi-token support validation
-
-## 🔮 Roadmap
-
-### Phase 1 (MVP - 3 months)
-
-- ✅ Core AI interviewer
-- ✅ Text-based interviews
-- ✅ Basic feedback system
-- ✅ x402 payment integration
-- ✅ User authentication
-
-### Phase 2 (6-9 months)
-
-- Voice/video interviews
-- Advanced analytics
-- Mobile apps
-- Industry-specific models
-
-### Phase 3 (12+ months)
-
-- AI agent marketplace
-- Global expansion
+- Voice and video interview capabilities
+- Advanced analytics dashboard
+- Industry-specific AI models
+- Integration with job platforms
+- Mobile application
 - Corporate solutions
-- Predictive analytics
 
-## 🆘 Support
+### Long-term Vision:
 
-For support, contact me on aleksandar@lll.mk
+- Comprehensive career development platform
+- AI agent marketplace
+- Global multi-language support
+- Skills assessment integration
+- Enterprise partnership network
 
-## 🙏 Acknowledgments
+## Technical Considerations
 
-- Google Gemini team for AI capabilities
-- Supabase for database infrastructure
-- Solana ecosystem for x402 protocol
-- Vercel for hosting platform
-- x402 protocol team for guidance
+- **Performance Requirements**: Text-based responses under 3 seconds; 9.5% uptime SLA
+- **Browser Support**: Chrome, Firefox, Safari, and Edge (latest two versions)
+- **Security**: End-to-end encryption for user data, GDPR compliance, secure storage of payment information
+- **Scalability**: Designed for growth with Vercel's serverless functions and Supabase database services
 
----
+## Challenges Addressed
 
-**Built with ❤️ for job seekers everywhere**
+Ainterview addresses several key challenges in the job interview preparation space:
 
-**Ainterview: Demonstrating the future of AI service micropayments through x402 protocol integration**
+1. **Generic Preparation Methods**: Provides role-specific practice instead of generic questions
+2. **Limited Access to Role-Specific Practice**: Offers on-demand access without scheduling constraints
+3. **Information Gap**: Connects job requirements, company culture, and applicant background
+4. **Lack of Detailed Feedback**: Provides personalized feedback based on job requirements
+5. **Psychological Barriers**: Reduces interview anxiety through repetitive practice with realistic scenarios
+
+## Innovation Highlights
+
+- **x402 Protocol Implementation**: Early adoption of the innovative x402 payment protocol for autonomous transactions
+- **AI-Powered Personalization**: Advanced AI that understands job requirements and company culture
+- **Seamless Integration**: Combines job posting requirements, company information, and applicant background
+- **Blockchain Payment Integration**: Utilizes Solana blockchain for fast, low-cost transactions
+
+## Development Status
+
+The project is currently in the MVP phase with plans for continuous development and enhancement. The core functionality includes text-based interview simulations with AI interviewers, user profiles, and x402 payment integration.
+
+## Future Development
+
+The roadmap includes:
+
+- Voice and video interview capabilities
+- Mobile application development
+- Advanced analytics and reporting
+- Multi-language support
+- Corporate partnership programs
+- AI agent marketplace
+
+## Contributing
+
+We welcome contributions to the Ainterview project. Please review our contribution guidelines in the documentation.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For more information about Ainterview, please contact the development team.
