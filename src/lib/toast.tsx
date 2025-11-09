@@ -11,6 +11,8 @@ export const useToast = () => {
         border: '1px solid #374151', // gray-700
       },
       unstyled: false,
+      duration: 4000, // Show for 4 seconds
+      position: 'top-right', // Position to avoid stacking conflicts
     });
   };
 
@@ -22,6 +24,8 @@ export const useToast = () => {
         border: '1px solid #374151', // gray-700
       },
       unstyled: false,
+      duration: 6000, // Show errors longer (6 seconds) since they need attention
+      position: 'top-right',
     });
   };
 
@@ -33,6 +37,8 @@ export const useToast = () => {
         border: '1px solid #374151', // gray-700
       },
       unstyled: false,
+      duration: 3000, // Show info messages for 3 seconds
+      position: 'top-right',
     });
   };
 
@@ -44,6 +50,8 @@ export const useToast = () => {
         border: '1px solid #374151', // gray-700
       },
       unstyled: false,
+      duration: 5000, // Show warnings for 5 seconds
+      position: 'top-right',
     });
   };
 

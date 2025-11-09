@@ -41,6 +41,7 @@ export default function PaymentPage() {
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<'USDC' | 'PYUSD' | 'CASH'>('USDC'); // New state for token selection
   const [isProcessing, setIsProcessing] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState<string | null>(null);
   const { user, session, loading } = useAuth(); // Get user and session from auth context
   const { refreshCredits } = useCreditRefresh();
   const { connection } = useConnection();
@@ -129,6 +130,8 @@ export default function PaymentPage() {
 
       if (result.success && result.transactionId) {
         console.log(`Payment request created: ${result.transactionId}`);
+        setTransactionStatus('Payment request created successfully');
+        info('Payment request created successfully');
 
         // Create and send actual Solana transaction for user approval
         if (publicKey && connected) {
@@ -316,11 +319,15 @@ export default function PaymentPage() {
               feePayer: publicKey.toString()
             });
 
+            setTransactionStatus('Sending transaction to wallet...');
+
             // Send transaction to user's wallet for approval using the wallet adapter
             let signature: string;
             try {
               signature = await sendTransaction(transaction, connection);
               console.log('Transaction sent successfully:', signature);
+              setTransactionStatus('Transaction sent successfully');
+              info('Transaction submitted to blockchain');
             } catch (txError) {
               console.error('Transaction error:', txError);
 
@@ -345,9 +352,16 @@ export default function PaymentPage() {
             }
 
             success('Transaction confirmed! Adding credits to your account...');
+            setTransactionStatus('Transaction confirmed on blockchain');
 
             // Verify the transaction using x402 service (for hackathon compliance)
+            setTransactionStatus('Verifying payment on blockchain...');
             const verificationResult = await x402Service.verifySolanaPayment(signature, user.id, creditsToBuy, selectedToken as "USDC" | "USDT" | "CASH");
+
+            if (verificationResult.success) {
+              setTransactionStatus('Payment verified on the blockchain');
+              info('Payment verified on the blockchain');
+            }
 
             if (verificationResult.success) {
               // Now call the API to update database records and add credits
@@ -372,6 +386,7 @@ export default function PaymentPage() {
               if (apiResult.success) {
                 const creditsToAdd = apiResult.creditsAdded || creditsToBuy;
 
+                setTransactionStatus('Credits added to your account');
                 success(`Payment confirmed! ${creditsToAdd} credits have been added to your account.`);
                 refreshCredits(); // Trigger credit refresh after successful payment
                 // Redirect to return URL if provided, otherwise to dashboard
@@ -381,10 +396,12 @@ export default function PaymentPage() {
                   router.push('/dashboard');
                 }
               } else {
+                setTransactionStatus('Database update failed');
                 error('Payment verified but database update failed. Please contact support.');
                 // Don't redirect on database failure - let user retry or contact support
               }
             } else {
+              setTransactionStatus('Payment verification failed');
               error('Payment verification failed. Please contact support if you were charged.');
               // Redirect to return URL if provided, otherwise to dashboard
               if (returnUrl) {
@@ -571,6 +588,18 @@ export default function PaymentPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Transaction Status Display */}
+              {transactionStatus && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                      {transactionStatus}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div>

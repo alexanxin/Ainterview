@@ -47,6 +47,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
     const [creditsToBuy, setCreditsToBuy] = useState(MIN_CREDITS);
     const [selectedToken, setSelectedToken] = useState<'USDC' | 'PYUSD' | 'CASH'>('USDC');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [transactionStatus, setTransactionStatus] = useState<string | null>(null);
     const { user, session } = useAuth();
     const { refreshCredits } = useCreditRefresh();
     const { connection } = useConnection();
@@ -60,6 +61,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
         if (isOpen) {
             setCreditsToBuy(paymentContext?.requiredCredits || MIN_CREDITS);
             setIsProcessing(false);
+            setTransactionStatus(null);
         }
     }, [isOpen, paymentContext]);
 
@@ -102,6 +104,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
 
             if (result.success && result.transactionId) {
                 console.log(`Payment request created: ${result.transactionId}`);
+                setTransactionStatus('Payment request created successfully');
+                info('Payment request created successfully');
 
                 // Create and send actual Solana transaction for user approval
                 if (publicKey && connected) {
@@ -345,11 +349,15 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             feePayer: publicKey.toString()
                         });
 
+                        setTransactionStatus('Sending transaction to wallet...');
+
                         // Send transaction to user's wallet for approval
                         let signature: string;
                         try {
                             signature = await sendTransaction(transaction, connection);
                             console.log('Transaction sent successfully:', signature);
+                            setTransactionStatus('Transaction sent successfully');
+                            info('Transaction submitted to blockchain');
                         } catch (txError) {
                             console.error('Transaction error:', txError);
 
@@ -388,9 +396,16 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                         }
 
                         success('Transaction confirmed! Adding credits to your account...');
+                        setTransactionStatus('Transaction confirmed on blockchain');
 
                         // Verify the transaction using x402 service (for hackathon compliance)
+                        setTransactionStatus('Verifying payment on blockchain...');
                         const verificationResult = await x402Service.verifySolanaPayment(signature, user.id, creditsToBuy, selectedToken as "USDC" | "USDT" | "CASH");
+
+                        if (verificationResult.success) {
+                            setTransactionStatus('Payment verified on the blockchain');
+                            info('Payment verified on the blockchain');
+                        }
 
                         if (verificationResult.success) {
                             // Now call the API to update database records and add credits
@@ -415,6 +430,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             if (apiResult.success) {
                                 const creditsToAdd = apiResult.creditsAdded || creditsToBuy;
 
+                                setTransactionStatus('Credits added to your account');
                                 success(`Payment confirmed! ${creditsToAdd} credits have been added to your account.`);
                                 refreshCredits(); // Trigger credit refresh after successful payment
 
@@ -424,10 +440,12 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                                 }
                                 onClose();
                             } else {
+                                setTransactionStatus('Database update failed');
                                 error('Payment verified but database update failed. Please contact support.');
                                 // Don't close modal on database failure - let user retry or contact support
                             }
                         } else {
+                            setTransactionStatus('Payment verification failed');
                             error('Payment verification failed. Please contact support if you were charged.');
                         }
                     } catch (walletError: unknown) {
@@ -560,6 +578,18 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             </div>
                         </div>
                     </div>
+
+                    {/* Transaction Status Display */}
+                    {transactionStatus && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                    {transactionStatus}
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Payment Action */}
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
