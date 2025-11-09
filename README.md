@@ -11,7 +11,7 @@ Ainterview is an innovative AI-powered interview preparation platform that conne
 Project overview videos:
 
 [![The Ten Cent Problem](https://img.youtube.com/vi/IWqbMx01vVs/0.jpg)](https://www.youtube.com/watch?v=IWqbMx01vVs)
-[![Ainterview & Micropayments](https://img.youtube.com/vi/lCBCCdj9HA/0.jpg)](https://www.youtube.com/watch?v=mlCBCCdj9HA)
+[![Ainterview & Micropayments](https://img.youtube.com/vi/mlCBCCdj9HA/0.jpg)](https://www.youtube.com/watch?v=mlCBCCdj9HA)
 [![Ainterview Pay Per Question](https://img.youtube.com/vi/HZQrrLLOciM/0.jpg)](https://www.youtube.com/watch?v=HZQrrLLOciM)
 
 ### Key Features
