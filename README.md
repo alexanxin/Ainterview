@@ -316,4 +316,8 @@ Check out our videos showcasing the Ainterview platform and its x402 implementat
 
 ## Contact
 
-For more information about Ainterview, please contact the development team.
+For more information about Ainterview, please contact:
+
+- **Twitter**: [@A7exSOL](https://x.com/A7exSOL)
+- **Discord**: [a7exsol](https://discord.com/users/a7exsol)
+- **Telegram**: [@A7exSOL](https://t.me/A7exSOL)
