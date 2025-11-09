@@ -10,9 +10,9 @@ Ainterview is an innovative AI-powered interview preparation platform that conne
 
 Project overview videos:
 
-https://www.youtube.com/watch?v=IWqbMx01vVs
-https://www.youtube.com/watch?v=HZQrrLLOciM
-https://www.youtube.com/watch?v=mlCBCCdj9HA&t=217s
+[![Video Title](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=HZQrrLLOciM)
+[![Video Title](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=IWqbMx01vVs)
+[![Video Title](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=mlCBCCdj9HA)
 
 ### Key Features
 
