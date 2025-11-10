@@ -4,11 +4,13 @@
 [![Solana](https://img.shields.io/badge/Blockchain-Solana-purple)](https://solana.com)
 [![AI Powered](https://img.shields.io/badge/AI-Gemini-blue)](https://gemini.google.com)
 
-Before we begin, the app is available for access on https://ainterview.app/?code=UNIV1000 it is currently set to work on Solana Devnet until the Soalan x402 Hackathon ends and it will be migrated to Mainet shortly afterwards. If you want to test it you are going to need a solana wallet, some devnet SOL, some devnet USDC and devnet PYUSD available here:
-SOL: https://faucet.solana.com/
-USDC: https://faucet.circle.com/
-PYUSD: https://cloud.google.com/application/web3/faucet/solana/devnet/pyusd
+Before we begin, the app is available for access on https://ainterview.app/?code=UNIV1000 it is currently set to work on Solana Devnet until the Soalana x402 Hackathon ends and it will be migrated to Mainet shortly afterwards. If you want to test it you are going to need a solana wallet, some devnet SOL, some devnet USDC and devnet PYUSD available here:
 
+- SOL: https://faucet.solana.com/
+- USDC: https://faucet.circle.com/
+- PYUSD: https://cloud.google.com/application/web3/faucet/solana/devnet/pyusd
+
+  
 If you need any help on how things work you can check the https://ainterview.app/help for an extensive help documentation. 
 If you are still stuck and/or want you can contact the team at: info@ainterview.app
 
