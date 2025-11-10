@@ -1,5 +1,3 @@
-import type { Metadata } from 'next';
-
 'use client';
 
 import { useState } from 'react';
@@ -8,7 +6,7 @@ import X402ComplianceBadge from '@/components/x402-compliance-badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Book, Search, ArrowRight, ExternalLink } from 'lucide-react';
-import { generateMetadata as generateSEOMetadata, StructuredData, pageSEO } from '@/lib/seo';
+import { StructuredData, pageSEO } from '@/lib/seo';
 
 interface SearchResult {
     id: string;
@@ -17,9 +15,6 @@ interface SearchResult {
     highlightedContent?: string;
     keywords: string[];
 }
-
-// Generate page-specific metadata
-export const metadata: Metadata = generateSEOMetadata(pageSEO.help);
 
 export default function HelpPage() {
     const [activeSection, setActiveSection] = useState('getting-started');

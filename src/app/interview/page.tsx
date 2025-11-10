@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,10 +16,7 @@ import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
 import { parsePdfText } from '@/lib/pdf-parser';
 import { checkCreditsBeforeOperation } from '@/lib/credit-service';
 import PaymentModal from '@/components/payment-modal';
-import { generateMetadata as generateSEOMetadata, StructuredData, pageSEO } from '@/lib/seo';
-
-// Generate page-specific metadata
-export const metadata: Metadata = generateSEOMetadata(pageSEO.interview);
+import { StructuredData, pageSEO } from '@/lib/seo';
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');

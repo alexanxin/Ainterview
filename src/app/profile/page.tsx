@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +13,7 @@ import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
 import { parsePdfText } from '@/lib/pdf-parser';
 import { useToast } from '@/lib/toast';
 import { cacheRefreshService } from '@/lib/cache-refresh-service';
-import { generateMetadata as generateSEOMetadata, StructuredData, pageSEO } from '@/lib/seo';
-
-// Generate page-specific metadata
-export const metadata: Metadata = generateSEOMetadata(pageSEO.profile);
+import { StructuredData, pageSEO } from '@/lib/seo';
 
 export default function ProfilePage() {
   const router = useRouter();
