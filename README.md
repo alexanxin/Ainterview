@@ -6,11 +6,13 @@
 
 ## Table of Contents
 
+- [Ainterview - AI-Powered Interview Preparation Platform](#ainterview---ai-powered-interview-preparation-platform)
   - [Table of Contents](#table-of-contents)
   - [Project Overview](#project-overview)
   - [Technology Stack](#technology-stack)
   - [Core Architecture](#core-architecture)
   - [Getting Started](#getting-started)
+  - [Help \& Documentation](#help--documentation)
   - [Project Structure](#project-structure)
   - [Target Users](#target-users)
   - [Goals \& Success Metrics](#goals--success-metrics)
@@ -83,27 +85,142 @@ The application is structured as a Progressive Web Application (PWA) with the fo
    cd ainterview
    ```
 
-2. Install dependencies:
+2. Set up environment variables:
+
+   ```bash
+   cp .env.example app/.env.local
+   # Add your API keys and configuration (see Environment Configuration section below)
+   ```
+
+3. Install dependencies in the main project:
+
+   ```bash
+   npm install
+   ```
+
+4. Navigate to the app directory and install dependencies:
 
    ```bash
    cd app
    npm install
+   cd ..
    ```
 
-3. Set up environment variables:
+5. Set up the database:
 
    ```bash
-   cp .env.example .env.local
-   # Add your API keys and configuration
+   # Run the database schema on your Supabase project
+   # Import the contents of database-schema.sql to your Supabase SQL editor
    ```
 
-4. Run the development server:
+6. Run the development server:
 
    ```bash
+   cd app
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+7. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Environment Configuration
+
+Before running the application, you need to configure the following environment variables in `app/.env.local`:
+
+#### Required API Keys:
+
+```bash
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Google Gemini AI API
+GEMINI_API_KEY=your_google_gemini_api_key
+
+# x402 Protocol Configuration (for payment processing)
+NEXT_PUBLIC_X402_RPC_URL=your_x402_rpc_url
+NEXT_PUBLIC_X402_CONTRACT_ADDRESS=your_x402_contract_address
+```
+
+#### How to Obtain API Keys:
+
+- **Supabase**: Create a project at [supabase.com](https://supabase.com) and get your URL and API keys from the project settings
+- **Gemini API**: Get your API key from the [Google AI Studio](https://makersuite.google.com/app/apikey)
+- **x402 Configuration**: Contact the Ainterview team for RPC and contract address details
+
+## Help & Documentation
+
+Ainterview includes a comprehensive, user-friendly help center designed to provide instant support and guidance for all platform features.
+
+### Comprehensive Help Center
+
+Access the complete help documentation at: **`/help`** (e.g., `https://ainterview.app/help`)
+
+The help center covers all aspects of the platform:
+
+- **🚀 Getting Started** - Platform overview and introduction
+- **🔐 Account Setup and Authentication** - Registration, verification, and access
+- **👤 Profile Management** - CV/Resume setup, LinkedIn import, and profile optimization
+- **💳 Credit System and Payments** - Understanding credits, free daily credits, and payment options
+- **📝 Creating Interview Sessions** - Step-by-step interview setup and configuration
+- **🎤 Conducting Interviews** - Interface navigation, answering techniques, and best practices
+- **🎧 Voice Recording Feature** - Audio recording setup, tips, and speech-to-text guidance
+- **📊 Feedback and Analytics** - Understanding performance metrics, feedback interpretation, and improvement tracking
+- **🏃 Practice Mode** - Focused practice sessions and targeted skill development
+- **💰 Payment and x402 Protocol** - Blockchain payment integration and cryptocurrency options
+- **🔧 Troubleshooting** - Common issues and solutions
+- **❓ Frequently Asked Questions** - Quick answers to common queries
+
+### Search Functionality
+
+The help center features **real-time search functionality** that allows users to:
+
+- **Instant Search**: Type any query to find relevant help sections immediately
+- **Smart Results**: Search through section titles, content, and keyword tags
+- **Highlighted Matches**: Search terms are highlighted in results for easy identification
+- **Direct Navigation**: Click any search result to jump directly to the relevant section
+- **No Results Handling**: Clear messaging when no matches are found
+
+**Example Searches:**
+
+- "credits" → Shows credit system, payments, and billing information
+- "voice recording" → Displays voice feature setup and troubleshooting
+- "interview setup" → Links to creating interview sessions section
+
+### Visual Guides
+
+The help documentation includes comprehensive visual guides with **step-by-step screenshots**:
+
+- **Creating Interviews**: Visual walkthrough of interview setup process (images 5-1, 5-2, 5-4, 5-5)
+- **Conducting Interviews**: Interface overview and answering best practices (images 6-1, 6-2, 6-3, 6-4)
+- **Feedback and Analytics**: Performance tracking and feedback interpretation (images 8-1, 8-3, 8-4, 8-5)
+
+Each visual guide includes:
+
+- High-resolution screenshots showing the actual interface
+- Annotated callouts highlighting key features
+- Sequential step-by-step visual instructions
+- Best practice recommendations with visual examples
+
+### Quick Access
+
+Users can access help from multiple points:
+
+1. **Direct URL**: Navigate to `/help` from any page
+2. **Navigation Menu**: Look for the Help link in the main navigation
+3. **Contextual Help**: Help sections are accessible throughout the platform
+4. **Search Integration**: Use the built-in search to find specific topics instantly
+
+**Help Center Features:**
+
+- ✅ **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
+- ✅ **Dark Mode Support**: Full dark mode compatibility for all users
+- ✅ **Fast Loading**: Optimized for quick access to information
+- ✅ **Visual Learning**: Screenshots and visual guides for complex processes
+- ✅ **Searchable Content**: Find information instantly with intelligent search
+- ✅ **Regular Updates**: Help content is continuously updated with platform changes
+
+The help center serves as a complete user manual, ensuring users can effectively utilize all Ainterview features for successful interview preparation.
 
 ## Project Structure
 
@@ -283,18 +400,7 @@ Ainterview addresses the significant market opportunity in interview preparation
 
 ### Live Demonstration
 
-**URL**: `https://ainterview.app/`
-
-Accces codes:
-- OHZAT8XD
-- EJCGI9I9
-- 00OND3Q2
-- 32MGCIKA
-- IAR8RHFB
-
-### Mock demo with visual status updates
-
-- **URL**: `https://ainterview.app/demo`
+- **URL**: `https://theainterview.vercel.app/demo`
 - **Features**: Complete interview preparation workflow (mock demo to visualize the process under the hood)
 - **Feedback**: Step-by-step visual status updates
 - **Console Logging**: The entire real payment process is extensively logged in the browser console for transparency and debugging specifically for the hackathon
@@ -327,7 +433,7 @@ Check out our videos showcasing the Ainterview platform and its x402 implementat
 
 ## Contact
 
-For more information about Ainterview, please contact:
+For more information about Ainterview, please contact the development team.
 
 - **Twitter**: [@A7exSOL](https://x.com/A7exSOL)
 - **Discord**: [a7exsol](https://discord.com/users/a7exsol)
