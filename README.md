@@ -435,6 +435,6 @@ Check out our videos showcasing the Ainterview platform and its x402 implementat
 
 For more information about Ainterview, please contact the development team.
 
-- **Twitter**: [@AinterviewAI](https://twitter.com/AinterviewAI)
-- **Discord**: [Ainterview Community](https://discord.gg/ainterview)
-- **Telegram**: [Ainterview Channel](https://t.me/ainterview)
+- **Twitter**: [@A7exSOL](https://x.com/A7exSOL)
+- **Discord**: [a7exsol](https://discord.com/users/a7exsol)
+- **Telegram**: [@A7exSOL](https://t.me/A7exSOL)
