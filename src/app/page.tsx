@@ -3,7 +3,7 @@
 import CollapsibleFAQ from '@/components/collapsible-faq';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Navigation from '@/components/navigation';
 import X402ComplianceBadge from '@/components/x402-compliance-badge';
@@ -13,7 +13,6 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [showInvitationForm, setShowInvitationForm] = useState(false);
   const [validatingCode, setValidatingCode] = useState(true);
@@ -29,25 +28,30 @@ export default function Home() {
         return;
       }
 
-      // Check URL for invitation code parameter
-      const urlCode = searchParams?.get('code');
-      if (urlCode) {
-        setValidatingCode(true);
-        try {
-          const result = await InvitationCodeService.validateCode(urlCode);
-          if (result.valid) {
-            // Store the validation in localStorage for session
-            localStorage.setItem('invitationCodeUsed', urlCode.trim().toUpperCase());
-            // Clean URL by removing the code parameter
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('code');
-            window.history.replaceState({}, '', newUrl.toString());
-            setShowInvitationForm(false);
-            setValidatingCode(false);
-            return;
+      // Check URL for invitation code parameter using window.location.search
+      // This approach doesn't require useSearchParams() which needs Suspense
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCode = urlParams.get('code');
+
+        if (urlCode) {
+          setValidatingCode(true);
+          try {
+            const result = await InvitationCodeService.validateCode(urlCode);
+            if (result.valid) {
+              // Store the validation in localStorage for session
+              localStorage.setItem('invitationCodeUsed', urlCode.trim().toUpperCase());
+              // Clean URL by removing the code parameter
+              const newUrl = new URL(window.location.href);
+              newUrl.searchParams.delete('code');
+              window.history.replaceState({}, '', newUrl.toString());
+              setShowInvitationForm(false);
+              setValidatingCode(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Error validating URL code:', error);
           }
-        } catch (error) {
-          console.error('Error validating URL code:', error);
         }
       }
 
@@ -65,7 +69,7 @@ export default function Home() {
     };
 
     checkAccess();
-  }, [user, authLoading, searchParams]);
+  }, [user, authLoading]);
 
   // Show loading while checking access
   if (validatingCode) {
