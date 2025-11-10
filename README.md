@@ -232,6 +232,22 @@ Users can access help from multiple points:
 
 The help center serves as a complete user manual, ensuring users can effectively utilize all Ainterview features for successful interview preparation.
 
+
+## Usage Analytics Dashboard
+
+The Ainterview platform includes a comprehensive **Usage Analytics Dashboard** that provides users with detailed insights into their interview preparation activity and platform usage.
+
+### Key Analytics Features
+
+- **📊 Usage Overview**: Track your total interactions, credits spent, and payment history
+- **📈 Daily Activity Charts**: Visual representations of your daily practice sessions over the last 30 days
+- **🎯 Action Breakdown**: Pie charts showing distribution of different activities (answer analysis, batch evaluations)
+- **💰 Payment Analytics**: Complete payment tracking including successful transactions, average spending, and revenue insights
+- **📋 Performance Metrics**: Summary cards displaying total usage, confidence scores, and feedback received
+
+
+
+
 ## Project Structure
 
 ```
