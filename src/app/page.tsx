@@ -121,7 +121,7 @@ export default function Home() {
               <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-              Rehearse for Success: <span className="text-green-600">Master</span> your interview skills
+              Rehearse for Success: <br /><span className="text-green-600">Master</span> your interview skills
             </h1>
             <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-10">
               AI-powered, personalized practice that transforms your interview preparation and helps you land your dream job.

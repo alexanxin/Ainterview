@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare } from 'lucide-react';
+import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare, HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 import {
   Sheet,
@@ -30,6 +30,7 @@ export default function Navigation() {
     { name: 'Feedback & Practice', icon: MessageSquare, href: '/feedback' },
     { name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
     { name: 'About', icon: Info, href: '/about' },
+    { name: 'Help', icon: HelpCircle, href: '/help' },
     // Profile link will be conditionally rendered when user is authenticated
   ];
 
