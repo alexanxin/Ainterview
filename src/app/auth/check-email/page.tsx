@@ -15,14 +15,14 @@ export default function CheckEmailPage() {
         <div className="container mx-auto max-w-md py-12 px-4">
           <Card className="shadow-xl dark:bg-gray-800">
             <CardHeader className="text-center">
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white">
-                <span className="text-2xl font-bold">📧</span>
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-white">
+                <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
                 Check Your Email
               </CardTitle>
               <CardDescription className="text-gray-600 dark:text-gray-400">
-                We've sent a magic link to your inbox
+                We&apos;ve sent a magic link to your inbox
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -34,24 +34,24 @@ export default function CheckEmailPage() {
                   Didn't receive the email? Check your spam folder or try signing in again.
                 </p>
               </div>
-              
+
               <div className="flex flex-col gap-4 pt-4">
-                <Button 
-                  className="w-full py-6 text-lg" 
+                <Button
+                  className="w-full py-6 text-lg"
                   onClick={() => router.push('/auth')}
                 >
                   Back to Sign In
                 </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
+
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={() => router.push('/')}
                 >
                   Return to Home
                 </Button>
               </div>
-              
+
               <div className="mt-8 rounded-lg bg-green-50 p-4 text-center text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
                 <p>
                   For security reasons, the magic link will expire in 24 hours.

@@ -33,8 +33,8 @@ export default function AuthCallbackPage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center py-12">
               <div className="mb-8 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white">
-                  <span className="text-2xl font-bold">AI</span>
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-white">
+                  <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   Setting up your account
@@ -43,10 +43,10 @@ export default function AuthCallbackPage() {
                   Please wait while we authenticate your account and redirect you...
                 </p>
               </div>
-              
+
               <div className="flex gap-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => router.push('/auth')}
                 >
                   Back to Sign In

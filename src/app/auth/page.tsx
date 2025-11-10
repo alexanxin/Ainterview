@@ -18,7 +18,7 @@ export default function AuthPage() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       setError('Please enter your email address');
       return;
@@ -29,7 +29,7 @@ export default function AuthPage() {
 
     try {
       const { error } = await sendOtp(email);
-      
+
       if (error) {
         setError(error.message || 'Failed to send magic link');
       } else {
@@ -50,8 +50,8 @@ export default function AuthPage() {
         <div className="container mx-auto max-w-md py-12 px-4">
           <Card className="shadow-xl dark:bg-gray-800">
             <CardHeader className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white">
-                <span className="text-2xl font-bold">AI</span>
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-white">
+                <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
                 Sign In to Ainterview
@@ -66,7 +66,7 @@ export default function AuthPage() {
                   {error}
                 </div>
               )}
-              
+
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">
@@ -82,15 +82,15 @@ export default function AuthPage() {
                     disabled={isLoading}
                   />
                 </div>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full py-6 text-lg bg-gradient-to-r from-green-600 to-lime-500 text-gray-900 hover:opacity-90"
                   disabled={isLoading}
                 >
                   {isLoading ? 'Sending Magic Link...' : 'Send Magic Link'}
                 </Button>
               </form>
-              
+
               <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
                 <p>
                   By signing in, you agree to our{' '}
