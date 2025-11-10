@@ -1,9 +1,32 @@
+/*
+COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+======================================================
+
+This API endpoint is now disabled to allow direct access during the hackathon.
+All invitation code management has been removed.
+
+To restore after hackathon:
+1. Remove this comment block (lines 1-8)
+2. Uncomment the original code below
+3. Test that invitation code management works again
+
+Original endpoint code preserved below:
+*/
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 
 // Get all invitation codes (admin function)
 export async function GET(request: NextRequest) {
+  // FOR HACKATHON - Return mock data
   try {
+    // Return empty array or mock data
+    return NextResponse.json({
+      success: true,
+      codes: [], // Empty array for hackathon
+    });
+
+    /* ORIGINAL GET CODE (commented out for hackathon):
     // In development, allow public access
     if (process.env.NODE_ENV === "development") {
       const { data, error } = await supabaseServer
@@ -43,18 +66,50 @@ export async function GET(request: NextRequest) {
       success: true,
       codes: data || [],
     });
+    */
   } catch (error) {
+    // FOR HACKATHON - Return mock data even on errors
+    return NextResponse.json({
+      success: true,
+      codes: [],
+    });
+    /*
     console.error("Error fetching invitation codes:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
+    */
   }
 }
 
 // Generate invitation codes
 export async function POST(request: NextRequest) {
+  // FOR HACKATHON - Return mock generation
   try {
+    const { count = 1, description = "Generated invitation code" } =
+      await request.json();
+
+    // Return mock generated codes
+    const mockCodes = Array.from({ length: count }, (_, i) => ({
+      id: `mock-${i + 1}`,
+      code: `HACK${String(i + 1).padStart(3, "0")}`,
+      description: description || "Generated invitation code",
+      status: "active",
+      expires_at: new Date(
+        Date.now() + 365 * 24 * 60 * 60 * 1000
+      ).toISOString(), // 1 year
+      max_uses: 1,
+      usage_count: 0,
+      created_at: new Date().toISOString(),
+    }));
+
+    return NextResponse.json({
+      success: true,
+      codes: mockCodes,
+    });
+
+    /* ORIGINAL POST CODE (commented out for hackathon):
     const { count = 1, description = "Generated invitation code" } =
       await request.json();
 
@@ -108,16 +163,38 @@ export async function POST(request: NextRequest) {
       success: true,
       codes,
     });
+    */
   } catch (error) {
+    // FOR HACKATHON - Return mock data even on errors
+    return NextResponse.json({
+      success: true,
+      codes: [
+        {
+          id: "mock-error",
+          code: "HACKATHON",
+          description: "Mock code for error handling",
+          status: "active",
+          expires_at: new Date(
+            Date.now() + 365 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          max_uses: 1,
+          usage_count: 0,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+    /*
     console.error("Error generating invitation codes:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
+    */
   }
 }
 
-// Simple code generator function
+/*
+Helper function preserved for restoration:
 function generateSimpleCode(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const numbers = "0123456789";
@@ -135,3 +212,10 @@ function generateSimpleCode(): string {
 
   return code;
 }
+*/
+
+/*
+END OF COMMENTED OUT MAIN API ENDPOINT
+=====================================
+To restore: Remove this comment block and uncomment the original logic.
+*/

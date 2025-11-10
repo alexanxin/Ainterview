@@ -7,17 +7,26 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Navigation from '@/components/navigation';
 import X402ComplianceBadge from '@/components/x402-compliance-badge';
-import InvitationCodeForm from '@/components/invitation-code-form';
-import { InvitationCodeService } from '@/lib/invitation-code-service';
+// import InvitationCodeForm from '@/components/invitation-code-form';
+// import { InvitationCodeService } from '@/lib/invitation-code-service';
+// import { useAuth } from '@/lib/auth-context';
+// COMMENTED OUT FOR HACKATHON - RESTORE AFTER
 import { useAuth } from '@/lib/auth-context';
 import { StructuredData, pageSEO } from '@/lib/seo';
 
 export default function Home() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  // COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+  // const [showInvitationForm, setShowInvitationForm] = useState(false);
+  // const [validatingCode, setValidatingCode] = useState(true);
+  // TEMP VARS FOR DIRECT ACCESS
   const [showInvitationForm, setShowInvitationForm] = useState(false);
-  const [validatingCode, setValidatingCode] = useState(true);
+  const [validatingCode, setValidatingCode] = useState(false);
 
+  // COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+  // All invitation checking logic commented out
+  /*
   useEffect(() => {
     // Check for invitation code or authentication
     const checkAccess = async () => {
@@ -71,7 +80,16 @@ export default function Home() {
 
     checkAccess();
   }, [user, authLoading]);
+  */
 
+  // Simple version for direct access - no invitation checking needed
+  useEffect(() => {
+    // COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+    // setValidatingCode(false); // This was causing linting issues
+  }, []);
+
+  // COMMENTED OUT FOR HACKATHON - REMOVED INVITATION FORM
+  /*
   // Show loading while checking access
   if (validatingCode) {
     return (
@@ -88,6 +106,7 @@ export default function Home() {
   if (showInvitationForm) {
     return <InvitationCodeForm />;
   }
+  */
 
   // Features data
   const features = [

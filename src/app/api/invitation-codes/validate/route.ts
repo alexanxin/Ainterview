@@ -1,11 +1,42 @@
+/*
+COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+======================================================
+
+This API endpoint is now disabled to allow direct access during the hackathon.
+All invitation code validation has been removed.
+
+To restore after hackathon:
+1. Remove this comment block (lines 1-8)
+2. Uncomment the original code below
+3. Test that invitation codes work again
+
+Original endpoint code preserved below:
+*/
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 
 // Validate an invitation code and mark it as used
 export async function POST(request: NextRequest) {
+  // FOR HACKATHON - Return success for any code
   try {
     const { code } = await request.json();
 
+    // Just return success to allow access
+    return NextResponse.json({
+      valid: true,
+      codeInfo: {
+        code: code || "HACKATHON_ACCESS",
+        description: "Hackathon access - unlimited",
+        usage_count: 0,
+        max_uses: 999999,
+        expires_at: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 1 year from now
+      },
+    });
+
+    /* ORIGINAL VALIDATION CODE (commented out for hackathon):
     if (!code || code.trim().length === 0) {
       return NextResponse.json(
         { error: "Invitation code is required" },
@@ -90,11 +121,33 @@ export async function POST(request: NextRequest) {
       valid: true,
       codeInfo: result.code_info,
     });
+    */
   } catch (error) {
+    // FOR HACKATHON - Still return success even on errors
+    return NextResponse.json({
+      valid: true,
+      codeInfo: {
+        code: "HACKATHON_ACCESS",
+        description: "Hackathon access - unlimited",
+        usage_count: 0,
+        max_uses: 999999,
+        expires_at: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 1 year from now
+      },
+    });
+    /*
     console.error("Error validating invitation code:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
+    */
   }
 }
+
+/*
+END OF COMMENTED OUT API ENDPOINT
+=================================
+To restore: Remove this comment block and uncomment the original logic.
+*/

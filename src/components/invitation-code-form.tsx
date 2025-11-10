@@ -1,3 +1,19 @@
+/*
+COMMENTED OUT FOR HACKATHON - INVITATION SYSTEM REMOVED
+======================================================
+
+This component is now disabled to allow direct access during the hackathon.
+All invitation checking logic has been removed.
+
+To restore after hackathon:
+1. Remove this comment block (lines 1-8)
+2. Uncomment the import for InvitationCodeService
+3. Restore the original validation logic in handleSubmit
+4. Test that invitation codes work again
+
+Original component code preserved below:
+*/
+
 "use client";
 
 import { useState } from "react";
@@ -5,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { InvitationCodeService, ValidateCodeResult } from "@/lib/invitation-code-service";
+// import { InvitationCodeService, ValidateCodeResult } from "@/lib/invitation-code-service"; // COMMENTED OUT FOR HACKATHON
 
 export default function InvitationCodeForm() {
     const [code, setCode] = useState("");
@@ -27,8 +43,18 @@ export default function InvitationCodeForm() {
         setSuccess(false);
 
         try {
-            const result: ValidateCodeResult = await InvitationCodeService.validateCode(code);
+            // FOR HACKATHON - Just accept any code to allow direct access
+            setSuccess(true);
+            setCodeInfo({ code: "HACKATHON_ACCESS" });
+            // Store the validation in localStorage for session
+            localStorage.setItem('invitationCodeUsed', code.trim().toUpperCase());
+            // Give a moment to show success, then refresh to show main app
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
 
+            /* ORIGINAL VALIDATION CODE (commented out for hackathon):
+            const result: ValidateCodeResult = await InvitationCodeService.validateCode(code);
             if (result.valid) {
                 setSuccess(true);
                 setCodeInfo(result.codeInfo);
@@ -41,6 +67,7 @@ export default function InvitationCodeForm() {
             } else {
                 setError(result.error || "Invalid invitation code");
             }
+            */
         } catch (err) {
             setError("An unexpected error occurred");
         } finally {
@@ -133,3 +160,9 @@ export default function InvitationCodeForm() {
         </div>
     );
 }
+
+/*
+END OF COMMENTED OUT INVITATION FORM COMPONENT
+==============================================
+To restore after hackathon: Remove this comment block and uncomment the imports/logic as needed.
+*/
