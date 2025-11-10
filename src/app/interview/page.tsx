@@ -1,5 +1,4 @@
-'use client';
-
+import type { Metadata } from 'next';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +15,10 @@ import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/database';
 import { parsePdfText } from '@/lib/pdf-parser';
 import { checkCreditsBeforeOperation } from '@/lib/credit-service';
 import PaymentModal from '@/components/payment-modal';
+import { generateMetadata as generateSEOMetadata, StructuredData, pageSEO } from '@/lib/seo';
+
+// Generate page-specific metadata
+export const metadata: Metadata = generateSEOMetadata(pageSEO.interview);
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
@@ -526,368 +529,373 @@ export default function InterviewPage() {
   const profileIncomplete = userProfile && !isProfileComplete();
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
-      {/* Animated gradient overlay */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
-        <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
-      </div>
+    <>
+      {/* Structured Data for SEO */}
+      <StructuredData config={pageSEO.interview} />
 
-      <Navigation />
-      <main className="flex-1 p-4 relative z-10">
-        <div className="container mx-auto max-w-4xl py-8">
-          <div className="text-center mb-8">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white mx-auto">
-              <span className="text-2xl font-bold">AI</span>
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
+          <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
+        </div>
+
+        <Navigation />
+        <main className="flex-1 p-4 relative z-10">
+          <div className="container mx-auto max-w-4xl py-8">
+            <div className="text-center mb-8">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white mx-auto">
+                <span className="text-2xl font-bold">AI</span>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                Start Your <span className="text-green-600">Personalized</span> Interview
+              </h1>
+              <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                Tailor your practice session with a job posting and your CV for the most realistic AI interview experience.
+              </p>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-              Start Your <span className="text-green-600">Personalized</span> Interview
-            </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Tailor your practice session with a job posting and your CV for the most realistic AI interview experience.
-            </p>
-          </div>
 
-          <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg">
-            <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-              <CardTitle className="text-gray-900 dark:text-white flex items-center">
-                <span className="mr-2">🎯</span>
-                Setup Your Interview Session
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <Card className="dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                <CardContent className="p-4">
-                  <p className="text-green-700 dark:text-green-300 font-bold text-sm"><span className="mr-2">🎁</span>
-                    Free Usage Policy</p>
-                  <p className="text-green-70 dark:text-green-300 text-sm">
-                    Your first complete interview is completely free! After that, you'll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Profile Incomplete Notice */}
-              {profileIncomplete ? (
-                <Card className="dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-80">
-                  <CardHeader className="border-b border-yellow-200 dark:border-yellow-800">
-                    <CardTitle className="text-yellow-800 dark:text-yellow-200 flex items-center text-lg">
-                      <span className="mr-2">⚠️</span>
-                      Profile Incomplete
-                    </CardTitle>
-                  </CardHeader>
+            <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg">
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+                <CardTitle className="text-gray-900 dark:text-white flex items-center">
+                  <span className="mr-2">🎯</span>
+                  Setup Your Interview Session
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <Card className="dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                   <CardContent className="p-4">
-                    <p className="text-yellow-700 dark:text-yellow-300 mb-3">
-                      Your profile is not fully completed. For best interview results, please fill out all profile information.
+                    <p className="text-green-700 dark:text-green-300 font-bold text-sm"><span className="mr-2">🎁</span>
+                      Free Usage Policy</p>
+                    <p className="text-green-70 dark:text-green-300 text-sm">
+                      Your first complete interview is completely free! After that, you'll get 2 additional AI interactions per day to continue practicing. No credit card required to get started.
                     </p>
-                    <div className="flex flex-row gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push('/profile')}
-                        className="whitespace-nowrap"
-                      >
-                        Go to Profile
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
-              ) : null}
 
-              <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-600">
-                  <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
-                    <span className="mr-2">💼</span>
-                    Job Posting URL or Description
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      id="job_posting_url"
-                      type="text"
-                      value={jobPostingUrl}
-                      onChange={(e) => setJobPostingUrl(e.target.value)}
-                      placeholder="Paste job posting URL here..."
-                      className="flex-1 dark:bg-gray-700 dark:text-white"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={fetchJobFromUrl}
-                      disabled={!jobPostingUrl || isLoading || isFetchingJob}
-                      className="whitespace-nowrap"
-                    >
-                      {isFetchingJob ? (
-                        <>
-                          <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
-                          Fetching...
-                        </>
-                      ) : (
-                        'Fetch'
-                      )}
-                    </Button>
-                  </div>
-
-                  <Textarea
-                    value={jobPosting}
-                    onChange={(e) => setJobPosting(e.target.value)}
-                    className="min-h-[120px] dark:bg-gray-700 dark:text-white"
-                    placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
-                    rows={4}
-                  />
-
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    <span className="flex items-start">
-                      <span className="mr-1">💡</span>
-                      <span>For best results, include company overview, responsibilities, requirements, and any special instructions.</span>
-                    </span>
-                    {isFetchingJob && (
-                      <div className="mt-2 text-blue-600 dark:text-blue-400 flex items-center">
-                        <div className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
-                        Processing job posting content... This may take a few seconds for larger pages.
+                {/* Profile Incomplete Notice */}
+                {profileIncomplete ? (
+                  <Card className="dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-80">
+                    <CardHeader className="border-b border-yellow-200 dark:border-yellow-800">
+                      <CardTitle className="text-yellow-800 dark:text-yellow-200 flex items-center text-lg">
+                        <span className="mr-2">⚠️</span>
+                        Profile Incomplete
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      <p className="text-yellow-700 dark:text-yellow-300 mb-3">
+                        Your profile is not fully completed. For best interview results, please fill out all profile information.
+                      </p>
+                      <div className="flex flex-row gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push('/profile')}
+                          className="whitespace-nowrap"
+                        >
+                          Go to Profile
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-              <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-600">
-                  <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
-                    <span className="mr-2">📄</span>
-                    Your CV or Resume
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4">
-                  <Textarea
-                    value={cv}
-                    onChange={(e) => setCv(e.target.value)}
-                    className="min-h-[120px] dark:bg-gray-700 dark:text-white"
-                    placeholder="Or paste your resume text here..."
-                    rows={4}
-                  />
-
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      <span className="flex items-start">
-                        <span className="mr-1">💡</span>
-                        <span>Make sure to include your work experience, education, skills, and a brief professional summary.</span>
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
+                <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-600">
+                    <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
+                      <span className="mr-2">💼</span>
+                      Job Posting URL or Description
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        id="job_posting_url"
+                        type="text"
+                        value={jobPostingUrl}
+                        onChange={(e) => setJobPostingUrl(e.target.value)}
+                        placeholder="Paste job posting URL here..."
+                        className="flex-1 dark:bg-gray-700 dark:text-white"
+                      />
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={handleEditCv}
+                        onClick={fetchJobFromUrl}
+                        disabled={!jobPostingUrl || isLoading || isFetchingJob}
                         className="whitespace-nowrap"
                       >
-                        Edit CV
+                        {isFetchingJob ? (
+                          <>
+                            <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                            Fetching...
+                          </>
+                        ) : (
+                          'Fetch'
+                        )}
                       </Button>
+                    </div>
 
-                      {/* LinkedIn PDF Import Button - Only show if profile is incomplete */}
-                      {profileIncomplete && (
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              // Scroll to the LinkedIn PDF import section
-                              const element = document.getElementById('linkedin-import-section');
-                              element?.scrollIntoView({ behavior: 'smooth' });
-                            }}
-                            className="whitespace-nowrap"
-                          >
-                            Import from LinkedIn PDF
-                          </Button>
-                        </>
+                    <Textarea
+                      value={jobPosting}
+                      onChange={(e) => setJobPosting(e.target.value)}
+                      className="min-h-[120px] dark:bg-gray-700 dark:text-white"
+                      placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
+                      rows={4}
+                    />
+
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className="flex items-start">
+                        <span className="mr-1">💡</span>
+                        <span>For best results, include company overview, responsibilities, requirements, and any special instructions.</span>
+                      </span>
+                      {isFetchingJob && (
+                        <div className="mt-2 text-blue-600 dark:text-blue-400 flex items-center">
+                          <div className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                          Processing job posting content... This may take a few seconds for larger pages.
+                        </div>
                       )}
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
-                  {profileIncomplete && (
-                    <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                      <CardHeader className="border-b border-blue-200 dark:border-blue-80">
-                        <CardTitle className="text-blue-800 dark:text-blue-200 flex items-center">
-                          <span className="mr-2">📄</span>
-                          Import from LinkedIn PDF
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4">
-                        <p className="text-blue-700 dark:text-blue-300 mb-2">
-                          Upload your LinkedIn profile PDF to automatically fill in your information
-                        </p>
-                        <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
-                          Tip: To get your LinkedIn PDF, go to your profile page, click the "More" button, and select "Save to PDF"
-                        </p>
+                <Card className="dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-600">
+                    <CardTitle className="text-gray-900 dark:text-white flex items-center text-lg">
+                      <span className="mr-2">📄</span>
+                      Your CV or Resume
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <Textarea
+                      value={cv}
+                      onChange={(e) => setCv(e.target.value)}
+                      className="min-h-[120px] dark:bg-gray-700 dark:text-white"
+                      placeholder="Or paste your resume text here..."
+                      rows={4}
+                    />
 
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <div className="flex-1">
-                            <Label htmlFor="linkedin-pdf" className="text-gray-700 dark:text-gray-300">Select LinkedIn PDF</Label>
-                            <Input
-                              id="linkedin-pdf"
-                              type="file"
-                              accept=".pdf"
-                              onChange={handleFileChange}
-                              className="mt-1 dark:bg-gray-700 dark:text-white"
-                            />
-                          </div>
-                          <div className="flex items-end">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="flex items-start">
+                          <span className="mr-1">💡</span>
+                          <span>Make sure to include your work experience, education, skills, and a brief professional summary.</span>
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleEditCv}
+                          className="whitespace-nowrap"
+                        >
+                          Edit CV
+                        </Button>
+
+                        {/* LinkedIn PDF Import Button - Only show if profile is incomplete */}
+                        {profileIncomplete && (
+                          <>
                             <Button
                               type="button"
-                              onClick={handleImportFromLinkedIn}
-                              disabled={!pdfFile || isParsing}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              variant="outline"
+                              onClick={() => {
+                                // Scroll to the LinkedIn PDF import section
+                                const element = document.getElementById('linkedin-import-section');
+                                element?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="whitespace-nowrap"
                             >
-                              {isParsing ? 'Importing...' : 'Import Data'}
+                              Import from LinkedIn PDF
                             </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* LinkedIn PDF Import Section - Only show if profile is incomplete */}
+                    {profileIncomplete && (
+                      <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <CardHeader className="border-b border-blue-200 dark:border-blue-80">
+                          <CardTitle className="text-blue-800 dark:text-blue-200 flex items-center">
+                            <span className="mr-2">📄</span>
+                            Import from LinkedIn PDF
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <p className="text-blue-700 dark:text-blue-300 mb-2">
+                            Upload your LinkedIn profile PDF to automatically fill in your information
+                          </p>
+                          <p className="text-blue-600 dark:text-blue-400 text-xs mb-4">
+                            Tip: To get your LinkedIn PDF, go to your profile page, click the "More" button, and select "Save to PDF"
+                          </p>
+
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1">
+                              <Label htmlFor="linkedin-pdf" className="text-gray-700 dark:text-gray-300">Select LinkedIn PDF</Label>
+                              <Input
+                                id="linkedin-pdf"
+                                type="file"
+                                accept=".pdf"
+                                onChange={handleFileChange}
+                                className="mt-1 dark:bg-gray-700 dark:text-white"
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <Button
+                                type="button"
+                                onClick={handleImportFromLinkedIn}
+                                disabled={!pdfFile || isParsing}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                {isParsing ? 'Importing...' : 'Import Data'}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </CardContent>
-              </Card>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-              {/* Number of Questions Selector */}
-              <Card className="dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                <CardHeader className="border-b border-purple-200 dark:border-purple-800">
-                  <CardTitle className="text-purple-800 dark:text-purple-200 flex items-center">
-                    <span className="mr-2">🔢</span>
-                    Number of Interview Questions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                      <span>5 questions</span>
-                      <span>10 questions</span>
+                {/* Number of Questions Selector */}
+                <Card className="dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                  <CardHeader className="border-b border-purple-200 dark:border-purple-800">
+                    <CardTitle className="text-purple-800 dark:text-purple-200 flex items-center">
+                      <span className="mr-2">🔢</span>
+                      Number of Interview Questions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                        <span>5 questions</span>
+                        <span>10 questions</span>
+                      </div>
+                      <RangeInput
+                        defaultValue="5"
+                        min="5"
+                        max="10"
+                        step="1"
+                        onChange={(e) => setNumberOfQuestions(parseInt(e.target.value, 10))}
+                        className="w-full"
+                      />
+                      <div className="text-center mt-2">
+                        <span className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                          {numberOfQuestions} questions
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>Less</span>
+                        <span>More</span>
+                      </div>
                     </div>
-                    <RangeInput
-                      defaultValue="5"
-                      min="5"
-                      max="10"
-                      step="1"
-                      onChange={(e) => setNumberOfQuestions(parseInt(e.target.value, 10))}
-                      className="w-full"
-                    />
-                    <div className="text-center mt-2">
-                      <span className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                        {numberOfQuestions} questions
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      <span>Less</span>
-                      <span>More</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                <CardContent className="p-4">
-                  <p className="text-blue-700 dark:text-blue-300 font-bold text-sm"><span className="mr-2">📄</span>
-                    CV Information</p>
-                  <p className="text-blue-700 dark:text-blue-300 text-sm">
-                    Your CV data from your profile will be automatically used for this interview.
-                  </p>
-                </CardContent>
-              </Card>
+                <Card className="dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <CardContent className="p-4">
+                    <p className="text-blue-700 dark:text-blue-300 font-bold text-sm"><span className="mr-2">📄</span>
+                      CV Information</p>
+                    <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      Your CV data from your profile will be automatically used for this interview.
+                    </p>
+                  </CardContent>
+                </Card>
 
-              <div className="flex flex-col sm:flex-row justify-end gap-4">
-                <Button
-                  onClick={handleStartInterview}
-                  disabled={isLoading}
-                  className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
-                >
-                  {isLoading ? 'Preparing Interview...' : 'Start AI Interview'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-
-      {/* CV Edit Modal */}
-      <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <SheetContent className="w-full sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>Edit Your CV</SheetTitle>
-          </SheetHeader>
-          <div className="py-6 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="bio" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Bio/Summary
-              </Label>
-              <Textarea
-                id="bio"
-                placeholder="Enter your professional summary or bio..."
-                value={modalCvData.bio}
-                onChange={(e) => setModalCvData(prev => ({ ...prev, bio: e.target.value }))}
-                className="min-h-[100px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="experience" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Experience
-              </Label>
-              <Textarea
-                id="experience"
-                placeholder="Enter your work experience..."
-                value={modalCvData.experience}
-                onChange={(e) => setModalCvData(prev => ({ ...prev, experience: e.target.value }))}
-                className="min-h-[120px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="education" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Education
-              </Label>
-              <Textarea
-                id="education"
-                placeholder="Enter your education background..."
-                value={modalCvData.education}
-                onChange={(e) => setModalCvData(prev => ({ ...prev, education: e.target.value }))}
-                className="min-h-[100px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="skills" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Skills
-              </Label>
-              <Textarea
-                id="skills"
-                placeholder="Enter your key skills..."
-                value={modalCvData.skills}
-                onChange={(e) => setModalCvData(prev => ({ ...prev, skills: e.target.value }))}
-                className="min-h-[100px]"
-              />
-            </div>
+                <div className="flex flex-col sm:flex-row justify-end gap-4">
+                  <Button
+                    onClick={handleStartInterview}
+                    disabled={isLoading}
+                    className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
+                  >
+                    {isLoading ? 'Preparing Interview...' : 'Start AI Interview'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <SheetFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={handleSaveForSession}>
-              Save for this session
-            </Button>
-            <Button onClick={handleSaveToDatabase}>
-              Save to database
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+        </main>
 
-      {/* Payment Modal */}
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        paymentContext={paymentContext}
-        onSuccess={() => {
-          // After successful payment, try starting the interview again
-          setShowPaymentModal(false);
-          handleStartInterview();
-        }}
-      />
-    </div>
+        {/* CV Edit Modal */}
+        <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <SheetContent className="w-full sm:max-w-2xl">
+            <SheetHeader>
+              <SheetTitle>Edit Your CV</SheetTitle>
+            </SheetHeader>
+            <div className="py-6 space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="bio" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Bio/Summary
+                </Label>
+                <Textarea
+                  id="bio"
+                  placeholder="Enter your professional summary or bio..."
+                  value={modalCvData.bio}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, bio: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="experience" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Experience
+                </Label>
+                <Textarea
+                  id="experience"
+                  placeholder="Enter your work experience..."
+                  value={modalCvData.experience}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, experience: e.target.value }))}
+                  className="min-h-[120px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="education" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Education
+                </Label>
+                <Textarea
+                  id="education"
+                  placeholder="Enter your education background..."
+                  value={modalCvData.education}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, education: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skills" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Skills
+                </Label>
+                <Textarea
+                  id="skills"
+                  placeholder="Enter your key skills..."
+                  value={modalCvData.skills}
+                  onChange={(e) => setModalCvData(prev => ({ ...prev, skills: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            <SheetFooter className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="outline" onClick={handleSaveForSession}>
+                Save for this session
+              </Button>
+              <Button onClick={handleSaveToDatabase}>
+                Save to database
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+
+        {/* Payment Modal */}
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          paymentContext={paymentContext}
+          onSuccess={() => {
+            // After successful payment, try starting the interview again
+            setShowPaymentModal(false);
+            handleStartInterview();
+          }}
+        />
+      </div>
+    </>
   );
 }

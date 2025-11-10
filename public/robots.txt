@@ -1,0 +1,26 @@
+# https://ainterview.app/robots.txt
+# Allow all web crawlers
+User-agent: *
+Allow: /
+
+# Disallow crawling of protected/user-specific pages
+Disallow: /interview
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /auth
+Disallow: /api/
+
+# Allow crawling of public pages
+Allow: /
+Allow: /about
+Allow: /help
+Allow: /demo
+
+# Sitemap location
+Sitemap: https://ainterview.app/sitemap.xml
+
+# Crawl delay (optional)
+Crawl-delay: 1
+
+# Host directive (optional, some crawlers still respect it)
+Host: https://ainterview.app

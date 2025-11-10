@@ -10,6 +10,7 @@ import X402ComplianceBadge from '@/components/x402-compliance-badge';
 import InvitationCodeForm from '@/components/invitation-code-form';
 import { InvitationCodeService } from '@/lib/invitation-code-service';
 import { useAuth } from '@/lib/auth-context';
+import { StructuredData, pageSEO } from '@/lib/seo';
 
 export default function Home() {
   const router = useRouter();
@@ -133,105 +134,110 @@ export default function Home() {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-gray-900 dark:to-black font-sans">
-      {/* Animated gradient overlay */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
-        <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
-      </div>
+    <>
+      {/* Structured Data for SEO */}
+      <StructuredData config={pageSEO.homepage} />
 
-      <Navigation />
-      <main className="flex w-full flex-1 items-center justify-center p-4 relative z-10">
-        <div className="w-full max-w-6xl py-12 px-4">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full text-white mx-auto">
-              <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-              Rehearse for Success: <br /><span className="text-green-600">Master</span> your interview skills
-            </h1>
-            <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-10">
-              AI-powered, personalized practice that transforms your interview preparation and helps you land your dream job.
-            </p>
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-gray-900 dark:to-black font-sans">
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 right-[-100px] w-3/4 h-full bg-gradient-to-l from-green-500/30 via-lime-400/25 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s]"></div>
+          <div className="absolute -top-1/3 right-[-60px] w-1/2 h-3/4 bg-gradient-to-l from-lime-500/20 via-green-400/20 to-transparent rounded-full blur-3xl animate-pulse [animation-duration:6s] delay-1000"></div>
+        </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <Button
-                className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
-                onClick={() => router.push('/interview')}
-              >
-                Start Practice for Free
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto py-6 text-lg px-8"
-                onClick={() => router.push('/about')}
-              >
-                See How It Works
-              </Button>
-            </div>
-
-            <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
-              <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
-              5 free credits when you sign in and another 2 each day • No credit card required
-            </div>
-          </div>
-
-          {/* Stats Section */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center p-4 bg-white/80 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
-                <div className="text-2xl md:text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{stat.value}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</div>
+        <Navigation />
+        <main className="flex w-full flex-1 items-center justify-center p-4 relative z-10">
+          <div className="w-full max-w-6xl py-12 px-4">
+            {/* Hero Section */}
+            <div className="text-center mb-16">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full text-white mx-auto">
+                <img src="/logo.png" alt="Ainterview Logo - AI Interview Preparation Platform" className="h-full w-full p-2" />
               </div>
-            ))}
-          </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
+                Rehearse for Success: <br /><span className="text-green-600">Master</span> your interview skills
+              </h1>
+              <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-10">
+                AI-powered, personalized practice that transforms your interview preparation and helps you land your dream job.
+              </p>
 
-          {/* Features Section */}
-          <div className="mb-16">
-            <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-12">
-              Why Ainterview Stands Apart
-            </h2>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+                <Button
+                  className="w-full sm:w-auto py-6 text-lg px-8 bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
+                  onClick={() => router.push('/interview')}
+                >
+                  Start Practice for Free
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto py-6 text-lg px-8"
+                  onClick={() => router.push('/about')}
+                >
+                  See How It Works
+                </Button>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {features.map((feature, index) => (
-                <Card key={index} className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="text-2xl mt-1">{feature.icon}</div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
-                          {feature.status === 'new' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                              NEW
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-gray-600 dark:text-gray-400">{feature.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-medium">
+                <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+                5 free credits when you sign in and another 2 each day • No credit card required
+              </div>
+            </div>
+
+            {/* Stats Section */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
+              {stats.map((stat, index) => (
+                <div key={index} className="text-center p-4 bg-white/80 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
+                  <div className="text-2xl md:text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{stat.value}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</div>
+                </div>
               ))}
             </div>
-          </div>
 
-          {/* FAQ Section */}
-          <div className="mb-16">
-            <CollapsibleFAQ
-              title="Common Questions About Ainterview"
-              variant="compact"
-              className="max-w-4xl mx-auto"
-            />
-          </div>
+            {/* Features Section */}
+            <div className="mb-16">
+              <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-12">
+                Why Ainterview Stands Apart
+              </h2>
 
-          {/* x402 Compliance Badge */}
-          <div className="mt-8 text-center">
-            <X402ComplianceBadge />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {features.map((feature, index) => (
+                  <Card key={index} className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="text-2xl mt-1" aria-hidden="true">{feature.icon}</div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
+                            {feature.status === 'new' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-400">{feature.description}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* FAQ Section */}
+            <div className="mb-16">
+              <CollapsibleFAQ
+                title="Common Questions About Ainterview"
+                variant="compact"
+                className="max-w-4xl mx-auto"
+              />
+            </div>
+
+            {/* x402 Compliance Badge */}
+            <div className="mt-8 text-center">
+              <X402ComplianceBadge />
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }
