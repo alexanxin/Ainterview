@@ -283,7 +283,7 @@ Ainterview addresses the significant market opportunity in interview preparation
 
 ### Live Demonstration
 
-- **URL**: `https://theainterview.vercel.app/`
+**URL**: `https://theainterview.vercel.app/`
 
 Accces codes:
 - OHZAT8XD
@@ -292,6 +292,7 @@ Accces codes:
 - 32MGCIKA
 - IAR8RHFB
 
+### Mock demo with visual status updates
 
 - **URL**: `https://theainterview.vercel.app/demo`
 - **Features**: Complete interview preparation workflow (mock demo to visualize the process under the hood)
