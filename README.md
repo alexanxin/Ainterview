@@ -283,6 +283,17 @@ Ainterview addresses the significant market opportunity in interview preparation
 
 ### Live Demonstration
 
+**URL**: `https://theainterview.vercel.app/`
+
+Accces codes:
+- OHZAT8XD
+- EJCGI9I9
+- 00OND3Q2
+- 32MGCIKA
+- IAR8RHFB
+
+### Mock demo with visual status updates
+
 - **URL**: `https://theainterview.vercel.app/demo`
 - **Features**: Complete interview preparation workflow (mock demo to visualize the process under the hood)
 - **Feedback**: Step-by-step visual status updates
