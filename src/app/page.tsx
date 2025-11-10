@@ -1,5 +1,6 @@
 'use client';
 
+import CollapsibleFAQ from '@/components/collapsible-faq';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
@@ -187,6 +188,15 @@ export default function Home() {
                 </Card>
               ))}
             </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="mb-16">
+            <CollapsibleFAQ
+              title="Common Questions About Ainterview"
+              variant="compact"
+              className="max-w-4xl mx-auto"
+            />
           </div>
 
           {/* x402 Compliance Badge */}

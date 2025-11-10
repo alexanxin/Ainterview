@@ -1,5 +1,6 @@
 import Navigation from '@/components/navigation';
 import X402ComplianceBadge from '@/components/x402-compliance-badge';
+import CollapsibleFAQ from '@/components/collapsible-faq';
 
 export default function AboutPage() {
   const features = [
@@ -239,6 +240,15 @@ export default function AboutPage() {
                 <p className="font-semibold text-gray-900 dark:text-white">- Maria L., Marketing Director</p>
               </div>
             </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="mb-16">
+            <CollapsibleFAQ
+              title="Frequently Asked Questions"
+              variant="default"
+              className="max-w-4xl mx-auto"
+            />
           </div>
 
           {/* Upcoming Features */}
