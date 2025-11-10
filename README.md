@@ -283,7 +283,7 @@ Ainterview addresses the significant market opportunity in interview preparation
 
 ### Live Demonstration
 
-**URL**: `https://theainterview.vercel.app/`
+**URL**: `https://ainterview.app/`
 
 Accces codes:
 - OHZAT8XD
@@ -294,7 +294,7 @@ Accces codes:
 
 ### Mock demo with visual status updates
 
-- **URL**: `https://theainterview.vercel.app/demo`
+- **URL**: `https://ainterview.app/demo`
 - **Features**: Complete interview preparation workflow (mock demo to visualize the process under the hood)
 - **Feedback**: Step-by-step visual status updates
 - **Console Logging**: The entire real payment process is extensively logged in the browser console for transparency and debugging specifically for the hackathon
