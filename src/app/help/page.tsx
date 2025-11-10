@@ -7,9 +7,19 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Book, Search, ArrowRight, ExternalLink } from 'lucide-react';
 
+interface SearchResult {
+    id: string;
+    title: string;
+    content: string;
+    highlightedContent?: string;
+    keywords: string[];
+}
+
 export default function HelpPage() {
     const [activeSection, setActiveSection] = useState('getting-started');
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [showSearchResults, setShowSearchResults] = useState(false);
 
     const tableOfContents = [
         { id: 'getting-started', title: 'Getting Started', icon: '🚀' },
@@ -25,6 +35,126 @@ export default function HelpPage() {
         { id: 'troubleshooting', title: 'Troubleshooting', icon: '🔧' },
         { id: 'faq', title: 'Frequently Asked Questions', icon: '❓' },
     ];
+
+    // Search functionality
+    const helpContent = [
+        {
+            id: 'getting-started',
+            title: 'Getting Started',
+            content: 'Ainterview AI-powered interview preparation platform personalized interview simulations AI interviewers trained job posting company information background highly relevant practice sessions mirror actual interview experience',
+            keywords: ['getting started', 'ainterview', 'ai', 'interview preparation', 'personalized', 'simulation', 'practice']
+        },
+        {
+            id: 'account-setup',
+            title: 'Account Setup and Authentication',
+            content: 'invitation code platform access email authentication verification account setup welcome credits daily credits',
+            keywords: ['account', 'setup', 'authentication', 'invitation code', 'email verification', 'credits']
+        },
+        {
+            id: 'profile-management',
+            title: 'Profile Management',
+            content: 'profile information personal information professional information bio experience education skills LinkedIn PDF import',
+            keywords: ['profile', 'management', 'bio', 'experience', 'education', 'skills', 'linkedin', 'pdf import']
+        },
+        {
+            id: 'credit-system',
+            title: 'Credit System and Payments',
+            content: 'credits currency AI interactions starting interview re-answering questions generating similar questions registration bonus daily free credits credit costs',
+            keywords: ['credits', 'payments', 'currency', 'cost', 'pricing', 'free credits', 'registration bonus']
+        },
+        {
+            id: 'creating-interviews',
+            title: 'Creating Interview Sessions',
+            content: 'new interview job information job title company name job description company information background interview settings number of questions interview type practice mode',
+            keywords: ['creating interviews', 'new interview', 'job information', 'job title', 'company name', 'job description', 'interview settings']
+        },
+        {
+            id: 'conducting-interviews',
+            title: 'Conducting Interviews',
+            content: 'interview interface question display answer input text area voice recording microphone recording timer STAR method structured response answer length content best practices',
+            keywords: ['conducting interviews', 'interview interface', 'question display', 'answer input', 'voice recording', 'star method']
+        },
+        {
+            id: 'voice-recording',
+            title: 'Voice Recording Feature',
+            content: 'voice recording microphone permissions recording timer speech-to-text accuracy recording best practices environment setup recording technique recording tips',
+            keywords: ['voice recording', 'microphone', 'speech to text', 'recording', 'audio', 'transcription']
+        },
+        {
+            id: 'feedback-analytics',
+            title: 'Feedback and Analytics',
+            content: 'feedback question analysis AI feedback improvement suggestions performance analytics interview metrics skill assessment progress tracking',
+            keywords: ['feedback', 'analytics', 'performance', 'metrics', 'progress tracking', 'improvement', 'analysis']
+        },
+        {
+            id: 'practice-mode',
+            title: 'Practice Mode',
+            content: 'practice mode similar questions focused training question generation practice session features practice strategy effective practice',
+            keywords: ['practice mode', 'practice', 'similar questions', 'focused training', 'question generation']
+        },
+        {
+            id: 'payments',
+            title: 'Payment and x402 Protocol',
+            content: 'x402 payment protocol blockchain transactions supported payment tokens USDC PYUSD CASH wallet connection payment details transaction confirmation',
+            keywords: ['payments', 'x402', 'blockchain', 'wallet', 'USDC', 'PYUSD', 'CASH', 'transaction']
+        },
+        {
+            id: 'troubleshooting',
+            title: 'Troubleshooting',
+            content: 'troubleshooting common issues solutions account access credit system interview session voice recording payment browser compatibility',
+            keywords: ['troubleshooting', 'problems', 'issues', 'solutions', 'browser', 'compatibility', 'errors']
+        },
+        {
+            id: 'faq',
+            title: 'Frequently Asked Questions',
+            content: 'frequently asked questions general questions credit payment questions technical questions account privacy questions support contact',
+            keywords: ['faq', 'frequently asked questions', 'general questions', 'support', 'help']
+        }
+    ];
+
+    const performSearch = (query: string) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            setShowSearchResults(false);
+            return;
+        }
+
+        const results = helpContent.filter(item => {
+            const searchText = query.toLowerCase();
+            return (
+                item.title.toLowerCase().includes(searchText) ||
+                item.content.toLowerCase().includes(searchText) ||
+                item.keywords.some(keyword => keyword.toLowerCase().includes(searchText))
+            );
+        });
+
+        // Highlight matching terms
+        const highlightedResults = results.map(item => {
+            const highlightedContent = item.content.replace(
+                new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                '<mark class="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">$1</mark>'
+            );
+            return {
+                ...item,
+                highlightedContent
+            };
+        });
+
+        setSearchResults(highlightedResults);
+        setShowSearchResults(true);
+    };
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setSearchQuery(value);
+        performSearch(value);
+    };
+
+    const handleResultClick = (sectionId: string) => {
+        setSearchQuery('');
+        setShowSearchResults(false);
+        scrollToSection(sectionId);
+    };
 
     const scrollToSection = (sectionId: string) => {
         setActiveSection(sectionId);
@@ -66,10 +196,48 @@ export default function HelpPage() {
                                 type="text"
                                 placeholder="Search help articles..."
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={handleSearchChange}
                                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-600 dark:text-white"
                             />
                         </div>
+
+                        {/* Search Results */}
+                        {showSearchResults && (
+                            <div className="max-w-2xl mx-auto mt-4">
+                                {searchResults.length > 0 ? (
+                                    <Card className="p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-gray-200 dark:border-gray-700">
+                                        <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
+                                            Search Results ({searchResults.length})
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {searchResults.map((result) => (
+                                                <div
+                                                    key={result.id}
+                                                    onClick={() => handleResultClick(result.id)}
+                                                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                                                >
+                                                    <h4 className="font-medium text-gray-900 dark:text-white mb-1">
+                                                        {result.title}
+                                                    </h4>
+                                                    <p
+                                                        className="text-sm text-gray-600 dark:text-gray-300"
+                                                        dangerouslySetInnerHTML={{
+                                                            __html: result.highlightedContent || result.content
+                                                        }}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card>
+                                ) : (
+                                    <Card className="p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-gray-200 dark:border-gray-700">
+                                        <p className="text-gray-600 dark:text-gray-300">
+                                            No results found for "{searchQuery}"
+                                        </p>
+                                    </Card>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
