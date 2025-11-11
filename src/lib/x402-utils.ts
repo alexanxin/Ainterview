@@ -859,7 +859,10 @@ export function getX402PaymentResponse(paymentRequired: {
   recipient: string;
   memo?: string;
   description?: string;
-}): { status: number; body: object } {
+}): { status: number; body: object; nonce: string } {
+  // Generate unique nonce for replay attack prevention (as per x402 protocol)
+  const nonce = crypto.randomUUID();
+
   // Convert the amount to atomic units (assuming USDC with 6 decimals)
   // For example: 0.5 USD -> 50000 in atomic units (0.5 * 10^6)
   const atomicAmount = Math.round(paymentRequired.amount * 1000000).toString();
@@ -898,9 +901,11 @@ export function getX402PaymentResponse(paymentRequired: {
       "Top up 5 credits for feedback",
     mimeType: "application/json",
     maxTimeoutSeconds: 300, // 5 minutes
+    nonce: nonce, // CRITICAL: Include nonce for replay attack prevention
     extra: {
       memo: paymentRequired.memo,
       usdAmount: paymentRequired.amount, // Include the original USD amount for reference
+      nonce: nonce, // Also include in extra for compatibility
     },
   };
 
@@ -943,5 +948,6 @@ export function getX402PaymentResponse(paymentRequired: {
         note: "Transactions are verified on the Solana blockchain for security",
       },
     },
+    nonce: nonce, // Return nonce separately for tracking
   };
 }

@@ -59,7 +59,7 @@ export interface UsageRecord {
   created_at?: string;
 }
 
-// Payment record interface
+// Enhanced Payment record interface with security fields
 export interface PaymentRecord {
   id: string;
   user_id: string;
@@ -68,7 +68,14 @@ export interface PaymentRecord {
   token: "USDC" | "USDT" | "CASH";
   recipient: string;
   status: "pending" | "confirmed" | "failed";
-  created_at: string;
+  // Security fields to prevent replay attacks
+  transaction_nonce?: string;
+  transaction_timestamp?: string;
+  verified_at?: string;
+  expires_at?: string;
+  processing_locked?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Profile operations
@@ -570,6 +577,57 @@ export async function recordUsage(
   return true;
 }
 
+// Update a payment record with enhanced security fields
+export async function updatePaymentRecordWithNonce(
+  transactionId: string,
+  updateData: {
+    transaction_nonce?: string;
+    transaction_timestamp?: string;
+    expires_at?: string;
+  }
+): Promise<boolean> {
+  console.log(`🔒 SECURITY: Updating payment record with nonce data`, {
+    transactionId,
+    hasNonce: !!updateData.transaction_nonce,
+    nonce: updateData.transaction_nonce
+      ? updateData.transaction_nonce.substring(0, 8) + "..."
+      : null,
+    timestamp: updateData.transaction_timestamp,
+    expiresAt: updateData.expires_at,
+  });
+
+  // Check if supabase server client is the mock (when env vars aren't set)
+  if (!("from" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return false;
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  const { error } = await supabaseServerClient
+    .from("payment_records")
+    .update({
+      ...updateData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("transaction_id", transactionId);
+
+  if (error) {
+    console.error("Error updating payment record with nonce:", error);
+    return false;
+  }
+
+  console.log(`🔒 SECURITY: Payment record updated with nonce successfully`, {
+    transactionId,
+    hasNonce: !!updateData.transaction_nonce,
+  });
+
+  return true;
+}
+
 export async function getUserUsage(
   userId: string,
   since?: string
@@ -953,15 +1011,34 @@ export async function updatePaymentRecordStatus(
 
   const supabaseServerClient =
     supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  // Prepare update data
+  const updateData: { status: string; verified_at?: string } = { status };
+
+  // If confirming payment, set verified_at timestamp
+  if (status === "confirmed") {
+    updateData.verified_at = new Date().toISOString();
+    console.log("🔒 SECURITY: Setting verified_at timestamp for transaction", {
+      transactionId,
+      verifiedAt: updateData.verified_at,
+    });
+  }
+
   const { error } = await supabaseServerClient
     .from("payment_records")
-    .update({ status })
+    .update(updateData)
     .eq("transaction_id", transactionId);
 
   if (error) {
     console.error("Error updating payment record status:", error);
     return false;
   }
+
+  console.log("💳 Payment record status updated", {
+    transactionId,
+    status,
+    verifiedAt: status === "confirmed" ? updateData.verified_at : null,
+  });
 
   return true;
 }
@@ -1035,6 +1112,269 @@ export async function getPendingPaymentRecordsByUser(
   }
 
   return data as PaymentRecord[];
+}
+
+// Enhanced security functions to prevent transaction replay attacks
+
+// Generate a cryptographically secure nonce
+export function generateSecureNonce(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Create a payment record with security validation
+export async function createSecurePaymentRecord(
+  userId: string,
+  transactionId: string,
+  expectedAmount: number,
+  token: "USDC" | "USDT" | "CASH",
+  recipient: string,
+  nonce?: string,
+  timeoutMinutes: number = 5
+): Promise<{
+  success: boolean;
+  record?: PaymentRecord;
+  error?: string;
+  nonce?: string;
+  expiresAt?: string;
+}> {
+  console.log(
+    `🔒 SECURITY: Creating secure payment record for user ${userId}`,
+    {
+      transactionId,
+      expectedAmount,
+      token,
+      hasNonce: !!nonce,
+    }
+  );
+
+  if (!("rpc" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return { success: false, error: "Server not initialized" };
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  try {
+    // Use the secure database function
+    const { data, error } = await supabaseServerClient.rpc(
+      "create_payment_record_secure",
+      {
+        p_user_id: userId,
+        p_expected_amount: expectedAmount,
+        p_token: token,
+        p_recipient: recipient,
+        p_transaction_id: transactionId,
+        p_nonce: nonce,
+        p_timeout_minutes: timeoutMinutes,
+      }
+    );
+
+    if (error) {
+      console.error("Error creating secure payment record:", error);
+      return { success: false, error: error.message };
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      if (result.success) {
+        console.log(`✅ SECURITY: Secure payment record created successfully`, {
+          recordId: result.record_id,
+          nonce: result.nonce,
+          expiresAt: result.expires_at,
+        });
+        return {
+          success: true,
+          record: {
+            id: result.record_id,
+            user_id: userId,
+            transaction_id: transactionId,
+            expected_amount: expectedAmount,
+            token,
+            recipient,
+            status: "pending",
+            transaction_nonce: result.nonce,
+            transaction_timestamp: new Date().toISOString(),
+            expires_at: result.expires_at,
+            created_at: new Date().toISOString(),
+          },
+          nonce: result.nonce,
+          expiresAt: result.expires_at,
+        };
+      } else {
+        console.warn(
+          `⚠️ SECURITY: Payment record creation failed:`,
+          result.error_message
+        );
+        return { success: false, error: result.error_message };
+      }
+    }
+
+    return { success: false, error: "Unknown error creating payment record" };
+  } catch (err) {
+    console.error("Exception creating secure payment record:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+// Atomic transaction verification with replay attack prevention
+export async function verifyTransactionAtomic(
+  transactionId: string,
+  nonce: string,
+  verificationResult: boolean
+): Promise<{
+  success: boolean;
+  userId?: string;
+  creditsToAdd?: number;
+  error?: string;
+  alreadyProcessed?: boolean;
+  expired?: boolean;
+}> {
+  console.log(`🔒 SECURITY: Atomic transaction verification`, {
+    transactionId,
+    hasNonce: !!nonce,
+    verificationResult,
+  });
+
+  if (!("rpc" in supabaseServer)) {
+    console.warn(
+      "Supabase server client not initialized - missing environment variables"
+    );
+    return { success: false, error: "Server not initialized" };
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  try {
+    // Use the atomic verification database function
+    const { data, error } = await supabaseServerClient.rpc(
+      "verify_transaction_atomic",
+      {
+        p_transaction_id: transactionId,
+        p_nonce: nonce,
+        p_verification_result: verificationResult,
+      }
+    );
+
+    if (error) {
+      console.error("Error in atomic transaction verification:", error);
+      return { success: false, error: error.message };
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      console.log(`🔒 SECURITY: Atomic verification result`, {
+        success: result.success,
+        userId: result.user_id,
+        creditsToAdd: result.credits_to_add,
+        alreadyProcessed: result.already_processed,
+        expired: result.expired,
+        error: result.error_message,
+      });
+
+      return {
+        success: result.success,
+        userId: result.user_id,
+        creditsToAdd: result.credits_to_add,
+        error: result.error_message,
+        alreadyProcessed: result.already_processed,
+        expired: result.expired,
+      };
+    }
+
+    return { success: false, error: "Unknown verification error" };
+  } catch (err) {
+    console.error("Exception in atomic transaction verification:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+// Check if a transaction nonce has been used before (for replay detection)
+export async function checkNonceUsage(nonce: string): Promise<{
+  used: boolean;
+  record?: PaymentRecord;
+  error?: string;
+}> {
+  if (!("from" in supabase)) {
+    return { used: false };
+  }
+
+  const supabaseClient =
+    supabase as import("@supabase/supabase-js").SupabaseClient;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("payment_records")
+      .select("*")
+      .eq("transaction_nonce", nonce)
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking nonce usage:", error);
+      return { used: false, error: error.message };
+    }
+
+    return { used: !!data, record: data || undefined };
+  } catch (err) {
+    console.error("Exception checking nonce usage:", err);
+    return {
+      used: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+// Clean up expired payment records (for maintenance)
+export async function cleanupExpiredPaymentRecords(): Promise<{
+  success: boolean;
+  deletedCount: number;
+  error?: string;
+}> {
+  if (!("rpc" in supabaseServer)) {
+    return { success: false, deletedCount: 0, error: "Server not initialized" };
+  }
+
+  const supabaseServerClient =
+    supabaseServer as import("@supabase/supabase-js").SupabaseClient;
+
+  try {
+    // Delete expired and failed records older than 24 hours
+    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { error, count } = await supabaseServerClient
+      .from("payment_records")
+      .delete()
+      .in("status", ["failed", "expired"])
+      .lt("updated_at", cutoffTime);
+
+    if (error) {
+      console.error("Error cleaning up expired payment records:", error);
+      return { success: false, deletedCount: 0, error: error.message };
+    }
+
+    console.log(`🧹 SECURITY: Cleaned up ${count} expired payment records`);
+    return { success: true, deletedCount: count || 0 };
+  } catch (err) {
+    console.error("Exception cleaning up expired payment records:", err);
+    return {
+      success: false,
+      deletedCount: 0,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
 }
 
 // Functions already exported above

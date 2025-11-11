@@ -20,7 +20,7 @@ interface SolanaWebhookPayload {
   result: string; // 'processed', 'confirmed', or 'finalized'
 }
 
-// Define the payment record interface
+// Define the payment record interface compatible with enhanced database interface
 interface PaymentRecord {
   id: string;
   user_id: string;
@@ -29,7 +29,14 @@ interface PaymentRecord {
   token: "USDC" | "USDT" | "CASH";
   recipient: string;
   status: "pending" | "confirmed" | "failed";
-  created_at: string;
+  // Security fields (optional for backward compatibility)
+  transaction_nonce?: string;
+  transaction_timestamp?: string;
+  verified_at?: string;
+  expires_at?: string;
+  processing_locked?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export async function POST(request: NextRequest) {
