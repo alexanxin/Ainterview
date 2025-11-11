@@ -6,6 +6,7 @@ import { CreditProvider } from "@/lib/credit-context";
 import { Toaster } from "sonner";
 import SolanaWalletProvider from "@/components/solana-wallet-provider";
 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -121,6 +122,9 @@ export default function RootLayout({
           position="top-right"
           theme="dark"
         />
+
+
+
         <script
           dangerouslySetInnerHTML={{
             __html: `

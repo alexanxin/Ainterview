@@ -2,6 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { Logger } from "@/lib/logger";
 import { validateInterviewContext, sanitizeInput } from "@/lib/validations";
+import {
+  validateAndSanitizeJobPosting,
+  validateAndSanitizeUserCV,
+  validateAndSanitizeUserAnswer,
+} from "@/lib/validations-enhanced";
 import { getX402PaymentResponse } from "@/lib/x402-utils";
 import { withRateLimitHandling } from "@/lib/rate-limiter";
 import {
@@ -355,17 +360,46 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const typedContext = context as InterviewContext;
-        if (!typedContext.jobPosting || !typedContext.companyInfo) {
-          Logger.error(
-            "Job posting and company info required for generating a question",
-            { userId, action }
+        // Validate and sanitize all context inputs
+        let sanitizedContext: InterviewContext;
+        try {
+          const typedContext = context as InterviewContext;
+          const jobPostingResult = validateAndSanitizeJobPosting(
+            typedContext.jobPosting
           );
+          const companyInfoResult = validateAndSanitizeJobPosting(
+            typedContext.companyInfo
+          );
+          const userCvResult = validateAndSanitizeUserCV(
+            typedContext.userCv || ""
+          );
+
+          if (jobPostingResult.threatsDetected.length > 0) {
+            Logger.warn("Threats detected in job posting:", {
+              threats: jobPostingResult.threatsDetected,
+              userId,
+            });
+          }
+
+          if (companyInfoResult.threatsDetected.length > 0) {
+            Logger.warn("Threats detected in company info:", {
+              threats: companyInfoResult.threatsDetected,
+              userId,
+            });
+          }
+
+          sanitizedContext = {
+            jobPosting: jobPostingResult.sanitized,
+            companyInfo: companyInfoResult.sanitized,
+            userCv: userCvResult.sanitized,
+          };
+        } catch (validationError) {
+          Logger.error("Context validation failed:", {
+            validationError,
+            userId,
+          });
           return NextResponse.json(
-            {
-              error:
-                "Job posting and company info are required for generating a question",
-            },
+            { error: "Invalid or unsafe context data provided" },
             { status: 400 }
           );
         }
@@ -373,9 +407,9 @@ export async function POST(req: NextRequest) {
         const questionPrompt = `
           Based on the following job posting and company information, generate a relevant interview question:
           
-          Job Posting: ${sanitizeInput(typedContext.jobPosting)}
+          Job Posting: ${sanitizedContext.jobPosting}
           
-          Company Info: ${sanitizeInput(typedContext.companyInfo)}
+          Company Info: ${sanitizedContext.companyInfo}
           
           Please generate a single, specific interview question that would be relevant for this position.
           Make sure the question is specific to the role and company.

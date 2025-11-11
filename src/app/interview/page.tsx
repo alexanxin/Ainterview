@@ -17,6 +17,11 @@ import { parsePdfText } from '@/lib/pdf-parser';
 import { checkCreditsBeforeOperation } from '@/lib/credit-service';
 import PaymentModal from '@/components/payment-modal';
 import { StructuredData, pageSEO } from '@/lib/seo';
+import {
+  sanitizeJobPostingSafe,
+  sanitizeUserCVSafe,
+  comprehensiveSanitize
+} from '@/lib/validations-enhanced';
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
@@ -261,11 +266,15 @@ export default function InterviewPage() {
         localStorage.removeItem('interviewCompanyInfo');
         localStorage.removeItem('interviewNumberOfQuestions'); // Also clear the number of questions
 
-        // Save new job posting and CV to localStorage
-        localStorage.setItem('interviewJobPosting', jobPosting);
-        localStorage.setItem('interviewCv', cv);
-        // Also save company info if available (could be extracted from job posting)
-        localStorage.setItem('interviewCompanyInfo', extractCompanyInfo(jobPosting));
+        // Sanitize user inputs before saving
+        const sanitizedJobPosting = sanitizeJobPostingSafe(jobPosting);
+        const sanitizedCv = sanitizeUserCVSafe(cv);
+        const sanitizedCompanyInfo = extractCompanyInfo(jobPosting);
+
+        // Save sanitized data to localStorage
+        localStorage.setItem('interviewJobPosting', sanitizedJobPosting);
+        localStorage.setItem('interviewCv', sanitizedCv);
+        localStorage.setItem('interviewCompanyInfo', sanitizedCompanyInfo);
         // Save the selected number of questions
         localStorage.setItem('interviewNumberOfQuestions', numberOfQuestions.toString());
 
@@ -634,7 +643,10 @@ export default function InterviewPage() {
 
                     <Textarea
                       value={jobPosting}
-                      onChange={(e) => setJobPosting(e.target.value)}
+                      onChange={(e) => {
+                        const sanitizedInput = sanitizeJobPostingSafe(e.target.value);
+                        setJobPosting(sanitizedInput);
+                      }}
                       className="min-h-[120px] dark:bg-gray-700 dark:text-white"
                       placeholder="Or paste job description here. Include company overview, responsibilities, requirements, and any special instructions..."
                       rows={4}
@@ -665,7 +677,10 @@ export default function InterviewPage() {
                   <CardContent className="p-4 space-y-4">
                     <Textarea
                       value={cv}
-                      onChange={(e) => setCv(e.target.value)}
+                      onChange={(e) => {
+                        const sanitizedInput = sanitizeUserCVSafe(e.target.value);
+                        setCv(sanitizedInput);
+                      }}
                       className="min-h-[120px] dark:bg-gray-700 dark:text-white"
                       placeholder="Or paste your resume text here..."
                       rows={4}
