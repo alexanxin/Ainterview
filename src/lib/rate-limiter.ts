@@ -1,162 +1,207 @@
-// Rate limiter utility to handle API calls with proper throttling
-export class RateLimiter {
-  private calls: Map<string, number[]> = new Map();
-  private readonly maxRequests: number;
-  private readonly windowMs: number;
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
-  constructor(maxRequests = 60, windowMs = 60000) {
-    // Default: 60 requests per minute
-    this.maxRequests = maxRequests;
-    this.windowMs = windowMs;
-  }
+// Simple in-memory rate limiter for development/testing
+class InMemoryRateLimiter {
+  private store = new Map<string, { count: number; resetTime: number }>();
 
-  public isAllowed(key: string): boolean {
+  constructor(private requests: number, private windowMs: number) {}
+
+  async limit(identifier: string) {
     const now = Date.now();
-    const calls = this.calls.get(key) || [];
+    const windowStart = now - this.windowMs;
+    const key = `${identifier}:${Math.floor(now / this.windowMs)}`;
 
-    // Remove calls that are outside the window
-    const validCalls = calls.filter(
-      (timestamp) => now - timestamp < this.windowMs
-    );
-
-    if (validCalls.length >= this.maxRequests) {
-      return false;
+    let record = this.store.get(key);
+    if (!record || record.resetTime < now) {
+      record = { count: 0, resetTime: now + this.windowMs };
+      this.store.set(key, record);
     }
 
-    // Add current call
-    validCalls.push(now);
-    this.calls.set(key, validCalls);
-
-    return true;
-  }
-
-  public async waitForAvailable(
-    key: string,
-    maxWaitTime: number = 30000
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    while (!this.isAllowed(key)) {
-      // Check if we've exceeded the maximum wait time
-      if (Date.now() - startTime > maxWaitTime) {
-        throw new Error(
-          `Rate limit exceeded and maximum wait time of ${maxWaitTime}ms reached for key: ${key}`
-        );
-      }
-
-      // Calculate time until the oldest call falls out of the window
-      const calls = this.calls.get(key) || [];
-      if (calls.length > 0) {
-        const oldestCall = Math.min(...calls);
-        const timeUntilAvailable = oldestCall + this.windowMs - Date.now();
-
-        // Wait for the minimum time needed or 1 second, whichever is smaller
-        const waitTime = Math.min(timeUntilAvailable, 1000);
-        if (waitTime > 0) {
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
-        }
-      } else {
-        // If there are no calls recorded, break the loop
-        break;
-      }
-    }
-  }
-
-  // Method to get rate limit info without blocking
-  public getRateLimitInfo(key: string): {
-    remaining: number;
-    resetTime: number;
-    timeToReset: number;
-  } {
-    const now = Date.now();
-    const calls = this.calls.get(key) || [];
-
-    // Remove calls that are outside the window
-    const validCalls = calls.filter(
-      (timestamp) => now - timestamp < this.windowMs
-    );
-
-    const remaining = Math.max(0, this.maxRequests - validCalls.length);
-    const nextResetTime =
-      calls.length > 0 ? Math.min(...calls) + this.windowMs : now;
-    const timeToReset = Math.max(0, nextResetTime - now);
+    record.count++;
+    const success = record.count <= this.requests;
+    const remaining = Math.max(0, this.requests - record.count);
+    const reset = Math.ceil(record.resetTime / 1000);
 
     return {
+      success,
+      limit: this.requests,
       remaining,
-      resetTime: nextResetTime,
-      timeToReset,
+      reset,
     };
   }
 }
 
-// Create a singleton instance
-export const rateLimiter = new RateLimiter(10, 60000); // 10 requests per minute for Gemini API - more conservative
+// Initialize Redis client for Upstash (with fallback for development)
+let redis: Redis;
+let useInMemory = false;
 
-// Function to implement exponential backoff for retrying failed requests
-export const withExponentialBackoff = async <T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 5, // Increased to 5 retries for more attempts
-  baseDelay: number = 2000, // 2 seconds base delay - more conservative
-  maxDelay: number = 3000 // 30 seconds max delay - increased for more patience
-): Promise<T> => {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error: unknown) {
-      lastError = error as Error;
-
-      // Check if it's an API error with status 429
-      const isRateLimitError =
-        typeof error === "object" &&
-        error !== null &&
-        "status" in error &&
-        (error as { status: number }).status === 429;
-
-      // If this is the last attempt or it's not a rate limit error, re-throw
-      if (attempt === maxRetries || !isRateLimitError) {
-        throw error;
-      }
-
-      // Calculate delay with exponential backoff and jitter
-      const exponentialDelay = baseDelay * Math.pow(2, attempt);
-      const jitter = Math.random() * 0.5 * exponentialDelay; // Add up to 50% jitter
-      const delay = Math.min(exponentialDelay + jitter, maxDelay);
-
-      console.log(
-        `Rate limit hit, retrying in ${Math.round(delay)}ms (attempt ${
-          attempt + 1
-        }/${maxRetries})`
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
+try {
+  if (
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+  ) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  } else {
+    console.warn(
+      "⚠️  Upstash Redis not configured, using in-memory fallback for rate limiting"
+    );
+    useInMemory = true;
   }
+} catch (error) {
+  console.error("Failed to initialize Redis client:", error);
+  useInMemory = true;
+}
 
-  throw lastError!;
+// Rate limit configurations for different endpoint types
+export const RATE_LIMITS = {
+  // General API limits (per IP)
+  GENERAL: {
+    requests: 100,
+    window: "15 m", // 15 minutes
+  },
+
+  // Credit checking endpoints (reasonable limits for interview workflow)
+  CREDIT_CHECK: {
+    authenticated: { requests: 30, window: "1 m" }, // 30 per minute for authenticated users
+    unauthenticated: { requests: 20, window: "1 m" }, // 20 per minute for unauthenticated IPs (for interview sessions)
+  },
+
+  // Payment endpoints (allow payment workflow completion)
+  PAYMENT: {
+    authenticated: { requests: 20, window: "1 m" }, // 20 per minute for authenticated users (allow multiple payment attempts)
+    unauthenticated: { requests: 10, window: "1 m" }, // 10 per minute for unauthenticated IPs (allow payment workflow)
+  },
+
+  // Webhook endpoints (handle blockchain network activity)
+  WEBHOOK: {
+    requests: 50,
+    window: "1 m", // 50 per minute to handle network activity
+  },
+
+  // User credits endpoint
+  USER_CREDITS: {
+    authenticated: { requests: 60, window: "1 m" }, // 60 per minute for authenticated users (for UI updates)
+    unauthenticated: { requests: 30, window: "1 m" }, // 30 per minute for unauthenticated IPs (for UI updates)
+  },
+} as const;
+
+// Helper function to parse window string to milliseconds
+const parseWindow = (window: string): number => {
+  const match = window.match(
+    /^(\d+)\s*(m|minute|minutes|h|hour|hours|s|second|seconds)$/
+  );
+  if (!match) return 60000; // Default 1 minute
+
+  const value = parseInt(match[1]);
+  const unit = match[2];
+
+  switch (unit) {
+    case "s":
+    case "second":
+    case "seconds":
+      return value * 1000;
+    case "m":
+    case "minute":
+    case "minutes":
+      return value * 60 * 1000;
+    case "h":
+    case "hour":
+    case "hours":
+      return value * 60 * 60 * 1000;
+    default:
+      return 60000;
+  }
 };
 
-// Enhanced rate limiting function that provides detailed rate limit information
-export const withRateLimitHandling = async <T>(
-  operation: () => Promise<T>,
-  rateLimitKey: string,
-  maxWaitTime: number = 30000
-): Promise<T> => {
-  // First, wait for rate limit availability
-  try {
-    await rateLimiter.waitForAvailable(rateLimitKey, maxWaitTime);
-  } catch (error) {
-    console.error(`Rate limit exceeded for key ${rateLimitKey}:`, error);
-    throw new Error(
-      `Rate limit exceeded: ${
-        error instanceof Error
-          ? error.message
-          : "Timeout waiting for rate limit availability"
-      }`
-    );
+// Create rate limiter based on configuration (using in-memory for simplicity)
+const createRateLimiter = (config: { requests: number; window: string }) => {
+  const windowMs = parseWindow(config.window);
+  return new InMemoryRateLimiter(config.requests, windowMs);
+};
+
+// Initialize rate limiters
+export const rateLimiters = {
+  // General API rate limiter (per IP)
+  general: createRateLimiter(RATE_LIMITS.GENERAL),
+
+  // Credit check rate limiter (per user/IP) - using unauthenticated limits for now
+  creditCheck: createRateLimiter(RATE_LIMITS.CREDIT_CHECK.unauthenticated),
+
+  // Payment rate limiter (per user/IP) - using unauthenticated limits for now
+  payment: createRateLimiter(RATE_LIMITS.PAYMENT.unauthenticated),
+
+  // Webhook rate limiter (per IP)
+  webhook: createRateLimiter(RATE_LIMITS.WEBHOOK),
+
+  // User credits rate limiter (per user/IP) - using unauthenticated limits for now
+  userCredits: createRateLimiter(RATE_LIMITS.USER_CREDITS.unauthenticated),
+};
+
+// Rate limit response headers
+export const RATE_LIMIT_HEADERS = {
+  "X-RateLimit-Limit": "X-RateLimit-Limit",
+  "X-RateLimit-Remaining": "X-RateLimit-Remaining",
+  "X-RateLimit-Reset": "X-RateLimit-Reset",
+  "Retry-After": "Retry-After",
+} as const;
+
+// Rate limit error response
+export const createRateLimitResponse = (resetTime: number, limit: number) => {
+  const resetDate = new Date(resetTime * 1000);
+
+  return new Response(
+    JSON.stringify({
+      error: "Too Many Requests",
+      message: "Rate limit exceeded. Please try again later.",
+      retryAfter: Math.ceil((resetTime * 1000 - Date.now()) / 1000),
+    }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Limit": limit.toString(),
+        "X-RateLimit-Reset": resetTime.toString(),
+        "Retry-After": Math.ceil(
+          (resetTime * 1000 - Date.now()) / 1000
+        ).toString(),
+      },
+    }
+  );
+};
+
+// Helper function to get rate limit identifier
+export const getRateLimitIdentifier = (
+  request: Request,
+  userId?: string,
+  useUserId: boolean = false
+): string => {
+  if (useUserId && userId) {
+    return `user:${userId}`;
   }
 
-  // Execute the operation with backoff handling
-  return await withExponentialBackoff(operation);
+  // Fallback to IP address
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ip = forwarded ? forwarded.split(",")[0] : "unknown";
+  return `ip:${ip}`;
+};
+
+// Helper function to check if endpoint is sensitive
+export const getEndpointType = (pathname: string): keyof typeof RATE_LIMITS => {
+  if (pathname.includes("/api/credits/check")) {
+    return "CREDIT_CHECK";
+  }
+  if (pathname.includes("/api/payment/")) {
+    return "PAYMENT";
+  }
+  if (pathname.includes("/api/webhook/")) {
+    return "WEBHOOK";
+  }
+  if (pathname.includes("/api/user/credits")) {
+    return "USER_CREDITS";
+  }
+  return "GENERAL";
 };

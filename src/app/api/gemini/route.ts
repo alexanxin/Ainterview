@@ -8,7 +8,6 @@ import {
   validateAndSanitizeUserAnswer,
 } from "@/lib/validations-enhanced";
 import { getX402PaymentResponse } from "@/lib/x402-utils";
-import { withRateLimitHandling } from "@/lib/rate-limiter";
 import {
   checkUsage,
   checkUsageAfterProcessing,
@@ -340,11 +339,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a rate limiting key based on the user ID and action
-    const rateLimitKey = userId
-      ? `gemini_${userId}_${action}`
-      : `gemini_anonymous_${action}`;
-
     let result: ApiResult;
 
     switch (action) {
@@ -416,23 +410,21 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const questionResult = await withRateLimitHandling(async () => {
-            return await model.generateContent({
-              model: "gemini-2.0-flash",
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text:
-                        "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
-                        questionPrompt,
-                    },
-                  ],
-                },
-              ],
-            });
-          }, rateLimitKey);
+          const questionResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
+                      questionPrompt,
+                  },
+                ],
+              },
+            ],
+          });
           const questionText = questionResult.text || "";
 
           // Clean up the response to extract just the question
@@ -516,23 +508,21 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const flowResult = await withRateLimitHandling(async () => {
-            return await model.generateContent({
-              model: "gemini-2.0-flash",
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text:
-                        "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position. Provide questions as a numbered list, one per line.\n\n" +
-                        flowPrompt,
-                    },
-                  ],
-                },
-              ],
-            });
-          }, rateLimitKey);
+          const flowResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions based on job postings and company information. Focus on technical skills, cultural fit, experience, problem-solving, and career motivation. Ask specific, targeted questions that would genuinely be asked in a real interview for the position. Provide questions as a numbered list, one per line.\n\n" +
+                      flowPrompt,
+                  },
+                ],
+              },
+            ],
+          });
           const flowText = flowResult.text || "";
 
           // Extract questions from the response more safely
@@ -683,23 +673,21 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const analysisResult = await withRateLimitHandling(async () => {
-            return await model.generateContent({
-              model: "gemini-2.0-flash",
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text:
-                        "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on interview answers. Evaluate responses based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role.\n\n" +
-                        analysisPrompt,
-                    },
-                  ],
-                },
-              ],
-            });
-          }, rateLimitKey);
+          const analysisResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on interview answers. Evaluate responses based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role.\n\n" +
+                      analysisPrompt,
+                  },
+                ],
+              },
+            ],
+          });
           const analysisText = analysisResult.text || "";
 
           // Parse the response more safely
@@ -870,23 +858,21 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const batchResult = await withRateLimitHandling(async () => {
-            return await model.generateContent({
-              model: "gemini-2.0-flash",
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text:
-                        "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on multiple interview answers. Evaluate each response based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role. Format your response according to the specified format with Q1_FEEDBACK, Q1_SUGGESTIONS, Q1_RATING, etc.\n\n" +
-                        batchPrompt,
-                    },
-                  ],
-                },
-              ],
-            });
-          }, rateLimitKey);
+          const batchResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced interviewer and HR professional. Your role is to provide constructive, specific feedback on multiple interview answers. Evaluate each response based on how well they align with job requirements and company expectations. Be supportive but honest in your feedback, focusing on actionable improvements. Rate answers from 1-10 based on relevance, specificity, and alignment with the role. Format your response according to the specified format with Q1_FEEDBACK, Q1_SUGGESTIONS, Q1_RATING, etc.\n\n" +
+                      batchPrompt,
+                  },
+                ],
+              },
+            ],
+          });
           const batchText = batchResult.text || "";
 
           // Parse the batch response
@@ -1027,26 +1013,21 @@ export async function POST(req: NextRequest) {
         `;
 
         try {
-          const similarQuestionResult = await withRateLimitHandling(
-            async () => {
-              return await model.generateContent({
-                model: "gemini-2.0-flash",
-                contents: [
+          const similarQuestionResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
                   {
-                    role: "user",
-                    parts: [
-                      {
-                        text:
-                          "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions similar to a given question but with different phrasing or focus. Focus on maintaining the same skill area or topic while changing the specific wording or angle. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
-                          similarQuestionPrompt,
-                      },
-                    ],
+                    text:
+                      "You are an experienced HR professional and interviewer. Your role is to generate relevant, job-specific interview questions similar to a given question but with different phrasing or focus. Focus on maintaining the same skill area or topic while changing the specific wording or angle. Ask specific, targeted questions that would genuinely be asked in a real interview for the position.\n\n" +
+                      similarQuestionPrompt,
                   },
                 ],
-              });
-            },
-            rateLimitKey
-          );
+              },
+            ],
+          });
           const similarQuestionText = similarQuestionResult.text || "";
 
           // Clean up the response to extract just the question
