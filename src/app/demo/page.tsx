@@ -7,6 +7,55 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Clock, AlertCircle, Play, CreditCard, Zap } from 'lucide-react';
 import Navigation from '@/components/navigation';
 import X402ComplianceBadge from '@/components/x402-compliance-badge';
+import SEO from '@/components/seo';
+
+// FAQ Schema for x402 Protocol (Intent Capture & AEO Targeting)
+const x402FAQSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "What is x402 Payment Protocol?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "x402 is a revolutionary payment protocol enabling secure, blockchain-based micropayments with instant verification. It uses HTTP 402 status to trigger payment flows and ensures transactions are immutable and publicly verifiable."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How does x402 Protocol work?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "When a user needs credits for Ainterview services, the API returns HTTP 402 with x402 headers specifying payment requirements. Users connect wallets, select tokens (USDC/PYUSD/CASH), and complete blockchain transactions. Payments are instantly verified on Solana network."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What blockchain does x402 use?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "x402 protocol works with Solana blockchain for fast, low-fee transactions. Supported tokens include USDC (stablecoin), PYUSD (PayPal-backed), and CASH (Phantom native token). Transactions are verified in seconds, not minutes."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Why choose x402 over traditional payments?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "x402 enables true micropayments that were impossible with traditional systems due to high fees. It's instant, secure, borders, no intermediaries, and transactions are immutable. Perfect for per-use AI services, content consumption, and API monetization."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How secure is x402 payment protocol?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "x402 inherits blockchain's security: transactions are cryptographically signed, immutable once confirmed, and publicly verifiable. No sensitive payment data is stored on servers. Wallet-based authentication ensures only authorized payments."
+            }
+        }
+    ]
+};
 
 interface DemoStep {
     id: string;
@@ -29,6 +78,18 @@ export default function DemoPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
     const [lastResponse, setLastResponse] = useState<Record<string, unknown> | null>(null);
+
+    // Add x402 FAQ structured data on component mount (AEO targeting)
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.textContent = JSON.stringify(x402FAQSchema);
+        document.head.appendChild(script);
+
+        return () => {
+            document.head.removeChild(script);
+        };
+    }, []);
 
     const steps: DemoStep[] = [
         {
@@ -201,6 +262,14 @@ export default function DemoPage() {
 
     return (
         <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 to-purple-50 font-sans dark:from-gray-900 dark:to-black">
+            <SEO
+                title="x402 Payment Protocol Demo - Secure Blockchain Micropayments for APIs"
+                description="Experience the x402 payment protocol in action. See how blockchain-based micropayments work with Solana, HTTP 402 status codes, and instant transaction verification. Perfect for AI APIs and per-use services."
+                keywords="x402 payment protocol, blockchain micropayments, HTTP 402 demo, blockchain payment flow, decentralized payments, x402 API, Solana payments, secure micropayments, x402 compliant, blockchain transactions"
+                image="https://ainterview.app/images/x402-demo-og.png"
+                canonical="https://ainterview.app/demo"
+            />
+
             <Navigation />
 
             <main className="flex-1 p-4 relative z-10">

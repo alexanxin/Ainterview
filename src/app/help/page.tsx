@@ -1,4 +1,8 @@
-'use client';
+// Enhanced Help Page with SEO for Login-Gated Content Strategy
+// Phase 1B: Content-Driven Acquisition Funnel
+
+'use client'
+
 
 import { useState } from 'react';
 import Navigation from '@/components/navigation';
@@ -7,6 +11,78 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Book, Search, ArrowRight, ExternalLink } from 'lucide-react';
 import { StructuredData, pageSEO } from '@/lib/seo';
+
+// FAQ Schema for AEO Targeting (Questions SERP Opportunities)
+const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+        {
+            "@type": "Question",
+            "name": "How does AI interview practice work?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "AI-powered interview practice creates hyper-personalized interview simulations based on your target job and company. Sign up to experience unlimited AI interview sessions with real-time feedback. Try free with our demo or unlock full features now."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What makes Ainterview different from other interview prep?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Unlike generic interview prep tools, Ainterview trains AI on your specific job posting and company culture for personalized practice. Unlock AI interviewers that understand your target role and provide feedback beyond generic tips."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How many credits do I need for AI interviews?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Standard 5-question interviews cost 5 credits, 10-question sessions cost 10 credits. Get 2 free credits daily plus registration bonus. Sign up now to access unlimited AI interview practice and personalized feedback."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Why should I choose AI interview coaching?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "AI interview coaching provides instant feedback, tracks progress, and adapts to your specific job requirements. Join thousands who improved their interview skills with personalized AI practice. Unlock full access with free credits."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What jobs can I practice for with AI interviews?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Practice for technical roles, software engineering, data science, product management, and more. Our AI adapts to different job types and company cultures. Get personalized practice for FAANG and top tech companies. Sign up for unlimited access."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "How to prepare for FAANG technical interviews?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Prepare with AI that generates company-specific questions and provides detailed feedback. Master technical interviews with personalized practice sessions. Unlock premium AI coaching features and practice unlimited sessions for top-tier roles."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "What is the best interview practice method?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The best method combines targeted practice with expert feedback. Experience AI-powered interview practice with personalized guidance and progress tracking. Sign up for unlimited access and discover the most effective preparation strategy."
+            }
+        },
+        {
+            "@type": "Question",
+            "name": "Can I practice coding interviews with AI?",
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Practice technical interviews including coding with AI feedback. Get personalized coaching for algorithm problems, system design, and technical questions. Unlock unlimited AI practice sessions with detailed code analysis and improvement suggestions."
+            }
+        }
+    ]
+};
 
 interface SearchResult {
     id: string;
