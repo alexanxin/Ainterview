@@ -78,38 +78,40 @@ export default function ComparePage() {
                             </Card>
                         </Link>
 
-                        <Card className="h-full opacity-75">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    Ainterview vs Big Interview
-                                    <Badge variant="outline">Coming Soon</Badge>
-                                </CardTitle>
-                                <CardDescription>
-                                    Institutional partnerships meet innovative AI: Traditional coaching authority vs cutting-edge personalisation
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle className="h-5 w-5 text-green-500" />
-                                        <span className="text-sm">29-year market presence analysis</span>
+                        <Link href="/compare/big-interview" className="block">
+                            <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        Ainterview vs Big Interview
+                                        <Badge variant="secondary">Available Now</Badge>
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Institutional partnerships meet innovative AI: Traditional coaching authority vs cutting-edge personalisation
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                            <span className="text-sm">29-year market presence analysis</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                            <span className="text-sm">Educational institutional vs fintech AI</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                            <span className="text-sm">Detailed feature-by-feature comparison</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                            <span className="text-sm">Complete ROI and pricing analysis</span>
+                                        </div>
+                                        <Button className="w-full mt-4">Read Full Comparison</Button>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle className="h-5 w-5 text-green-500" />
-                                        <span className="text-sm">Educational institutional vs fintech AI</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle className="h-5 w-5 text-green-500" />
-                                        <span className="text-sm">Video analysis capabilities</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <XCircle className="h-5 w-5 text-red-500" />
-                                        <span className="text-sm">Available shortly</span>
-                                    </div>
-                                    <Button className="w-full mt-4" disabled>Coming Soon</Button>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        </Link>
                     </div>
 
                     {/* Quick Stats */}

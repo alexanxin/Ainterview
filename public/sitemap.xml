@@ -68,4 +68,12 @@
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
+
+  <!-- Long-Tail Keyword Content -->
+  <url>
+    <loc>https://ainterview.app/guide/systems-design</loc>
+    <lastmod>2025-11-19</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>
