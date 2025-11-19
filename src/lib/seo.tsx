@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 
 const siteUrl = 'https://ainterview.app';
 
-// Refined SEO keywords focusing on tech innovation and unique features
-const defaultKeywords = 'AI interview preparation, x402 protocol application, personalized interview simulation, AI micropayment platform, Gemini 2.5 interview model, technical interview prep AI, Solana payment service, blockchain interview prep, freemium AI interview model, 97% payment cost reduction, AI feedback job posting analysis, Next.js AI application, real-time interview performance analytics';
+// Optimized long-tail keywords focusing on technical niche specialization and high-conversion intent
+const defaultKeywords = 'AI mock interview coaching, technical interview preparation AI, systems design interview practice, coding interview AI feedback, behavioral interview STAR method AI, AI interview prep for software engineers, personalized job-specific interview simulation, real-time AI feedback technical interviews, practice FAANG coding questions, best AI tool for interview preparation 2025';
 
 export interface SEOConfig {
     title: string;
@@ -174,6 +174,49 @@ export function generateStructuredData(config: SEOConfig): string {
         additionalSchemas.push(serviceSchema);
     }
 
+    // Add FAQ schema for homepage
+    if (config.url === "/") {
+        const faqSchema = {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "How much does it cost?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Your first interview is free! After that, you get 2 free credits daily, or purchase credits starting at $0.50 each. No credit card required to get started."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What makes Ainterview different?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Our AI is trained specifically on your target job and company, creating hyper-personalized interviews that mirror real hiring processes. Unlike generic tools, we analyze your exact job requirements."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I try it free?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes! You get 5 free credits when you sign up, plus 2 additional free credits every day to continue practicing systems design and behavioral interviews."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How accurate is the feedback?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Our AI provides detailed analysis of your answers against FAANG interview standards. Get specific feedback on technical depth, communication clarity, and problem-solving approach."
+                    }
+                }
+            ]
+        };
+        additionalSchemas.push(faqSchema);
+    }
+
     const allSchemas = [...structuredData, ...additionalSchemas];
     return JSON.stringify(allSchemas, null, 2);
 }
@@ -193,9 +236,9 @@ export function StructuredData({ config }: { config: SEOConfig }) {
 // Pre-configured SEO settings for common pages
 export const pageSEO = {
     homepage: {
-        title: "Ainterview: Personalized Interview Simulations with x402 Micropayments",
-        description: "Revolutionary AI interview preparation platform with Gemini 2.5 and x402 protocol payments. Get personalized job-specific interview practice with 97% payment cost reduction.",
-        keywords: "AI interview preparation, x402 protocol application, personalized interview simulation, AI micropayment platform, Gemini 2.5 interview model, technical interview prep AI, Solana payment service, blockchain interview prep, freemium AI interview model, 97% payment cost reduction",
+        title: "Ainterview: AI Mock Interview Coaching for High-Stakes Roles",
+        description: "Stop practicing generic answers. Get personalized AI feedback tailored to your exact job description and land the high-paying role.",
+        keywords: "AI mock interview coaching, technical interview preparation AI, systems design interview practice, coding interview AI feedback, behavioral interview STAR method AI, AI interview prep for software engineers",
         image: "/logo.png",
         url: "/",
     } as SEOConfig,

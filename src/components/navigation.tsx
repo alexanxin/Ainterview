@@ -24,15 +24,58 @@ export default function Navigation() {
   const { user, signOut } = authContext;
 
   const navItems = [
-    // { name: 'Home', icon: Home, href: '/' },
+    {
+      name: 'AI Interview Practice',
+      icon: FileText,
+      href: '/interview',
+      description: 'Start personalized mock interviews with AI feedback'
+    },
+    {
+      name: 'Feedback & Practice',
+      icon: MessageSquare,
+      href: '/feedback',
+      description: 'Review AI analysis and practice responses'
+    },
+    {
+      name: 'Progress Analytics',
+      icon: BarChart3,
+      href: '/dashboard',
+      description: 'Track your interview preparation progress'
+    },
+    {
+      name: 'About Ainterview',
+      icon: Info,
+      href: '/about',
+      description: 'How AI-powered interview prep works'
+    },
+    {
+      name: 'Technology',
+      icon: Zap,
+      href: '/technology',
+      description: 'Secure micropayments for AI coaching'
+    },
+    {
+      name: 'Help',
+      icon: HelpCircle,
+      href: '/help',
+      description: 'Complete user guides and troubleshooting'
+    },
+  ];
 
-    { name: 'Start Interview', icon: FileText, href: '/interview' },
-    { name: 'Feedback & Practice', icon: MessageSquare, href: '/feedback' },
-    { name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
-    { name: 'About', icon: Info, href: '/about' },
-    { name: 'Technology', icon: Zap, href: '/technology' },
-    { name: 'Help', icon: HelpCircle, href: '/help' },
-    // Profile link will be conditionally rendered when user is authenticated
+  // Additional navigation items for mobile (comparison pages)
+  const comparisonItems = [
+    {
+      name: 'Compare: Ainterview vs Skillora',
+      icon: FileText,
+      href: '/compare/skillora',
+      description: 'AI interview platforms comparison guide'
+    },
+    {
+      name: 'vs Big Interview',
+      icon: MessageSquare,
+      href: '/compare/big-interview',
+      description: 'Professional vs AI interview coaching'
+    },
   ];
 
   const handleNavigation = async (href: string) => {
