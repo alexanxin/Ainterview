@@ -41,7 +41,7 @@ export default function CollapsibleFAQ({
             return [
                 {
                     question: "How much does it cost?",
-                    answer: "Your first interview is free! After that, you get 2 free credits daily, or purchase credits starting at $0.50 each. No credit card required to get started."
+                    answer: "Your first interview is free! After that, you get 2 free credits daily, or purchase credits starting at $0.10 each. No credit card required to get started."
                 },
                 {
                     question: "What makes Ainterview different?",
