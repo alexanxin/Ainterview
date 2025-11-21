@@ -15,6 +15,12 @@ Allow: /
 Allow: /about
 Allow: /help
 Allow: /demo
+Allow: /demo-flow
+Allow: /technology
+Allow: /compare
+Allow: /compare/skillora
+Allow: /compare/big-interview
+Allow: /guide/systems-design
 
 # Sitemap location
 Sitemap: https://ainterview.app/sitemap.xml
