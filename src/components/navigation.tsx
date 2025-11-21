@@ -28,25 +28,25 @@ export default function Navigation() {
       name: 'AI Interview Practice',
       icon: FileText,
       href: '/interview',
-      description: 'Start personalized mock interviews with AI feedback'
+      description: 'Practice interviews with AI job fit assessment'
     },
     {
-      name: 'Feedback & Practice',
-      icon: MessageSquare,
-      href: '/feedback',
-      description: 'Review AI analysis and practice responses'
+      name: 'CV Analysis',
+      icon: User,
+      href: '/profile',
+      description: 'AI-powered CV review and optimization'
     },
     {
       name: 'Progress Analytics',
       icon: BarChart3,
       href: '/dashboard',
-      description: 'Track your interview preparation progress'
+      description: 'Track your candidate preparation progress'
     },
     {
       name: 'About Ainterview',
       icon: Info,
       href: '/about',
-      description: 'How AI-powered interview prep works'
+      description: 'Complete AI candidate preparation platform'
     },
     {
       name: 'Technology',

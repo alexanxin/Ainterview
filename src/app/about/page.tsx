@@ -154,27 +154,40 @@ export default function AboutPage() {
             {/* How It Works */}
             <div className="mb-16">
               <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8 md:mb-12">
-                How Ainterview <span className="text-green-600">Works</span>
+                Complete Candidate Preparation <span className="text-green-600">Process</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                {howItWorks.map((step) => (
-                  <div key={step.step} className="text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white font-bold text-lg">
-                      {step.step}
-                    </div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-2">{step.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{step.description}</p>
+                <div className="text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white font-bold text-lg">
+                    1
                   </div>
-                ))}
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-2">Analyze Your CV</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Upload your resume for AI-powered analysis with detailed feedback on improvements, keyword optimization, and ATS compatibility.</p>
+                </div>
+                <div className="text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white font-bold text-lg">
+                    2
+                  </div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-2">Assess Job Fit</h3>
+                  <p className="text-gray-600 dark:text-gray-400">AI evaluates how well you match specific job requirements, providing gap analysis and targeted preparation recommendations.</p>
+                </div>
+                <div className="text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-700 to-lime-600 text-white font-bold text-lg">
+                    3
+                  </div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-2">Practice & Improve</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Refine your interview skills with AI feedback, then repeat the cycle with new opportunities for continuous career advancement.</p>
+                </div>
               </div>
               <div className="text-center mt-8">
                 <a
                   href="/interview"
                   className="inline-block bg-gradient-to-r from-green-600 to-lime-500 text-white hover:opacity-90 font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 text-base"
                 >
-                  Start Your Free Interview
+                  Start Complete Preparation
                 </a>
               </div>
+
             </div>
 
             {/* Key Features */}

@@ -102,6 +102,8 @@ export default function HelpPage() {
         { id: 'getting-started', title: 'Getting Started', icon: '🚀' },
         { id: 'account-setup', title: 'Account Setup and Authentication', icon: '🔐' },
         { id: 'profile-management', title: 'Profile Management', icon: '👤' },
+        { id: 'cv-analysis', title: 'CV Analysis', icon: '📄' },
+        { id: 'job-fit-assessment', title: 'Job Fit Assessment', icon: '🎯' },
         { id: 'credit-system', title: 'Credit System and Payments', icon: '💳' },
         { id: 'creating-interviews', title: 'Creating Interview Sessions', icon: '📝' },
         { id: 'conducting-interviews', title: 'Conducting Interviews', icon: '🎤' },
@@ -132,6 +134,18 @@ export default function HelpPage() {
             title: 'Profile Management',
             content: 'profile information personal information professional information bio experience education skills LinkedIn PDF import',
             keywords: ['profile', 'management', 'bio', 'experience', 'education', 'skills', 'linkedin', 'pdf import']
+        },
+        {
+            id: 'cv-analysis',
+            title: 'CV Analysis',
+            content: 'CV analysis AI evaluation resume industry standards content quality keyword optimization ATS compatibility structural analysis feedback scores strengths areas for improvement iterative improvement',
+            keywords: ['cv', 'resume', 'analysis', 'AI', 'evaluation', 'feedback', 'optimization', 'ATS', 'keywords', 'improvement']
+        },
+        {
+            id: 'job-fit-assessment',
+            title: 'Job Fit Assessment',
+            content: 'job fit assessment skills experience background analysis gap analysis preparation recommendations fit score assessment process company context preparation recommendations',
+            keywords: ['job fit', 'assessment', 'skills', 'experience', 'gap analysis', 'preparation', 'recommendations', 'fit score']
         },
         {
             id: 'credit-system',
@@ -577,6 +591,213 @@ export default function HelpPage() {
                                                         </ul>
                                                     </li>
                                                 </ol>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </section>
+
+                                {/* CV Analysis */}
+                                <section id="cv-analysis">
+                                    <Card className="p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-gray-200 dark:border-gray-700">
+                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+                                            📄 CV Analysis
+                                        </h2>
+
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">What is CV Analysis?</h3>
+                                                <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+                                                    Our AI-powered CV Analysis feature evaluates your resume against industry standards and the specific job you're targeting.
+                                                    It provides detailed feedback on content quality, keyword optimization, ATS compatibility, and structural improvements.
+                                                </p>
+                                                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+                                                    Beyond basic spelling and grammar checks, CV Analysis offers actionable insights to make your resume more competitive
+                                                    and tailored to specific job requirements.
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">How It Works</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Analysis Categories</h4>
+                                                <ul className="space-y-2 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Content Quality:</strong> Ensures your resume effectively communicates your value proposition and achievements
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Keyword Optimization:</strong> Identifies relevant keywords from the job posting and suggests strategic placement
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>ATS Compatibility:</strong> Ensures your resume will pass through Applicant Tracking Systems
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Structural Analysis:</strong> Reviews formatting, layout, and overall presentation
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">What You'll Get</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Detailed Feedback</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Scores:</strong> Overall rating out of 10 across different categories</li>
+                                                    <li>• <strong>Strengths:</strong> What your CV does well</li>
+                                                    <li>• <strong>Areas for Improvement:</strong> Specific recommendations for enhancement</li>
+                                                    <li>• <strong>Actionable Suggestions:</strong> Step-by-step improvements you can implement</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Iterative Improvement</h4>
+                                                <p className="text-gray-600 dark:text-gray-300 mb-3">Upload multiple versions of your CV to track improvements:</p>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300">
+                                                    <li>• <strong>Progress Tracking:</strong> See how scores improve over time</li>
+                                                    <li>• <strong>Comparative Analysis:</strong> Compare different versions side-by-side</li>
+                                                    <li>• <strong>Version History:</strong> Maintain a record of all CV iterations</li>
+                                                </ul>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Best Practices for CV Analysis</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Prepare Your CV</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Upload PDF Format:</strong> Ensure your CV is in PDF format for accurate parsing</li>
+                                                    <li>• <strong>Complete Information:</strong> Include all relevant work experience and achievements</li>
+                                                    <li>• <strong>Clean Formatting:</strong> Use standard fonts and professional layout</li>
+                                                    <li>• <strong>Job-Specific:</strong> Upload the CV you Plan to use for your target position</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Optimize Your Results</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300">
+                                                    <li>• <strong>Review Job Posting:</strong> Provide the same job posting used for interviews</li>
+                                                    <li>• <strong>Multiple Iterations:</strong> Use feedback to improve and upload new versions</li>
+                                                    <li>• <strong>Industry-Specific:</strong> Consider industry expectations and standards</li>
+                                                    <li>• <strong>Measurable Achievements:</strong> Include quantifiable results and metrics</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </section>
+
+                                {/* Job Fit Assessment */}
+                                <section id="job-fit-assessment">
+                                    <Card className="p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-gray-200 dark:border-gray-700">
+                                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+                                            🎯 Job Fit Assessment
+                                        </h2>
+
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">What is Job Fit Assessment?</h3>
+                                                <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+                                                    Job Fit Assessment analyzes your skills, experience, background, and profile against specific job requirements
+                                                    to determine how well you match the position. It identifies gaps, strengths, and provides preparation recommendations
+                                                    to help you become a stronger candidate.
+                                                </p>
+                                                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+                                                    This comprehensive evaluation goes beyond basic resume screening to provide strategic insights
+                                                    for improving your candidacy.
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Assessment Process</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Comprehensive Analysis</h4>
+                                                <ul className="space-y-2 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Skills Match:</strong> Evaluates how your technical and soft skills align with job requirements
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Experience Alignment:</strong> Reviews your career progression and relevant experience
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Gap Analysis:</strong> Identifies areas where you may be missing required qualifications
+                                                        </div>
+                                                    </li>
+                                                    <li className="flex items-start">
+                                                        <span className="text-green-500 mr-2">•</span>
+                                                        <div>
+                                                            <strong>Company Context:</strong> Considers organizational culture and values fit
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Assessment Results</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Fit Score</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Overall Score:</strong> Composite rating out of 10</li>
+                                                    <li>• <strong>Category Breakdown:</strong> Individual scores for different competency areas</li>
+                                                    <li>• <strong>Strengths Highlight:</strong> Areas where you excel for this position</li>
+                                                    <li>• <strong>Development Areas:</strong> Skills and experiences to focus on improving</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Preparation Recommendations</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Skill Building:</strong> Specific courses, certifications, or training suggested</li>
+                                                    <li>• <strong>Experience Enhancement:</strong> Ways to gain relevant experience</li>
+                                                    <li>• <strong>Resume Optimization:</strong> Suggestions for highlighting relevant qualifications</li>
+                                                    <li>• <strong>Interview Preparation:</strong> Focus areas for interview practice</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Gap Analysis</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300">
+                                                    <li>• <strong>Critical Gaps:</strong> Must-have qualifications you're missing</li>
+                                                    <li>• <strong>Improvement Opportunities:</strong> Areas where minor improvements could help</li>
+                                                    <li>• <strong>Long-term Development:</strong> Skills to work towards for career growth</li>
+                                                    <li>• <strong>Alternative Paths:</strong> Suggestions for related positions if this role isn't the best fit</li>
+                                                </ul>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Best Practices for Job Fit Assessment</h3>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Getting Started</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Complete Profile:</strong> Ensure your profile information is current and complete</li>
+                                                    <li>• <strong>Job Posting Details:</strong> Provide detailed job requirements and description</li>
+                                                    <li>• <strong>Honest Assessment:</strong> Be candid about your experience and skills</li>
+                                                    <li>• <strong>Recent Information:</strong> Use up-to-date resume and experience details</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Interpreting Results</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300 mb-4">
+                                                    <li>• <strong>Focus on Critiques:</strong> Address identified gaps systematically</li>
+                                                    <li>• <strong>Build on Strengths:</strong> Leverage your advantages in interviews</li>
+                                                    <li>• <strong>Set Realistic Goals:</strong> Use recommendations to create development plans</li>
+                                                    <li>• <strong>Regular Assessment:</strong> Re-evaluate fit as you gain new skills and experience</li>
+                                                </ul>
+
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Implementation Strategy</h4>
+                                                <ul className="space-y-1 text-gray-600 dark:text-gray-300">
+                                                    <li>• <strong>Priority Order:</strong> Address critical gaps first</li>
+                                                    <li>• <strong>Quick Wins:</strong> Look for changes that create immediate impact</li>
+                                                    <li>• <strong>Sustainable Development:</strong> Focus on long-term skill building</li>
+                                                    <li>• <strong>Progress Tracking:</strong> Monitor improvements over time</li>
+                                                </ul>
                                             </div>
                                         </div>
                                     </Card>

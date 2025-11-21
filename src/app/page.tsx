@@ -110,21 +110,26 @@ export default function Home() {
   }
   */
 
-  // Features data - ENHANCED with Unlock Teaser Messaging (Phase 2A Week 4)
+  // Features data - ENHANCED with Candidate Preparation Features
   const features = [
+    {
+      title: "AI CV Analysis & Optimization",
+      description: "Get detailed AI feedback on your resume with personalized suggestions for improvements, keyword optimization, and ATS compatibility.",
+      icon: "📄",
+      status: "new"
+    },
+    {
+      title: "Advanced Job Fit Assessment",
+      description: "AI evaluates how well you match specific job requirements, providing detailed gap analysis and preparation recommendations.",
+      icon: "🎯",
+      status: "new"
+    },
     {
       title: "🔓 Unlock Hyper-Personalized AI Interviews",
       description: "Sign up to get AI interviewers trained on YOUR specific job application and company info - no more generic practice questions.",
-      icon: "🎯",
-      teasable: true,
-      unlockText: "Get personalized AI interviews now"
-    },
-    {
-      title: "🔓 Unlock Realistic Interview Simulations",
-      description: "Join thousands who practice with dynamic AI that understands your target role requirements and company culture.",
       icon: "🎭",
       teasable: true,
-      unlockText: "Experience real interview simulation"
+      unlockText: "Get personalized AI interviews now"
     },
     {
       title: "🔓 Unlock Instant Expert Feedback",
@@ -145,12 +150,6 @@ export default function Home() {
       description: "Earn points, unlock badges, and track your progress with our engaging gamification system.",
       icon: "🏆",
       status: "coming-soon"
-    },
-    {
-      title: "Social Features",
-      description: "Share achievements, compete with friends, and get motivation from our supportive community.",
-      icon: "👥",
-      status: "coming-soon"
     }
   ];
 
@@ -165,9 +164,9 @@ export default function Home() {
   return (
     <>
       <SEO
-        title="Ainterview: AI Technical Interview Coach - Prepare for FAANG Coding Interviews"
-        description="Practice systems design interviews with AI feedback. Master FAANG technical interviews with real-time analysis of algorithms, data structures, and problem-solving skills. Get hired faster with personalized AI coaching."
-        keywords="FAANG interview practice, systems design interview, AI coding practice, technical interview preparation, data structures algorithms training, software engineer interview AI"
+        title="Ainterview: AI Candidate Preparation Platform - CV Analysis, Job Fit & Interview Practice"
+        description="Comprehensive AI-powered candidate preparation: Analyze your CV for improvements, assess job fit with detailed feedback, and practice interviews. Master the complete job application process with personalized AI coaching."
+        keywords="AI CV analysis, resume optimization, job fit analysis, candidate preparation AI, interview practice, technical interview training, CV review AI, job matching, career development"
       />
       {/* Structured Data for SEO */}
       <StructuredData config={pageSEO.homepage} />
@@ -188,10 +187,10 @@ export default function Home() {
                 <Image src="/logo.png" alt="Ainterview Logo - AI Technical Interview Practice Platform" width={80} height={80} className="h-full w-full p-2" priority />
               </div>
               <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-                AI Mock Interview Coaching <br />for <span className="text-green-600">High-Stakes</span> Roles
+                Complete AI Candidate Preparation <br />for <span className="text-green-600">Career Success</span>
               </h1>
               <p className="text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto mb-10">
-                AI-powered, personalized practice that transforms your interview preparation and helps you land your dream job.
+                AI-powered assessment of your CV, personalized job fit analysis, and interview practice that transforms your entire job application process.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
