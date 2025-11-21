@@ -17,6 +17,7 @@ import { parsePdfText } from '@/lib/pdf-parser';
 import { checkCreditsBeforeOperation } from '@/lib/credit-service';
 import PaymentModal from '@/components/payment-modal';
 import { StructuredData, pageSEO } from '@/lib/seo';
+import { geminiService } from '@/lib/gemini-service';
 import {
   sanitizeJobPostingSafe,
   sanitizeUserCVSafe,
@@ -45,6 +46,14 @@ export default function InterviewPage() {
     description: '',
     requiredCredits: 0,
   });
+  const [isAnalyzingFit, setIsAnalyzingFit] = useState(false);
+  const [showFitAnalysis, setShowFitAnalysis] = useState(false);
+  const [fitAnalysis, setFitAnalysis] = useState<{
+    aiFeedback: string;
+    improvementSuggestions: string[];
+    rating: number;
+  } | null>(null);
+
   const router = useRouter();
   const { user, loading } = useAuth();
   const { error, success, warning, info } = useToast(); // Initialize toast notifications
@@ -421,6 +430,44 @@ export default function InterviewPage() {
       error('Failed to process CV file. Please try pasting the content directly.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzeJobFit = async () => {
+    if (!user) return;
+
+    // Check if both job posting and CV are filled
+    if (!jobPosting.trim()) {
+      error('Please fill in the job posting first');
+      return;
+    }
+    if (!cv.trim()) {
+      error('Please fill in your CV first');
+      return;
+    }
+
+    setIsAnalyzingFit(true);
+
+    try {
+      // Perform job fit analysis - credit checking is handled internally by the service
+      const analysis = await geminiService.analyzeJobFit(jobPosting, cv, user.id);
+
+      setFitAnalysis(analysis);
+      setShowFitAnalysis(true);
+      success('Job fit analysis completed successfully!');
+    } catch (err) {
+      console.error('Error analyzing job fit:', err);
+      if ((err as { status?: number }).status === 402) {
+        setPaymentContext({
+          description: 'Job fit analysis costs 1 credit to provide personalized fit score and recommendations.',
+          requiredCredits: 1,
+        });
+        setShowPaymentModal(true);
+      } else {
+        error('Failed to analyze job fit. Please try again.');
+      }
+    } finally {
+      setIsAnalyzingFit(false);
     }
   };
 
@@ -814,6 +861,29 @@ export default function InterviewPage() {
                 </Card>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-4">
+                  {/* Job Fit Analysis Button */}
+                  {jobPosting.trim() && cv.trim() && (
+                    <Button
+                      type="button"
+                      onClick={handleAnalyzeJobFit}
+                      disabled={isAnalyzingFit}
+                      variant="outline"
+                      className="w-full sm:w-auto mr-2"
+                    >
+                      {isAnalyzingFit ? (
+                        <>
+                          <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] mr-2"></div>
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <span className="mr-2">🎯</span>
+                          Analyze Job Fit (1 credit)
+                        </>
+                      )}
+                    </Button>
+                  )}
+
                   <Button
                     onClick={handleStartInterview}
                     disabled={isLoading}
@@ -897,15 +967,97 @@ export default function InterviewPage() {
           </SheetContent>
         </Sheet>
 
+        {/* Job Fit Analysis Modal */}
+        <Sheet open={showFitAnalysis && !!fitAnalysis} onOpenChange={(open) => {
+          if (!open) {
+            setShowFitAnalysis(false);
+          }
+        }}>
+          <SheetContent className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto border-t-0 border-r-0 border-b-0 border-l-0 data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom">
+            <SheetHeader>
+              <SheetTitle className="text-green-800 dark:text-green-200 flex items-center">
+                <span className="mr-2">🎯</span>
+                Job Fit Analysis Results
+              </SheetTitle>
+            </SheetHeader>
+            <div className="py-6 space-y-6">
+              {fitAnalysis && (
+                <>
+                  <div className="flex items-center justify-center mb-6">
+                    <div className={`text-6xl font-bold ${fitAnalysis.rating >= 8 ? 'text-green-600' :
+                      fitAnalysis.rating >= 6 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                      {fitAnalysis.rating}/10
+                    </div>
+                    <div className="ml-6">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Fit Score</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        {fitAnalysis.rating >= 8 ? 'Excellent Match' :
+                          fitAnalysis.rating >= 6 ? 'Good Match' :
+                            fitAnalysis.rating >= 4 ? 'Fair Match' : 'Poor Match'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <Card className="dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                      <CardHeader>
+                        <CardTitle className="text-gray-900 dark:text-white">Analysis Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-gray-700 dark:text-gray-300">{fitAnalysis.aiFeedback}</p>
+                      </CardContent>
+                    </Card>
+
+                    {fitAnalysis.improvementSuggestions && fitAnalysis.improvementSuggestions.length > 0 && (
+                      <Card className="dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900 dark:text-white">Recommendations for Improvement</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                            {fitAnalysis.improvementSuggestions.map((suggestion, index) => (
+                              <li key={index}>{suggestion}</li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  <SheetFooter className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <Button variant="outline" onClick={() => setShowFitAnalysis(false)}>
+                      Close
+                    </Button>
+                    <Button onClick={() => {
+                      setShowFitAnalysis(false);
+                      // Optionally scroll to start interview section
+                      const element = document.querySelector('[data-testid="start-interview-button"]');
+                      element?.scrollIntoView({ behavior: 'smooth' });
+                    }}>
+                      Ready to Start Interview
+                    </Button>
+                  </SheetFooter>
+                </>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+
         {/* Payment Modal */}
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           paymentContext={paymentContext}
           onSuccess={() => {
-            // After successful payment, try starting the interview again
+            // After successful payment, try the appropriate action based on the payment context
             setShowPaymentModal(false);
-            handleStartInterview();
+            if (paymentContext.description.includes('Job fit analysis')) {
+              handleAnalyzeJobFit();
+            } else {
+              handleStartInterview();
+            }
           }}
         />
       </div>

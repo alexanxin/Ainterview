@@ -463,6 +463,135 @@ export class GeminiService {
       return `Similar question based on: ${originalQuestion}`;
     }
   }
+
+  async analyzeCV(
+    userProfile: {
+      bio?: string;
+      experience?: string;
+      education?: string;
+      skills?: string;
+    },
+    userId?: string,
+    onPaymentInitiated?: (message: string) => void,
+    onPaymentSuccess?: (message: string) => void,
+    onPaymentFailure?: (message: string) => void
+  ): Promise<{
+    aiFeedback: string;
+    improvementSuggestions: string[];
+    rating: number;
+  }> {
+    try {
+      // Use the unified API client
+      const data = await this.callGeminiAPI<{
+        aiFeedback: string;
+        improvementSuggestions: string[];
+        rating: number;
+      }>(
+        "analyzeCV",
+        {
+          context: userProfile,
+        },
+        userId,
+        undefined, // connection
+        undefined, // wallet
+        onPaymentInitiated,
+        onPaymentSuccess,
+        onPaymentFailure
+      );
+
+      return {
+        aiFeedback: data.aiFeedback,
+        improvementSuggestions: data.improvementSuggestions || [],
+        rating: data.rating || 5,
+      };
+    } catch (error) {
+      Logger.error("Error analyzing CV:", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+
+      if ((error as { status?: number }).status === 402) {
+        throw error; // Let 402 errors bubble up to page component
+      }
+      // Return fallback feedback if API call fails
+      return {
+        aiFeedback:
+          "Unable to analyze CV at this time. Please ensure your profile is complete and try again.",
+        improvementSuggestions: [
+          "Complete all sections of your profile",
+          "Ensure your experience is detailed and quantifiable",
+          "Include relevant education and certifications",
+        ],
+        rating: 5,
+      };
+    }
+  }
+
+  async analyzeJobFit(
+    jobPosting: string,
+    userCv: string,
+    userId?: string,
+    onPaymentInitiated?: (message: string) => void,
+    onPaymentSuccess?: (message: string) => void,
+    onPaymentFailure?: (message: string) => void
+  ): Promise<{
+    aiFeedback: string;
+    improvementSuggestions: string[];
+    rating: number;
+  }> {
+    try {
+      // Sanitize inputs
+      const sanitizedJobPosting = sanitizeInput(jobPosting);
+      const sanitizedUserCV = sanitizeInput(userCv);
+
+      // Use the unified API client
+      const data = await this.callGeminiAPI<{
+        aiFeedback: string;
+        improvementSuggestions: string[];
+        rating: number;
+      }>(
+        "analyzeJobFit",
+        {
+          context: {
+            jobPosting: sanitizedJobPosting,
+            userCv: sanitizedUserCV,
+          },
+        },
+        userId,
+        undefined, // connection
+        undefined, // wallet
+        onPaymentInitiated,
+        onPaymentSuccess,
+        onPaymentFailure
+      );
+
+      return {
+        aiFeedback: data.aiFeedback,
+        improvementSuggestions: data.improvementSuggestions || [],
+        rating: data.rating || 5,
+      };
+    } catch (error) {
+      Logger.error("Error analyzing job fit:", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+
+      if ((error as { status?: number }).status === 402) {
+        throw error; // Let 402 errors bubble up to page component
+      }
+      // Return fallback analysis if API call fails
+      return {
+        aiFeedback:
+          "Unable to analyze job fit at this time. Please try again later.",
+        improvementSuggestions: [
+          "Review the job requirements carefully",
+          "Highlight relevant experience in your profile",
+          "Consider how your skills match the role",
+        ],
+        rating: 5,
+      };
+    }
+  }
 }
 
 // Export a singleton instance

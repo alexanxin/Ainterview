@@ -14,6 +14,9 @@ import { parsePdfText } from '@/lib/pdf-parser';
 import { useToast } from '@/lib/toast';
 import { cacheRefreshService } from '@/lib/cache-refresh-service';
 import { StructuredData, pageSEO } from '@/lib/seo';
+import { geminiService } from '@/lib/gemini-service';
+import { checkCreditsBeforeOperation } from '@/lib/credit-service';
+import PaymentModal from '@/components/payment-modal';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -35,6 +38,18 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [cvAnalysis, setCvAnalysis] = useState<{
+    aiFeedback: string;
+    improvementSuggestions: string[];
+    rating: number;
+  } | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentContext, setPaymentContext] = useState({
+    description: '',
+    requiredCredits: 0,
+  });
   const { success, error, warning, info } = useToast();
 
   // Load user profile data when component mounts
@@ -310,6 +325,46 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAnalyzeCV = async () => {
+    if (!user) return;
+
+    // Check if profile has content
+    const hasContent = formData.bio || formData.experience || formData.education || formData.skills;
+    if (!hasContent) {
+      error('Please fill out your profile information before requesting CV analysis.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      // Perform CV analysis - credit checking is handled internally by the service
+      const analysis = await geminiService.analyzeCV({
+        bio: formData.bio || '',
+        experience: formData.experience || '',
+        education: formData.education || '',
+        skills: formData.skills || '',
+      }, user.id);
+
+      setCvAnalysis(analysis);
+      setShowAnalysis(true);
+      success('CV analysis completed successfully!');
+    } catch (err) {
+      console.error('Error analyzing CV:', err);
+      if ((err as { status?: number }).status === 402) {
+        setPaymentContext({
+          description: 'CV analysis costs 1 credit to provide personalized feedback on your resume quality and improvement suggestions.',
+          requiredCredits: 1,
+        });
+        setShowPaymentModal(true);
+      } else {
+        error('Failed to analyze CV. Please try again.');
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
@@ -466,6 +521,64 @@ export default function ProfilePage() {
                     />
                   </div>
 
+                  {/* CV Quality Analysis Section */}
+                  <div className="mt-8 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <h3 className="font-semibold text-green-800 dark:text-green-200 flex items-center">
+                          <span className="mr-2">📈</span>
+                          CV Quality Analysis
+                        </h3>
+                        <p className="text-green-700 dark:text-green-300 text-sm">
+                          Get AI-powered feedback on improving your resume quality (1 credit)
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleAnalyzeCV}
+                        disabled={isAnalyzing}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {isAnalyzing ? 'Analyzing...' : 'Analyze CV'}
+                      </Button>
+                    </div>
+
+                    {/* Analysis Results */}
+                    {showAnalysis && cvAnalysis && (
+                      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Analysis Results</h4>
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Quality Score:</span>
+                            <span className={`font-bold text-lg ${cvAnalysis.rating >= 8 ? 'text-green-600' :
+                              cvAnalysis.rating >= 6 ? 'text-yellow-600' :
+                                'text-red-600'
+                              }`}>
+                              {cvAnalysis.rating}/10
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <h5 className="font-medium text-gray-900 dark:text-white mb-2">Feedback:</h5>
+                            <p className="text-gray-700 dark:text-gray-300">{cvAnalysis.aiFeedback}</p>
+                          </div>
+
+                          {cvAnalysis.improvementSuggestions && cvAnalysis.improvementSuggestions.length > 0 && (
+                            <div>
+                              <h5 className="font-medium text-gray-900 dark:text-white mb-2">Improvement Suggestions:</h5>
+                              <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
+                                {cvAnalysis.improvementSuggestions.map((suggestion, index) => (
+                                  <li key={index}>{suggestion}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={isSaving}>
                       {isSaving ? 'Saving...' : 'Save Profile'}
@@ -474,6 +587,17 @@ export default function ProfilePage() {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Payment Modal */}
+            <PaymentModal
+              isOpen={showPaymentModal}
+              onClose={() => setShowPaymentModal(false)}
+              paymentContext={paymentContext}
+              onSuccess={() => {
+                setShowPaymentModal(false);
+                handleAnalyzeCV(); // Retry the analysis after payment
+              }}
+            />
           </div>
         </main>
       </div>

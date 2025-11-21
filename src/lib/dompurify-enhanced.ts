@@ -10,20 +10,41 @@ interface DOMPurifyConfig {
   KEEP_CONTENT?: boolean;
 }
 
+// Safe DOMPurify instance - works in browser and server with minimal setup
+const getPurify = (): DOMPurifyInstance => {
+  // In browser or when DOM is available, DOMPurify works directly
+  if (typeof window !== "undefined" && window.document) {
+    return DOMPurify;
+  }
+
+  // Server-side safety check - if no DOM, provide basic sanitization fallback
+  // This can happen in certain SSR environments where no DOM is available
+  if (typeof globalThis !== "undefined" && !globalThis.document) {
+    console.warn(
+      "DOMPurify running in server environment without DOM - using basic sanitization fallback"
+    );
+    return {
+      sanitize: (input: string, config?: DOMPurifyConfig) => {
+        // Basic HTML tag removal as fallback for server-side without DOM
+        return input
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+          .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+          .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+          .replace(/javascript:/gi, "")
+          .replace(/\bon\w+=/gi, "")
+          .trim();
+      },
+    };
+  }
+
+  // Default: use DOMPurify - it should handle server-side DOM environments
+  return DOMPurify;
+};
+
 // DOMPurify interface to avoid type issues
 interface DOMPurifyInstance {
   sanitize: (input: string, config?: DOMPurifyConfig) => string;
 }
-
-// Safe client-side DOMPurify instance
-let clientPurify: DOMPurifyInstance | null = null;
-
-const getClientPurify = (): DOMPurifyInstance => {
-  if (typeof window !== "undefined" && !clientPurify) {
-    clientPurify = DOMPurify as DOMPurifyInstance;
-  }
-  return clientPurify || (DOMPurify as DOMPurifyInstance);
-};
 
 // Enhanced sanitization for job postings and CV content
 export const sanitizeJobPosting = (
@@ -56,7 +77,7 @@ export const sanitizeJobPosting = (
   });
 
   // Sanitize with strict configuration for job content
-  const purify = getClientPurify();
+  const purify = getPurify();
   const sanitized = purify.sanitize(content, {
     ALLOWED_TAGS: [
       "b",
@@ -132,7 +153,7 @@ export const sanitizeUserCV = (
     }
   });
 
-  const purify = getClientPurify();
+  const purify = getPurify();
   const sanitized = purify.sanitize(content, {
     ALLOWED_TAGS: [
       "b",
@@ -211,7 +232,7 @@ export const sanitizeUserAnswer = (
     }
   });
 
-  const purify = getClientPurify();
+  const purify = getPurify();
   const sanitized = purify.sanitize(content, {
     ALLOWED_TAGS: ["b", "i", "em", "strong", "u", "p", "br"],
     ALLOWED_ATTR: ["title"],

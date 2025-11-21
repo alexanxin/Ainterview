@@ -118,6 +118,37 @@ export const validateAndSanitizeUserCV = (content: string) => {
   };
 };
 
+// More relaxed validation for CV analysis (doesn't require min length)
+export const validateAndSanitizeUserCVForAnalysis = (content: string) => {
+  try {
+    // Only check that it's a string and not excessively long
+    if (typeof content !== "string") {
+      throw new Error("CV content must be a string");
+    }
+    if (content.length > 50000) {
+      // Allow longer content for analysis
+      throw new Error("CV content is too long (max 50,000 characters)");
+    }
+
+    const sanitized = sanitizeUserCVSafe(content);
+    const fullResult = sanitizeUserCV(content);
+
+    return {
+      original: content,
+      sanitized,
+      validation: true,
+      threatsDetected: fullResult.threatsDetected,
+    };
+  } catch (error) {
+    // Ensure we throw proper Error objects, not empty objects
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error(`CV validation failed: ${String(error)}`);
+    }
+  }
+};
+
 export const validateAndSanitizeUserAnswer = (content: string) => {
   // User answers don't have specific schema validation but should be sanitized
   const sanitized = sanitizeUserAnswerSafe(content);

@@ -5,6 +5,7 @@ import { validateInterviewContext, sanitizeInput } from "@/lib/validations";
 import {
   validateAndSanitizeJobPosting,
   validateAndSanitizeUserCV,
+  validateAndSanitizeUserCVForAnalysis,
   validateAndSanitizeUserAnswer,
 } from "@/lib/validations-enhanced";
 import { getX402PaymentResponse } from "@/lib/x402-utils";
@@ -68,7 +69,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate and sanitize context if provided
-    if (context) {
+    // Skip validation for analyzeCV and analyzeJobFit which have different context structures
+    if (context && action !== "analyzeCV" && action !== "analyzeJobFit") {
       try {
         validateInterviewContext(context);
       } catch (validationError) {
@@ -100,6 +102,12 @@ export async function POST(req: NextRequest) {
     } else if (action === "generateSimilarQuestion") {
       // Don't charge for generating similar questions
       cost = 0; // No cost for question generation
+    } else if (action === "analyzeCV") {
+      // Charge for CV quality analysis
+      cost = 1; // 1 credit for CV analysis
+    } else if (action === "analyzeJobFit") {
+      // Charge for job fit analysis
+      cost = 1; // 1 credit for job fit analysis
     } else {
       // Default cost for other actions
       cost = 1;
@@ -309,6 +317,48 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({
             question:
               "How would you approach a similar challenge in a different context?",
+            remainingQuota: -1, // Unlimited for free interview
+            quotaInfo: {
+              used: 0,
+              total: 1, // One free interview
+              resetTime: new Date(
+                new Date().setHours(24, 0, 0, 0)
+              ).toISOString(),
+            },
+          });
+
+        case "analyzeCV":
+          return NextResponse.json({
+            aiFeedback:
+              "Your CV presents solid experience and relevant skills. The structure is clear and professional. Consider quantifying achievements with specific metrics and outcomes to make your experience more impactful. Adding more technical details and specific project contributions would strengthen your profile.",
+            improvementSuggestions: [
+              "Add specific metrics and quantifiable achievements to your experience section",
+              "Include more technical details about projects and tools used",
+              "Consider adding a summary section highlighting your key strengths",
+              "Ensure your skills section uses industry-standard terms and certifications",
+            ],
+            rating: 7,
+            remainingQuota: -1, // Unlimited for free interview
+            quotaInfo: {
+              used: 0,
+              total: 1, // One free interview
+              resetTime: new Date(
+                new Date().setHours(24, 0, 0, 0)
+              ).toISOString(),
+            },
+          });
+
+        case "analyzeJobFit":
+          return NextResponse.json({
+            aiFeedback:
+              "Based on your CV and experience, you appear to be a good fit for this position. Your technical background aligns well with the role requirements. However, there may be some gaps in specific skills or experience that could benefit from highlighting transferable skills or additional training.",
+            improvementSuggestions: [
+              "Highlight relevant transferable skills from your background",
+              "Consider gaining experience with specific tools mentioned in the job posting",
+              "Emphasize leadership and problem-solving abilities",
+              "Focus on achievements that demonstrate similar challenges overcome",
+            ],
+            rating: 8,
             remainingQuota: -1, // Unlimited for free interview
             quotaInfo: {
               used: 0,
@@ -1063,6 +1113,428 @@ export async function POST(req: NextRequest) {
 
           return NextResponse.json(
             { error: "Failed to generate similar interview question" },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case "analyzeCV":
+        if (!context) {
+          Logger.error("User profile data is required for CV analysis", {
+            userId,
+            action,
+          });
+          return NextResponse.json(
+            { error: "User profile data is required for CV analysis" },
+            { status: 400 }
+          );
+        }
+
+        const typedContextCV = context as {
+          bio?: string;
+          experience?: string;
+          education?: string;
+          skills?: string;
+        };
+
+        // Combine all profile sections
+        const fullCVText = [
+          typedContextCV.bio || "",
+          typedContextCV.experience || "",
+          typedContextCV.education || "",
+          typedContextCV.skills || "",
+        ]
+          .filter((section) => section.trim().length > 0)
+          .join("\n\n");
+
+        if (!fullCVText.trim()) {
+          Logger.error("Empty CV provided for analysis", { userId, action });
+          return NextResponse.json(
+            {
+              error:
+                "Please complete your profile before requesting CV analysis",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Validate and sanitize the CV content
+        let sanitizedCV: string;
+        try {
+          const cvValidationResult =
+            validateAndSanitizeUserCVForAnalysis(fullCVText);
+          if (cvValidationResult.threatsDetected.length > 0) {
+            Logger.warn("Threats detected in CV:", {
+              threats: cvValidationResult.threatsDetected,
+              userId,
+            });
+          }
+          sanitizedCV = cvValidationResult.sanitized;
+        } catch (validationError) {
+          Logger.error("CV validation failed:", {
+            validationError,
+            validationErrorMessage:
+              validationError instanceof Error
+                ? validationError.message
+                : String(validationError),
+            validationErrorStack:
+              validationError instanceof Error
+                ? validationError.stack
+                : undefined,
+            fullCVTextLength: fullCVText.length,
+            contextKeys: Object.keys(typedContextCV),
+            hasBio: !!typedContextCV.bio?.trim(),
+            hasExperience: !!typedContextCV.experience?.trim(),
+            hasEducation: !!typedContextCV.education?.trim(),
+            hasSkills: !!typedContextCV.skills?.trim(),
+            userId,
+          });
+          return NextResponse.json(
+            { error: "Invalid CV content provided" },
+            { status: 400 }
+          );
+        }
+
+        const cvAnalysisPrompt = `
+          Act as an experienced HR professional and career coach. Analyze the following CV/resume content and provide constructive feedback on its quality and effectiveness.
+
+          CV Content:
+          ${sanitizedCV}
+
+          Provide:
+          1. Overall assessment of CV quality and effectiveness (2-3 paragraphs)
+          2. 4-6 specific, actionable suggestions for improvement
+          3. A rating from 1-10 based on:
+
+          RATING CRITERIA:
+          10 - Exceptional CV: Comprehensive, error-free, ATS-friendly, perfectly tailored, quantifiable achievements, strong keywords
+          9 - Excellent CV: Very strong with minor improvements needed, well-structured, relevant experience highlighted
+          8 - Very Good CV: Solid foundation with several evident improvements needed, good structure but could be more impactful
+          7 - Good CV: Adequate but missing key elements like quantifiable achievements or skills section refinement
+          6 - Above Average: Basic structure present but significant improvements needed in content, clarity, or organization
+          5 - Average: Meets basic requirements but needs substantial work on formatting, content relevance, and impact
+          4 - Below Average: Serious issues with structure, content organization, or professional presentation
+          3 - Poor: Major gaps in content, unclear presentation, or outdated format
+          2 - Very Poor: Incomplete information, significant formatting issues, or inappropriate content
+          1 - Unacceptable: Fundamentally flawed, no clear value proposition, or highly unprofessional
+
+          Format your response exactly as:
+          FEEDBACK: [Your 2-3 paragraph comprehensive assessment here]
+
+          IMPROVEMENT SUGGESTIONS:
+          1. [Specific actionable suggestion 1]
+          2. [Specific actionable suggestion 2]
+          3. [Specific actionable suggestion 3]
+          4. [Specific actionable suggestion 4]
+          5. [Specific actionable suggestion 5]
+          6. [Specific actionable suggestion 6 - optional]
+
+          CV QUALITY RATING: [X]/10
+
+          Explain the rating briefly in 1-2 sentences.
+        `;
+
+        try {
+          const cvAnalysisResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced HR professional and career coach. Your role is to provide constructive, specific feedback on CVs and resumes. Evaluate the content based on completeness, clarity, professional presentation, and effectiveness for job applications. Be supportive but honest in your feedback, focusing on actionable improvements. Rate CVs from 1-10 based on overall quality and job-readiness.\n\n" +
+                      cvAnalysisPrompt,
+                  },
+                ],
+              },
+            ],
+          });
+          const cvAnalysisText = cvAnalysisResult.text || "";
+
+          // Parse the response more safely
+          let feedback = "No feedback provided";
+          let suggestions = ["No suggestions provided"];
+          let rating = 5;
+
+          try {
+            // Extract feedback (looks for text between FEEDBACK: and IMPROVEMENT SUGGESTIONS:)
+            const feedbackMatch = cvAnalysisText.match(
+              /FEEDBACK:\s*(.*?)(?=IMPROVEMENT SUGGESTIONS:|$)/s
+            );
+
+            // Extract suggestions (looks for numbered list after IMPROVEMENT SUGGESTIONS:)
+            const suggestionsSectionMatch = cvAnalysisText.match(
+              /IMPROVEMENT SUGGESTIONS:\s*(.*?)(?=CV QUALITY RATING:|$)/s
+            );
+
+            // Extract rating (looks for CV QUALITY RATING: X/10 pattern)
+            const ratingMatch = cvAnalysisText.match(
+              /CV QUALITY RATING:\s*(\d+)/
+            );
+
+            feedback = feedbackMatch
+              ? feedbackMatch[1].trim()
+              : "No feedback provided";
+
+            // Parse numbered suggestions if found
+            if (suggestionsSectionMatch) {
+              const suggestionsText = suggestionsSectionMatch[1];
+              // Split by numbered lines and extract the text after the numbers
+              const suggestionMatches = suggestionsText.matchAll(
+                /(\d+)\.\s*(.*?)(?=\n\d+\.|$)/gs
+              );
+              const extractedSuggestions: string[] = [];
+              for (const match of suggestionMatches) {
+                const suggestion = match[2]?.trim();
+                if (suggestion) {
+                  extractedSuggestions.push(suggestion);
+                }
+              }
+              suggestions =
+                extractedSuggestions.length > 0
+                  ? extractedSuggestions
+                  : ["No suggestions provided"];
+            } else {
+              suggestions = ["No suggestions provided"];
+            }
+
+            rating = ratingMatch ? parseInt(ratingMatch[1], 10) : 5;
+
+            // Ensure rating is within valid range (1-10)
+            rating = Math.min(10, Math.max(1, rating || 5));
+          } catch (parseError) {
+            Logger.error("Error parsing CV AI response:", {
+              parseError,
+              cvAnalysisText: cvAnalysisText.substring(0, 500),
+            });
+            feedback = "CV feedback available but could not be parsed properly";
+            suggestions = [
+              "Please review your CV for completeness and clarity",
+            ];
+          }
+
+          result = {
+            aiFeedback: feedback,
+            improvementSuggestions: suggestions,
+            rating,
+          };
+        } catch (geminiError) {
+          Logger.error("Error analyzing CV with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
+          return NextResponse.json(
+            { error: "Failed to analyze CV" },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case "analyzeJobFit":
+        if (!context) {
+          Logger.error("Context is required for job fit analysis", {
+            userId,
+            action,
+          });
+          return NextResponse.json(
+            { error: "Context is required for job fit analysis" },
+            { status: 400 }
+          );
+        }
+
+        const typedContextJobFit = context as InterviewContext;
+        if (!typedContextJobFit.jobPosting) {
+          Logger.error("Job posting is required for job fit analysis", {
+            userId,
+            action,
+          });
+          return NextResponse.json(
+            {
+              error: "Job posting is required for job fit analysis",
+            },
+            { status: 400 }
+          );
+        }
+
+        if (!typedContextJobFit.userCv) {
+          Logger.error("User CV is required for job fit analysis", {
+            userId,
+            action,
+          });
+          return NextResponse.json(
+            {
+              error: "User CV is required for job fit analysis",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Validate and sanitize all inputs
+        let sanitizedJobPosting: string;
+        let sanitizedUserCV: string;
+
+        try {
+          const jobPostingResult = validateAndSanitizeJobPosting(
+            typedContextJobFit.jobPosting
+          );
+          const userCVResult = validateAndSanitizeUserCV(
+            typedContextJobFit.userCv
+          );
+
+          if (jobPostingResult.threatsDetected.length > 0) {
+            Logger.warn("Threats detected in job posting:", {
+              threats: jobPostingResult.threatsDetected,
+              userId,
+            });
+          }
+
+          if (userCVResult.threatsDetected.length > 0) {
+            Logger.warn("Threats detected in user CV:", {
+              threats: userCVResult.threatsDetected,
+              userId,
+            });
+          }
+
+          sanitizedJobPosting = jobPostingResult.sanitized;
+          sanitizedUserCV = userCVResult.sanitized;
+        } catch (validationError) {
+          Logger.error("Job fit validation failed:", {
+            validationError,
+            userId,
+          });
+          return NextResponse.json(
+            { error: "Invalid job posting or CV content provided" },
+            { status: 400 }
+          );
+        }
+
+        const jobFitAnalysisPrompt = `
+          Act as an experienced HR professional. Analyze how well this candidate matches the job requirements by comparing their CV to the job posting.
+          
+          Job Posting:
+          ${sanitizedJobPosting}
+          
+          Candidate CV:
+          ${sanitizedUserCV}
+          
+          Provide:
+          1. Overall assessment of the candidate's fit for this role
+          2. 3-4 specific recommendations (strengths to highlight, gaps to address, areas for development)
+          3. A fit score from 1-10 based on skills, experience, and qualifications match
+          
+          Format your response as:
+          FEEDBACK: [Your comprehensive fit analysis here]
+          RECOMMENDATIONS: [Recommendation 1]; [Recommendation 2]; [Recommendation 3]; [Recommendation 4]
+          SCORE: [Number 1-10]
+        `;
+
+        try {
+          const jobFitAnalysisResult = await model.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      "You are an experienced HR professional specializing in talent assessment. Your role is to provide accurate, objective evaluations of candidate-job fit based on resumes/CVs and job descriptions. Consider skills, experience, qualifications, and cultural fit. Provide specific, actionable recommendations for candidates. Rate fit on a scale of 1-10 where 10 is a perfect match and 1 is no match at all.\n\n" +
+                      jobFitAnalysisPrompt,
+                  },
+                ],
+              },
+            ],
+          });
+          const jobFitAnalysisText = jobFitAnalysisResult.text || "";
+
+          // Parse the response more safely
+          let feedback = "No analysis provided";
+          let recommendations = ["No recommendations provided"];
+          let score = 5;
+
+          try {
+            const feedbackMatch = jobFitAnalysisText.match(
+              /FEEDBACK:\s*(.*?)(?=RECOMMENDATIONS:|$|SCORE:)/s
+            );
+            const recommendationsMatch = jobFitAnalysisText.match(
+              /RECOMMENDATIONS:\s*(.*?)(?=SCORE:|$)/s
+            );
+            const scoreMatch = jobFitAnalysisText.match(/SCORE:\s*(\d+)/);
+
+            feedback = feedbackMatch
+              ? feedbackMatch[1].trim()
+              : "No analysis provided";
+            recommendations = recommendationsMatch
+              ? recommendationsMatch[1]
+                  .split(";")
+                  .map((s) => s.trim())
+                  .filter((s) => s)
+              : ["No recommendations provided"];
+            score = scoreMatch ? parseInt(scoreMatch[1], 10) : 5;
+
+            // Ensure score is within valid range (1-10)
+            score = Math.min(10, Math.max(1, score || 5));
+          } catch (parseError) {
+            Logger.error("Error parsing job fit AI response:", { parseError });
+            feedback =
+              "Job fit analysis available but could not be parsed properly";
+            recommendations = [
+              "Please review how your experience aligns with the job requirements",
+            ];
+          }
+
+          result = {
+            aiFeedback: feedback,
+            improvementSuggestions: recommendations,
+            rating: score,
+          };
+        } catch (geminiError) {
+          Logger.error("Error analyzing job fit with Gemini:", {
+            error:
+              geminiError instanceof Error
+                ? geminiError.message
+                : String(geminiError),
+            userId,
+            action,
+          });
+
+          // Check if this is a rate limit error
+          if (
+            geminiError instanceof Error &&
+            geminiError.message.includes("Rate limit")
+          ) {
+            return NextResponse.json(
+              {
+                error: "Rate limit exceeded",
+                message: "Too many requests. Please try again later.",
+                retryAfter: 60, // Suggest retry after 60 seconds
+              },
+              { status: 429 }
+            );
+          }
+
+          return NextResponse.json(
+            { error: "Failed to analyze job fit" },
             { status: 500 }
           );
         }
