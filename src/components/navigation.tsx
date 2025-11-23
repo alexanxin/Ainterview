@@ -1,7 +1,9 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare, HelpCircle, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare, HelpCircle, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
   Sheet,
@@ -10,6 +12,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import CreditDisplay from '@/components/credit-display';
@@ -25,40 +33,50 @@ export default function Navigation() {
 
   const navItems = [
     {
-      name: 'AI Interview Practice',
+      name: 'My Resume',
       icon: FileText,
-      href: '/interview',
-      description: 'Practice interviews with AI job fit assessment'
+      href: '/profile',
+      description: 'Build and optimize your professional resume'
     },
     {
-      name: 'CV Analysis',
-      icon: User,
-      href: '/profile',
-      description: 'AI-powered CV review and optimization'
+      name: 'AI Interview Practice',
+      icon: MessageSquare,
+      href: '/interview',
+      description: 'Start personalized mock interviews with AI feedback'
+    },
+    {
+      name: 'Feedback & Practice',
+      icon: MessageSquare,
+      href: '/feedback',
+      description: 'Review AI analysis and practice responses'
     },
     {
       name: 'Progress Analytics',
       icon: BarChart3,
       href: '/dashboard',
-      description: 'Track your candidate preparation progress'
-    },
-    {
-      name: 'About Ainterview',
-      icon: Info,
-      href: '/about',
-      description: 'Complete AI candidate preparation platform'
-    },
-    {
-      name: 'Technology',
-      icon: Zap,
-      href: '/technology',
-      description: 'Secure micropayments for AI coaching'
+      description: 'Track your interview preparation progress'
     },
     {
       name: 'Help',
       icon: HelpCircle,
       href: '/help',
       description: 'Complete user guides and troubleshooting'
+    },
+  ];
+
+  // About section dropdown items
+  const aboutItems = [
+    {
+      name: 'About Ainterview',
+      icon: Info,
+      href: '/about',
+      description: 'How AI-powered interview prep works'
+    },
+    {
+      name: 'Technology',
+      icon: Zap,
+      href: '/technology',
+      description: 'Secure micropayments for AI coaching'
     },
   ];
 
@@ -112,12 +130,37 @@ export default function Navigation() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-4">
-          {navItems.map((item) => (
+          {/* My Resume item with floating start here badge */}
+          <div className="relative">
+            <Button
+              key="My Resume"
+              variant="ghost"
+              size="sm"
+              className="flex items-center space-x-2 hover:bg-[#32445b]"
+              onClick={async () => {
+                router.push('/profile');
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              <span>My Resume</span>
+            </Button>
+            {/* Floating badge positioned below */}
+            <div className="absolute mt-1 -left-22 top-0 hidden md:block">
+              <div className="relative">
+                {/* Badge */}
+                <Badge className="dark:bg-green-900/20 border dark:border-green-800 text-green-300/50 text-[10px] px-2 py-0 text-nowrap">
+                  start here →
+                </Badge>
+              </div>
+            </div>
+          </div>
+          {/* Other navigation items */}
+          {navItems.slice(1).map((item) => (
             <Button
               key={item.name}
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 hover:bg-[#32445b]"
               onClick={async () => {
                 router.push(item.href);
               }}
@@ -126,22 +169,37 @@ export default function Navigation() {
               <span>{item.name}</span>
             </Button>
           ))}
-          {user && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center space-x-2"
-              onClick={() => router.push('/profile')}
-            >
-              <User className="h-4 w-4" />
-              <span>Profile</span>
-            </Button>
-          )}
+          {/* About Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-2 hover:bg-[#32445b]"
+              >
+                <Info className="h-4 w-4" />
+                <span>About</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {aboutItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.name}
+                  onClick={() => router.push(item.href)}
+                  className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {user ? (
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 hover:bg-[#32445b]"
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
@@ -151,7 +209,7 @@ export default function Navigation() {
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 hover:bg-[#32445b]"
               onClick={handleSignIn}
             >
               <LogIn className="h-4 w-4" />
@@ -178,31 +236,48 @@ export default function Navigation() {
               <div className="flex items-center justify-between mb-4">
                 <CreditDisplay showTopUpButton={true} />
               </div>
-              {navItems.map((item) => (
+              {/* My Resume item with start here badge */}
+              <Button
+                key="My Resume"
+                variant="ghost"
+                className="justify-start hover:bg-[#32445b]"
+                onClick={() => handleNavigation('/profile')}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                <div className="flex items-center space-x-2">
+                  <span>My Resume</span>
+                  <Badge className="bg-green-500 text-white text-xs px-1 py-0">
+                    start here
+                  </Badge>
+                </div>
+              </Button>
+              {/* Other navigation items */}
+              {navItems.slice(1).map((item) => (
                 <Button
                   key={item.name}
                   variant="ghost"
-                  className="justify-start"
+                  className="justify-start hover:bg-[#32445b]"
                   onClick={() => handleNavigation(item.href)}
                 >
                   <item.icon className="mr-2 h-4 w-4" />
                   {item.name}
                 </Button>
               ))}
-              {user && (
+              {aboutItems.map((item) => (
                 <Button
+                  key={item.name}
                   variant="ghost"
-                  className="justify-start"
-                  onClick={() => handleNavigation('/profile')}
+                  className="justify-start hover:bg-[#32445b]"
+                  onClick={() => handleNavigation(item.href)}
                 >
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
+                  <item.icon className="mr-2 h-4 w-4" />
+                  {item.name}
                 </Button>
-              )}
+              ))}
               {user ? (
                 <Button
                   variant="ghost"
-                  className="justify-start"
+                  className="justify-start hover:bg-[#32445b]"
                   onClick={handleSignOut}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -211,7 +286,7 @@ export default function Navigation() {
               ) : (
                 <Button
                   variant="ghost"
-                  className="justify-start"
+                  className="justify-start hover:bg-[#32445b]"
                   onClick={handleSignIn}
                 >
                   <LogIn className="mr-2 h-4 w-4" />

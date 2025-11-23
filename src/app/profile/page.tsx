@@ -523,7 +523,7 @@ export default function ProfilePage() {
 
                   {/* CV Quality Analysis Section */}
                   <div className="mt-8 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center ">
                       <div>
                         <h3 className="font-semibold text-green-800 dark:text-green-200 flex items-center">
                           <span className="mr-2">📈</span>
@@ -533,13 +533,22 @@ export default function ProfilePage() {
                           Get AI-powered feedback on improving your resume quality (1 credit)
                         </p>
                       </div>
-                      <Button
-                        onClick={handleAnalyzeCV}
-                        disabled={isAnalyzing}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {isAnalyzing ? 'Analyzing...' : 'Analyze CV'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => router.push('/cv-analysis')}
+                          className="border border-input bg-background hover:bg-accent hover:text-accent-foreground  text-white"
+                        >
+                          Read More
+                        </Button>
+                        <Button
+                          onClick={handleAnalyzeCV}
+                          disabled={isAnalyzing}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {isAnalyzing ? 'Analyzing...' : 'Analyze CV'}
+                        </Button>
+                      </div>
+
                     </div>
 
                     {/* Analysis Results */}
