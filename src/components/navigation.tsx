@@ -136,7 +136,7 @@ export default function Navigation() {
               key="My Resume"
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 hover:bg-[#32445b]"
+              className="flex items-center space-x-2 hover:bg-[#78cd001c]"
               onClick={async () => {
                 router.push('/profile');
               }}
@@ -160,7 +160,7 @@ export default function Navigation() {
               key={item.name}
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 hover:bg-[#32445b]"
+              className="flex items-center space-x-2 hover:bg-[#78cd001c]"
               onClick={async () => {
                 router.push(item.href);
               }}
@@ -175,7 +175,7 @@ export default function Navigation() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="flex items-center space-x-2 hover:bg-[#32445b]"
+                className="flex items-center space-x-2 hover:bg-[#78cd001c]"
               >
                 <Info className="h-4 w-4" />
                 <span>About</span>
@@ -199,7 +199,7 @@ export default function Navigation() {
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 hover:bg-[#32445b]"
+              className="flex items-center space-x-2 hover:bg-[#78cd001c]"
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
@@ -209,7 +209,7 @@ export default function Navigation() {
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 hover:bg-[#32445b]"
+              className="flex items-center space-x-2 hover:bg-[#78cd001c]"
               onClick={handleSignIn}
             >
               <LogIn className="h-4 w-4" />
@@ -240,7 +240,7 @@ export default function Navigation() {
               <Button
                 key="My Resume"
                 variant="ghost"
-                className="justify-start hover:bg-[#32445b]"
+                className="justify-start hover:bg-[#78cd001c]"
                 onClick={() => handleNavigation('/profile')}
               >
                 <FileText className="mr-2 h-4 w-4" />
@@ -256,7 +256,7 @@ export default function Navigation() {
                 <Button
                   key={item.name}
                   variant="ghost"
-                  className="justify-start hover:bg-[#32445b]"
+                  className="justify-start hover:bg-[#78cd001c]"
                   onClick={() => handleNavigation(item.href)}
                 >
                   <item.icon className="mr-2 h-4 w-4" />
@@ -267,7 +267,7 @@ export default function Navigation() {
                 <Button
                   key={item.name}
                   variant="ghost"
-                  className="justify-start hover:bg-[#32445b]"
+                  className="justify-start hover:bg-[#78cd001c]"
                   onClick={() => handleNavigation(item.href)}
                 >
                   <item.icon className="mr-2 h-4 w-4" />
@@ -277,7 +277,7 @@ export default function Navigation() {
               {user ? (
                 <Button
                   variant="ghost"
-                  className="justify-start hover:bg-[#32445b]"
+                  className="justify-start hover:bg-[#78cd001c]"
                   onClick={handleSignOut}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -286,7 +286,7 @@ export default function Navigation() {
               ) : (
                 <Button
                   variant="ghost"
-                  className="justify-start hover:bg-[#32445b]"
+                  className="justify-start hover:bg-[#78cd001c]"
                   onClick={handleSignIn}
                 >
                   <LogIn className="mr-2 h-4 w-4" />
