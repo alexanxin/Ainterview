@@ -19,6 +19,9 @@ import { useToast } from '@/lib/toast';
 import { getUserProfile } from '@/lib/database';
 import { checkCreditsBeforeOperation } from '@/lib/credit-service';
 import PaymentModal from '@/components/payment-modal';
+import MobileFeedbackTabs from '@/components/feedback-tabs-mobile';
+import MobileFeedbackCarousel from '@/components/feedback-carousel-mobile';
+import { FileText, TrendingUp, BarChart3 } from 'lucide-react';
 
 interface FeedbackItem {
   id: string;
@@ -56,6 +59,9 @@ function FeedbackPageContent() {
     originalQuestion: string;
     selectedInterview: InterviewWithFeedback;
   } | null>(null);
+
+  // Mobile tab state
+  const [activeMobileTab, setActiveMobileTab] = useState<'sessions' | 'feedback' | 'insights'>('sessions');
 
   // Load interviews and feedback from database on component mount
   const loadInterviews = async (forceRefresh: boolean = false) => {
@@ -392,7 +398,7 @@ function FeedbackPageContent() {
       </div>
 
       <Navigation />
-      <main className="flex-1 p-4 relative z-10">
+      <main className="flex-1 p-4 relative z-10 lg:pb-0 pb-16">
         <div className="container mx-auto max-w-6xl py-8">
           <div className="mb-8 text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
@@ -403,9 +409,10 @@ function FeedbackPageContent() {
             </p>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-6">
+          {/* Desktop Layout (lg and up) */}
+          <div className="hidden lg:flex lg:flex-row gap-6">
             {/* Left sidebar: List of interviews */}
-            <div className="lg:w-1/3">
+            <div className="w-1/3">
               <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg flex flex-col">
                 <CardHeader className="border-b border-gray-200 dark:border-gray-700">
                   <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
@@ -413,7 +420,6 @@ function FeedbackPageContent() {
                       <span className="mr-2">📋</span>
                       Your Interview Sessions
                     </div>
-                    {/* Add refresh button for manual refresh */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -472,7 +478,7 @@ function FeedbackPageContent() {
             </div>
 
             {/* Right panel: Feedback details for selected interview */}
-            <div className="lg:w-2/3">
+            <div className="w-2/3">
               <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 h-full shadow-lg flex flex-col">
                 <CardHeader className="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                   <div className="flex justify-between items-center">
@@ -484,10 +490,7 @@ function FeedbackPageContent() {
                     </CardTitle>
                     <Button
                       className="bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90"
-                      onClick={() => {
-                        // "New Interview" should redirect directly without any credit checks
-                        router.push('/interview');
-                      }}
+                      onClick={() => router.push('/interview')}
                     >
                       <span className="mr-2">➕</span>
                       New Interview
@@ -572,7 +575,6 @@ function FeedbackPageContent() {
                                   onClick={() => handlePracticeSimilarQuestion(item.question)}
                                   disabled={isLoading}
                                 >
-                                  {/* <span className="mr-2">🔄</span> */}
                                   {isLoading ? 'Generating...' : 'Practice Similar Question'}
                                 </Button>
                               </div>
@@ -616,8 +618,153 @@ function FeedbackPageContent() {
               </Card>
             </div>
           </div>
+
+          {/* Mobile Layout */}
+          <div className="lg:hidden">
+            {/* Sessions Tab */}
+            {activeMobileTab === 'sessions' && (
+              <div className="space-y-6">
+                <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+                    <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
+                      <div className="flex items-center">
+                        <FileText className="mr-2 h-5 w-5" />
+                        Your Interview Sessions
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={refreshData}
+                        disabled={isLoading}
+                        className="text-xs"
+                      >
+                        🔄
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 max-h-[500px] overflow-y-auto">
+                    {interviews.length > 0 ? (
+                      <div className="space-y-4">
+                        {interviews.map((interview) => (
+                          <div
+                            key={interview.id}
+                            className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${selectedInterview?.id === interview.id
+                              ? 'bg-gradient-to-r from-green-100 to-lime-100 dark:from-green-900/30 dark:to-lime-900/30 border border-green-300 dark:border-green-700 shadow-sm'
+                              : 'bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600'
+                              }`}
+                            onClick={() => {
+                              setSelectedInterview(interview);
+                              setActiveMobileTab('feedback');
+                            }}
+                          >
+                            <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                              {interview.jobTitle}
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center mt-1">
+                              <span className="mr-2">🏢</span>
+                              {interview.company} • {new Date(interview.date).toLocaleDateString()}
+                            </p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 px-2 py-1 rounded-full">
+                                {interview.feedbackItems.length} items
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {interview.feedbackItems.length > 0 ? 'Completed' : 'No feedback'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-500 dark:text-gray-400 mb-4">No interview sessions yet.</p>
+                          <Button
+                            onClick={() => router.push('/interview')}
+                          >
+                            Start Interview Practice
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Feedback Tab */}
+            {activeMobileTab === 'feedback' && (
+              <div className="space-y-6">
+                {selectedInterview ? (
+                  <MobileFeedbackCarousel
+                    feedbackItems={selectedInterview.feedbackItems}
+                    onPracticeClick={handlePracticeSimilarQuestion}
+                  />
+                ) : (
+                  <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">Select a session from the Sessions tab to view feedback.</p>
+                      <Button onClick={() => setActiveMobileTab('sessions')}>
+                        Go to Sessions
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {/* Insights Tab */}
+            {activeMobileTab === 'insights' && (
+              <div className="space-y-6">
+                <Card className="dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+                    <CardTitle className="text-gray-900 dark:text-white flex items-center">
+                      <BarChart3 className="mr-2 h-5 w-5" />
+                      Performance Insights
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-700">
+                          <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">🎯 Overall Progress</h3>
+                          <p className="text-green-700 dark:text-green-300 text-sm">
+                            You've completed {interviews.length} interview{interviews.length !== 1 ? 's' : ''} with an average rating of {
+                              interviews.length > 0 ? (interviews.reduce((sum, interview) =>
+                                sum + interview.feedbackItems.reduce((itemSum, item) => itemSum + item.rating, 0) / interview.feedbackItems.length || 0, 0
+                              ) / interviews.length).toFixed(1) : '0'
+                            }/10 across {interviews.reduce((sum, interview) => sum + interview.feedbackItems.length, 0)} questions.
+                          </p>
+                        </div>
+
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-700">
+                          <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">📈 Improvement Areas</h3>
+                          <p className="text-blue-700 dark:text-blue-300 text-sm">
+                            Focus on behavioral questions and providing specific examples in your answers. Practice consistently to improve your overall confidence score.
+                          </p>
+                        </div>
+
+                        <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-700">
+                          <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">🏆 Achievement</h3>
+                          <p className="text-purple-700 dark:text-purple-300 text-sm">
+                            Great job on completing your practice sessions! Regular practice with AI feedback is the most effective way to improve your interview performance.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
         </div>
       </main>
+
+      {/* Mobile Tabs */}
+      <MobileFeedbackTabs
+        activeTab={activeMobileTab}
+        onTabChange={setActiveMobileTab}
+      />
 
       {/* Payment Modal */}
       <PaymentModal
