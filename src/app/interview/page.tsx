@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import CollapsibleFAQ from '@/components/collapsible-faq';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { RangeInput } from '@/components/ui/range-input';
@@ -23,6 +22,15 @@ import {
   sanitizeUserCVSafe,
   comprehensiveSanitize
 } from '@/lib/validations-enhanced';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import modal components to prevent hydration issues
+const Sheet = dynamic(() => import('@/components/ui/sheet').then(mod => mod.Sheet), { ssr: false });
+const SheetContent = dynamic(() => import('@/components/ui/sheet').then(mod => mod.SheetContent), { ssr: false });
+const SheetHeader = dynamic(() => import('@/components/ui/sheet').then(mod => mod.SheetHeader), { ssr: false });
+const SheetTitle = dynamic(() => import('@/components/ui/sheet').then(mod => mod.SheetTitle), { ssr: false });
+const SheetFooter = dynamic(() => import('@/components/ui/sheet').then(mod => mod.SheetFooter), { ssr: false });
 
 export default function InterviewPage() {
   const [jobPosting, setJobPosting] = useState('');
