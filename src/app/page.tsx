@@ -225,6 +225,57 @@ export default function Home() {
               ))}
             </div>
 
+            {/* AI Scoring Metric Highlight */}
+            <div className="mb-16">
+              <div className="max-w-4xl mx-auto bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-8 rounded-2xl border border-blue-200 dark:border-blue-800">
+                <div className="text-center">
+                  <div className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                    <span className="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></span>
+                    ✨ Amazing AI Metric Technology
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                    See the Exact Confidence Level of Your Interview Answers
+                  </h3>
+                  <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">
+                    Unlike other platforms that give generic feedback, our AI provides a precise confidence percentage for every response.
+                    Understand exactly how well your answers align with job requirements and get actionable insights to improve.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-white/60 dark:bg-gray-800/60 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 mb-1">🎯</div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Semantic Analysis</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        AI understands meaning, not just keywords - providing deeper, more accurate feedback.
+                      </p>
+                    </div>
+                    <div className="bg-white/60 dark:bg-gray-800/60 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 mb-1">📊</div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Detailed Scoring</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Get specific ratings out of 10 with explanations for why you received that score.
+                      </p>
+                    </div>
+                    <div className="bg-white/60 dark:bg-gray-800/60 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 mb-1">🚀</div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Actionable Insights</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Receive personalized recommendations to improve your interview performance.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="lg"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-500 hover:opacity-90 text-white px-8 py-4 text-lg"
+                    onClick={() => router.push('/scoring')}
+                  >
+                    Learn How Our AI Scoring Works →
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             {/* Conversion Teaser Section - Phase 2A Week 4 Implementation */}
             <div className="mb-16">
               <div className="max-w-4xl mx-auto bg-gradient-to-r from-green-50 to-lime-50 dark:from-green-900/20 dark:to-lime-900/20 p-8 rounded-2xl border border-green-200 dark:border-green-800">

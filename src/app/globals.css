@@ -120,3 +120,85 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles for feedback pages */
+@media print {
+  /* Hide navigation and layout elements */
+  nav,
+  .navigation,
+  .sidebar,
+  .footer,
+  .mobile-tabs,
+  .feedback-tabs-mobile,
+  .mobile-feedback-tabs,
+  [class*="navigation"],
+  [class*="sidebar"],
+  [class*="footer"],
+  [class*="mobile-tab"] {
+    display: none !important;
+  }
+
+  /* Hide buttons and interactive elements */
+  button,
+  .button,
+  [class*="button"],
+  [role="button"],
+  input,
+  select,
+  textarea,
+  .cursor-pointer {
+    display: none !important;
+  }
+
+  /* Make feedback content full width and black text */
+  .feedback-content,
+  .feedback-container,
+  [class*="feedback"] {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: black !important;
+    background: white !important;
+  }
+
+  /* Ensure all text is black for printing */
+  * {
+    color: black !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  /* Style feedback cards for printing */
+  .card,
+  [class*="card"] {
+    border: 1px solid #ccc !important;
+    margin-bottom: 20px !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Add page breaks between feedback items */
+  .feedback-item,
+  [class*="feedback-item"] {
+    page-break-after: always !important;
+    margin-bottom: 30px !important;
+  }
+
+  /* Hide gradients and backgrounds */
+  [class*="gradient"],
+  [class*="bg-gradient"] {
+    background: white !important;
+  }
+
+  /* Ensure proper spacing */
+  body {
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Hide mobile-specific elements */
+  [class*="lg:hidden"],
+  [class*="md:hidden"] {
+    display: none !important;
+  }
+}

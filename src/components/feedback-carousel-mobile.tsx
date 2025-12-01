@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Info } from 'lucide-react';
+import { useToast } from '@/lib/toast';
 
 interface FeedbackItem {
     id: string;
@@ -25,6 +26,7 @@ export default function MobileFeedbackCarousel({ feedbackItems, onPracticeClick 
     const [isTransitioning, setIsTransitioning] = useState(false);
     const touchStartX = useRef<number>(0);
     const touchEndX = useRef<number>(0);
+    const { success, error } = useToast();
 
     const handleNext = () => {
         if (currentIndex < feedbackItems.length - 1 && !isTransitioning) {
@@ -60,6 +62,34 @@ export default function MobileFeedbackCarousel({ feedbackItems, onPracticeClick 
             handleNext();
         } else if (isRightSwipe && currentIndex > 0) {
             handlePrev();
+        }
+    };
+
+    // Function to copy feedback to clipboard
+    const copyFeedbackToClipboard = async (item: FeedbackItem) => {
+        try {
+            const feedbackText = `
+Question: ${item.question}
+
+Your Answer:
+${item.answer}
+
+AI Feedback:
+${item.feedback}
+
+${item.suggestions && item.suggestions.length > 0 ? `Improvement Suggestions:
+${item.suggestions.map(suggestion => `• ${suggestion}`).join('\n')}
+
+` : ''}Rating: ${item.rating}/10
+
+Generated on: ${new Date(item.date).toLocaleDateString()}
+            `.trim();
+
+            await navigator.clipboard.writeText(feedbackText);
+            success('Feedback copied to clipboard! ✅');
+        } catch (err) {
+            console.error('Failed to copy feedback:', err);
+            error('Failed to copy feedback. Please try again.');
         }
     };
 
@@ -107,14 +137,21 @@ export default function MobileFeedbackCarousel({ feedbackItems, onPracticeClick 
                                         {item.question}
                                     </CardTitle>
                                     <div className="absolute top-4 right-4">
-                                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${item.rating >= 8
-                                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                            : item.rating >= 6
-                                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                            }`}>
-                                            {item.rating}/10
-                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${item.rating >= 8
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                                : item.rating >= 6
+                                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                                }`}>
+                                                {item.rating}/10
+                                            </span>
+                                            <span
+                                                title="Our AI compares your keywords against the job description using semantic analysis."
+                                            >
+                                                <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help" />
+                                            </span>
+                                        </div>
                                     </div>
                                 </CardHeader>
 
@@ -159,7 +196,17 @@ export default function MobileFeedbackCarousel({ feedbackItems, onPracticeClick 
                                         </details>
                                     )}
 
-                                    <div className="flex justify-center mt-4">
+                                    <div className="flex flex-col gap-2 mt-4">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => copyFeedbackToClipboard(item)}
+                                            className="flex items-center justify-center gap-2"
+                                            title="Copy feedback to clipboard"
+                                        >
+                                            <Copy className="h-4 w-4" />
+                                            Copy Feedback
+                                        </Button>
                                         <Button
                                             onClick={() => onPracticeClick(item.question)}
                                             className="bg-gradient-to-r from-green-600 to-lime-500 hover:opacity-90 text-white px-6 py-2 min-h-[44px]"
