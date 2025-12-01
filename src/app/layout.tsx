@@ -19,8 +19,9 @@ const geistMono = Geist_Mono({
 
 // Global SEO metadata
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.ainterview.app'),
   title: {
-    default: "Ainterview - AI-Powered Interview Preparation Platform",
+    default: "Free AI Mock Interview Practice (FAANG Style) | Ainterview",
     template: "%s | Ainterview"
   },
   description: "Master your interviews with AI-powered practice sessions. Get personalized questions based on job postings and company information. Start with 5 free credits!",
@@ -42,12 +43,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://ainterview.app',
+    url: 'https://www.ainterview.app',
     siteName: 'Ainterview',
-    title: "Ainterview - AI-Powered Interview Preparation Platform",
+    title: "Free AI Mock Interview Practice (FAANG Style) | Ainterview",
     description: "Master your interviews with AI-powered practice sessions. Get personalized questions based on job postings and company information. Start with 5 free credits!",
     images: [{
-      url: 'https://ainterview.app/logo.png',
+      url: 'https://www.ainterview.app/logo.png',
       width: 1200,
       height: 630,
       alt: 'Ainterview - AI Interview Preparation Platform',
@@ -55,14 +56,17 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Ainterview - AI-Powered Interview Preparation Platform",
+    title: "Free AI Mock Interview Practice (FAANG Style) | Ainterview",
     description: "Master your interviews with AI-powered practice sessions. Get personalized questions based on job postings and company information. Start with 5 free credits!",
-    images: ['https://ainterview.app/logo.png'],
+    images: ['https://www.ainterview.app/logo.png'],
     creator: '@Ainterview',
   },
   verification: {
     google: 'google-site-verification-code',
     yandex: 'yandex-verification-code',
+  },
+  alternates: {
+    canonical: '/',
   },
   manifest: "/manifest.json",
   other: {
@@ -92,7 +96,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Ainterview" />
         <link rel="icon" href="/logo.png" />
-        <link rel="canonical" href="https://ainterview.app" />
+        <link rel="canonical" href="https://www.ainterview.app" />
 
         {/* Additional SEO meta tags */}
         <meta name="revisit-after" content="7 days" />

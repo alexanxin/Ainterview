@@ -171,6 +171,25 @@ export default function Home() {
       {/* Structured Data for SEO */}
       <StructuredData config={pageSEO.homepage} />
 
+      {/* Additional WebApplication Schema for SameAs */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Ainterview",
+            "url": "https://www.ainterview.app",
+            "applicationCategory": "BusinessApplication",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          })
+        }}
+      />
+
       <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-gray-900 dark:to-black font-sans">
         {/* Animated gradient overlay */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
