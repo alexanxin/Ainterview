@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { CreditProvider } from "@/lib/credit-context";
 import { Toaster } from "sonner";
 import SolanaWalletProvider from "@/components/solana-wallet-provider";
+import ErrorBoundary from "@/components/error-boundary";
 
 
 const geistSans = Geist({
@@ -114,13 +115,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased dark:bg-gray-900 dark:text-gray-100`}
       >
-        <SolanaWalletProvider>
-          <AuthProvider>
-            <CreditProvider>
-              {children}
-            </CreditProvider>
-          </AuthProvider>
-        </SolanaWalletProvider>
+        <ErrorBoundary>
+          <SolanaWalletProvider>
+            <AuthProvider>
+              <CreditProvider>
+                {children}
+              </CreditProvider>
+            </AuthProvider>
+          </SolanaWalletProvider>
+        </ErrorBoundary>
         {/* Temporarily disabled Toaster due to DOM manipulation issues */}
         {/* <Toaster
           richColors
@@ -141,7 +144,8 @@ export default function RootLayout({
 
 
 
-        <script
+        {/* Temporarily disabled service worker due to potential DOM issues */}
+        {/* <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
@@ -157,7 +161,7 @@ export default function RootLayout({
               }
             `
           }}
-        />
+        /> */}
       </body>
     </html>
   );
