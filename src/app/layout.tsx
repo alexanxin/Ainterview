@@ -121,7 +121,8 @@ export default function RootLayout({
             </CreditProvider>
           </AuthProvider>
         </SolanaWalletProvider>
-        <Toaster
+        {/* Temporarily disabled Toaster due to DOM manipulation issues */}
+        {/* <Toaster
           richColors
           position="top-right"
           theme="dark"
@@ -136,7 +137,7 @@ export default function RootLayout({
               border: '1px solid #374151',
             },
           }}
-        />
+        /> */}
 
 
 
