@@ -125,6 +125,17 @@ export default function RootLayout({
           richColors
           position="top-right"
           theme="dark"
+          closeButton={false}
+          expand={false}
+          visibleToasts={3}
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1F2937',
+              color: '#F9FAFB',
+              border: '1px solid #374151',
+            },
+          }}
         />
 
 

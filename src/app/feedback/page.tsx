@@ -193,7 +193,19 @@ function FeedbackPageContent() {
 
   // Load interviews on component mount
   useEffect(() => {
-    loadInterviews();
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (isMounted) {
+        await loadInterviews();
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user, loading, router]);
 
   // Log component renders for performance monitoring
