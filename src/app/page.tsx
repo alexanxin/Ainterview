@@ -164,9 +164,9 @@ export default function Home() {
   return (
     <>
       <SEO
-        title="Ainterview: AI Candidate Preparation Platform - CV Analysis, Job Fit & Interview Practice"
-        description="Comprehensive AI-powered candidate preparation: Analyze your CV for improvements, assess job fit with detailed feedback, and practice interviews. Master the complete job application process with personalized AI coaching."
-        keywords="AI CV analysis, resume optimization, job fit analysis, candidate preparation AI, interview practice, technical interview training, CV review AI, job matching, career development"
+        title="Free AI Mock Interview Practice (FAANG Style) | Ainterview"
+        description="Master your interviews with AI-powered practice sessions. Get personalized questions based on job postings and company information. Start with 5 free credits!"
+        keywords="AI interview preparation, job interview practice, interview simulation, career preparation, AI interviewer, interview training, job search tools, interview feedback"
       />
       {/* Structured Data for SEO */}
       <StructuredData config={pageSEO.homepage} />
