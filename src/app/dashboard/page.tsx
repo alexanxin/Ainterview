@@ -147,8 +147,9 @@ export default function DashboardPage() {
     );
   }
 
-  // Show nothing while redirecting
+  // Redirect to auth if not logged in
   if (!user) {
+    router.push(`/auth?redirect=${encodeURIComponent('/dashboard')}`);
     return null;
   }
 

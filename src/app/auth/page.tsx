@@ -1,20 +1,24 @@
+// Force dynamic rendering to avoid useSearchParams hydration issues
 'use client';
+export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/navigation';
 import { useAuth } from '@/lib/auth-context';
 
-export default function AuthPage() {
+function AuthPageContent() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { sendOtp } = useAuth();
+  const redirectPath = searchParams.get('redirect') || '/dashboard';
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,5 +112,37 @@ export default function AuthPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 to-lime-50 dark:from-gray-900/20 dark:to-gray-950">
+        <Navigation />
+        <main className="flex-1 p-4">
+          <div className="container mx-auto max-w-md py-12 px-4">
+            <Card className="shadow-xl dark:bg-gray-800">
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-white">
+                  <img src="/logo.png" alt="Ainterview Logo" className="h-full w-full p-2" />
+                </div>
+                <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Loading...
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Please wait...
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center py-12">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    }>
+      <AuthPageContent />
+    </Suspense>
   );
 }

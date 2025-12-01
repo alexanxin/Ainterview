@@ -124,8 +124,7 @@ export default function RootLayout({
             </AuthProvider>
           </SolanaWalletProvider>
         </ErrorBoundary>
-        {/* Temporarily disabled Toaster due to DOM manipulation issues */}
-        {/* <Toaster
+        <Toaster
           richColors
           position="top-right"
           theme="dark"
@@ -140,12 +139,11 @@ export default function RootLayout({
               border: '1px solid #374151',
             },
           }}
-        /> */}
+        />
 
 
 
-        {/* Temporarily disabled service worker due to potential DOM issues */}
-        {/* <script
+        <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
@@ -161,7 +159,7 @@ export default function RootLayout({
               }
             `
           }}
-        /> */}
+        />
       </body>
     </html>
   );

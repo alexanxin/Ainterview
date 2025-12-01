@@ -76,12 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const sendOtp = async (email: string) => {
+    // Get redirect path from URL params if available
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirectTo = urlParams.get('redirect') || '/dashboard';
+
     // Send OTP via email
     return await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
       },
     });
   };

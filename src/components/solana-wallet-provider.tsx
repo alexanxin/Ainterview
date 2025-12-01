@@ -30,11 +30,9 @@ export default function SolanaWalletProvider({ children }: { children: React.Rea
     return (
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider wallets={wallets} autoConnect={false}>
-                {/* Temporarily disabled WalletModalProvider due to DOM manipulation issues */}
-                {/* <WalletModalProvider>
+                <WalletModalProvider>
                     {children}
-                </WalletModalProvider> */}
-                {children}
+                </WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>
     );

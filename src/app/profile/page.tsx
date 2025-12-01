@@ -104,8 +104,9 @@ export default function ProfilePage() {
     );
   }
 
-  // Show nothing while redirecting
+  // Redirect to auth if not logged in
   if (!user) {
+    router.push(`/auth?redirect=${encodeURIComponent('/profile')}`);
     return null;
   }
 
