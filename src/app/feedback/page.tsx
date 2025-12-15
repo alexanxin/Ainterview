@@ -17,8 +17,7 @@ import {
 import { geminiService } from '@/lib/gemini-service';
 import { useToast } from '@/lib/toast';
 import { getUserProfile } from '@/lib/database';
-import { checkCreditsBeforeOperation } from '@/lib/credit-service';
-import PaymentModal from '@/components/payment-modal';
+
 import MobileFeedbackTabs from '@/components/feedback-tabs-mobile';
 import MobileFeedbackCarousel from '@/components/feedback-carousel-mobile';
 import { FileText, TrendingUp, BarChart3, Copy, Check, Info, Printer } from 'lucide-react';
@@ -50,15 +49,7 @@ function FeedbackPageContent() {
   const [selectedInterview, setSelectedInterview] = useState<InterviewWithFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentContext, setPaymentContext] = useState({
-    description: '',
-    requiredCredits: 0,
-  });
-  const [pendingPracticeOperation, setPendingPracticeOperation] = useState<{
-    originalQuestion: string;
-    selectedInterview: InterviewWithFeedback;
-  } | null>(null);
+
 
   // Mobile tab state
   const [activeMobileTab, setActiveMobileTab] = useState<'sessions' | 'feedback' | 'insights'>('sessions');
@@ -270,95 +261,51 @@ function FeedbackPageContent() {
     setIsLoading(true);
     localStorage.setItem('practiceLoading', 'true');
 
-    // Store the current state for restoration after payment
-    const practiceContext = {
-      originalQuestion,
-      selectedInterview,
-      timestamp: Date.now()
-    };
-    localStorage.setItem('practiceContext', JSON.stringify(practiceContext));
-
     try {
-      // Check if user has sufficient credits for re-answering a question (1 credit)
-      const result = await checkCreditsBeforeOperation('reanswer_question', {
-        operation: 'reanswer_question',
-        numberOfQuestions: 1, // Practice similar question only costs 1 credit
-      });
-
-      if (result.sufficientCredits) {
-        // User has enough credits, proceed with generating similar question
-        try {
-          // Get the user's profile to get CV information
-          let userCv = '';
-          if (user) {
-            const profile = await getUserProfile(user.id);
-            if (profile) {
-              const sections = [];
-              if (profile.bio) sections.push(`Bio:\n${profile.bio}`);
-              if (profile.experience) sections.push(`Experience:\n${profile.experience}`);
-              if (profile.education) sections.push(`Education:\n${profile.education}`);
-              if (profile.skills) sections.push(`Skills:\n${profile.skills}`);
-              userCv = sections.join('\n\n');
-            }
-          }
-
-          // Get the context from the selected interview
-          const context = {
-            jobPosting: selectedInterview.jobTitle + ' ' + selectedInterview.company,
-            companyInfo: selectedInterview.company,
-            userCv: userCv,
-          };
-
-          // Generate a similar question based on the original question
-          const similarQuestion = await geminiService.generateSimilarQuestion(
-            context,
-            originalQuestion
-          );
-
-          // Store the context in localStorage for the interview session
-          localStorage.setItem('interviewJobPosting', selectedInterview.jobTitle + ' ' + selectedInterview.company);
-          localStorage.setItem('interviewCv', userCv);
-          localStorage.setItem('interviewCompanyInfo', selectedInterview.company);
-
-          // Also store the generated similar question for the interview session
-          localStorage.setItem('practiceQuestion', similarQuestion);
-          localStorage.setItem('practiceMode', 'true'); // Indicate this is practice mode
-          localStorage.setItem('practiceLoading', 'false'); // Clear loading flag
-
-          // Navigate to the interview session page
-          router.push('/interview/session');
-        } catch (err) {
-          console.error('Error generating similar question:', err);
-          error('Failed to generate similar question. Please try again.');
-          setIsLoading(false);
-          localStorage.setItem('practiceLoading', 'false');
-          localStorage.removeItem('practiceContext');
+      // Get the user's profile to get CV information
+      let userCv = '';
+      if (user) {
+        const profile = await getUserProfile(user.id);
+        if (profile) {
+          const sections = [];
+          if (profile.bio) sections.push(`Bio:\n${profile.bio}`);
+          if (profile.experience) sections.push(`Experience:\n${profile.experience}`);
+          if (profile.education) sections.push(`Education:\n${profile.education}`);
+          if (profile.skills) sections.push(`Skills:\n${profile.skills}`);
+          userCv = sections.join('\n\n');
         }
-      } else {
-        // User doesn't have enough credits, show payment modal
-        setPaymentContext({
-          description: `You need 1 credit to practice a similar question, but you only have ${result.currentCredits} credits.`,
-          requiredCredits: result.requiredCredits,
-        });
-        // Store the pending operation for retry after payment
-        setPendingPracticeOperation({
-          originalQuestion,
-          selectedInterview
-        });
-        setShowPaymentModal(true);
-        // Keep loading state until payment is handled
       }
+
+      // Get the context from the selected interview
+      const context = {
+        jobPosting: selectedInterview.jobTitle + ' ' + selectedInterview.company,
+        companyInfo: selectedInterview.company,
+        userCv: userCv,
+      };
+
+      // Generate a similar question based on the original question
+      const similarQuestion = await geminiService.generateSimilarQuestion(
+        context,
+        originalQuestion
+      );
+
+      // Store the context in localStorage for the interview session
+      localStorage.setItem('interviewJobPosting', selectedInterview.jobTitle + ' ' + selectedInterview.company);
+      localStorage.setItem('interviewCv', userCv);
+      localStorage.setItem('interviewCompanyInfo', selectedInterview.company);
+
+      // Also store the generated similar question for the interview session
+      localStorage.setItem('practiceQuestion', similarQuestion);
+      localStorage.setItem('practiceMode', 'true'); // Indicate this is practice mode
+      localStorage.setItem('practiceLoading', 'false'); // Clear loading flag
+
+      // Navigate to the interview session page
+      router.push('/interview/session');
     } catch (err) {
-      console.error('Error checking credits:', err);
-      error('An error occurred while checking your credits. Please try again.');
+      console.error('Error generating similar question:', err);
+      error('Failed to generate similar question. Please try again.');
       setIsLoading(false);
       localStorage.setItem('practiceLoading', 'false');
-      localStorage.removeItem('practiceContext');
-    } finally {
-      // Only clear loading if we're not in payment flow
-      if (!showPaymentModal) {
-        setIsLoading(false);
-      }
     }
   };
 
@@ -1049,58 +996,7 @@ ${'-'.repeat(60)}
         onTabChange={setActiveMobileTab}
       />
 
-      {/* Payment Modal */}
-      < PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => {
-          setShowPaymentModal(false);
-          setPendingPracticeOperation(null); // Clear pending operation on cancel
-          setIsLoading(false); // Reset loading state
-          localStorage.setItem('practiceLoading', 'false'); // Clear loading flag
-          localStorage.removeItem('practiceContext'); // Clean up practice context
-        }
-        }
-        paymentContext={paymentContext}
-        onSuccess={() => {
-          // After successful payment, retry the pending operation
-          setShowPaymentModal(false);
 
-          if (pendingPracticeOperation) {
-            // Retry the practice question generation
-            const { originalQuestion, selectedInterview } = pendingPracticeOperation;
-            setPendingPracticeOperation(null); // Clear the pending operation
-            localStorage.setItem('practiceLoading', 'true'); // Restore loading state
-
-            // Use setTimeout to ensure the modal closes first
-            setTimeout(async () => {
-              try {
-                await handlePracticeSimilarQuestionAfterPayment(originalQuestion, selectedInterview);
-              } finally {
-                setIsLoading(false);
-              }
-            }, 100);
-          } else {
-            // Check if we have a stored practice context from navigation
-            const practiceContext = localStorage.getItem('practiceContext');
-            if (practiceContext) {
-              const { originalQuestion, selectedInterview } = JSON.parse(practiceContext);
-              setIsLoading(true);
-              localStorage.setItem('practiceLoading', 'true');
-
-              setTimeout(async () => {
-                try {
-                  await handlePracticeSimilarQuestionAfterPayment(originalQuestion, selectedInterview);
-                } finally {
-                  setIsLoading(false);
-                }
-              }, 100);
-            } else {
-              // Fallback - just show success message
-              success('Payment successful! You can now continue using the service.');
-            }
-          }
-        }}
-      />
     </div >
   );
 }

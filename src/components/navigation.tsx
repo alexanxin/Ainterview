@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { User, Menu, Home, FileText, LogOut, LogIn, BarChart3, Info, MessageSquare, HelpCircle, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
   DropdownMenu,
@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { getCompanyByUserId } from '@/lib/database';
 import CreditDisplay from '@/components/credit-display';
-import { handleCreditCheckAndRedirect } from '@/lib/credit-service';
+
 
 // Dynamically import modal components to prevent hydration issues
 const Sheet = dynamic(() => import('@/components/ui/sheet').then(mod => mod.Sheet), { ssr: false });
@@ -26,11 +27,35 @@ const SheetTrigger = dynamic(() => import('@/components/ui/sheet').then(mod => m
 
 export default function Navigation() {
   const [open, setOpen] = useState(false);
+  const [hasCompanyAccount, setHasCompanyAccount] = useState(false);
+  const [companyCheckLoading, setCompanyCheckLoading] = useState(true);
   const router = useRouter();
 
   // Use the context inside this component but handle errors gracefully
   const authContext = useAuth();
   const { user, signOut } = authContext;
+
+  // Check if user has a company account
+  useEffect(() => {
+    const checkCompanyAccount = async () => {
+      if (user) {
+        try {
+          const company = await getCompanyByUserId(user.id);
+          setHasCompanyAccount(!!company);
+        } catch (error) {
+          console.error('Error checking company account:', error);
+          setHasCompanyAccount(false);
+        } finally {
+          setCompanyCheckLoading(false);
+        }
+      } else {
+        setHasCompanyAccount(false);
+        setCompanyCheckLoading(false);
+      }
+    };
+
+    checkCompanyAccount();
+  }, [user]);
 
   const navItems = [
     {
@@ -118,15 +143,19 @@ export default function Navigation() {
   return (
     <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <div
-          className="flex items-center cursor-pointer"
-          onClick={() => router.push('/')}
-        >
-          <img src="/logo.png" alt="Ainterview Logo" className="mr-2 h-10 w-10" />
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Ainterview
-          </h1>
-          <CreditDisplay className="ml-4" showTopUpButton={true} />
+        <div className="flex items-center space-x-4">
+          <div
+            className="flex items-center cursor-pointer"
+            onClick={() => router.push('/')}
+          >
+            <img src="/logo.png" alt="Ainterview Logo" className="mr-2 h-10 w-10" />
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              Ainterview
+            </h1>
+          </div>
+
+          {/* Credits Display */}
+          {user && <CreditDisplay className="hidden md:flex" showTopUpButton={false} />}
         </div>
 
         {/* Desktop Navigation */}
@@ -170,43 +199,9 @@ export default function Navigation() {
               <span>{item.name}</span>
             </Button>
           ))}
-          {/* About Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center space-x-2 hover:bg-[#78cd001c]"
-              >
-                <Info className="h-4 w-4" />
-                <span>About</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {aboutItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.name}
-                  onClick={() => router.push(item.href)}
-                  className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.name}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {user ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center space-x-2 hover:bg-[#78cd001c]"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-              <span></span>
-            </Button>
-          ) : (
+
+          {/* Show Sign In when user is not logged in, otherwise show unified profile dropdown */}
+          {!user ? (
             <Button
               variant="ghost"
               size="sm"
@@ -216,6 +211,114 @@ export default function Navigation() {
               <LogIn className="h-4 w-4" />
               <span>Sign In</span>
             </Button>
+          ) : (
+            <div className="flex items-center space-x-2">
+              {/* Unified Profile/Company Dropdown */}
+              <div className="relative">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center space-x-2 hover:bg-[#78cd001c]"
+                      disabled={false}
+                    >
+                      <User className="h-4 w-4" />
+                      <span>Profile</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-56"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
+                    {/* Personal Profile Items */}
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        router.push('/profile');
+                      }}
+                      className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                    >
+                      <User className="h-4 w-4" />
+                      <span>My Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        router.push('/dashboard');
+                      }}
+                      className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span>My Dashboard</span>
+                    </DropdownMenuItem>
+
+                    {/* Company Section - Only show if user has company account */}
+                    {!companyCheckLoading && hasCompanyAccount && (
+                      <>
+                        <div className="border-t my-1" />
+                        <div className="px-2 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">Company</div>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            router.push('/b2b/dashboard');
+                          }}
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          <span>Company Dashboard</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            router.push('/b2b/job-posts');
+                          }}
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Job Posts</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            router.push('/b2b/responses');
+                          }}
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Applications</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            router.push('/b2b/credits/purchase');
+                          }}
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                        >
+                          <Zap className="h-4 w-4" />
+                          <span>Buy Credits</span>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+
+                    {/* Sign Out */}
+                    <div className="border-t my-1" />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSignOut();
+                      }}
+                      className="flex items-center space-x-2 cursor-pointer hover:bg-green-900/30"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Sign Out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
           )}
         </nav>
 
@@ -233,10 +336,16 @@ export default function Navigation() {
                 Ainterview Menu
               </SheetTitle>
             </SheetHeader>
-            <div className="flex flex-col space-y-2 mt-6">
-              <div className="flex items-center justify-between mb-4">
+
+            {/* Mobile Credits Display */}
+            {user && (
+              <div className="mt-4 px-4">
                 <CreditDisplay showTopUpButton={true} />
               </div>
+            )}
+
+            <div className="flex flex-col space-y-2 mt-6">
+
               {/* My Resume item with start here badge */}
               <Button
                 key="My Resume"
@@ -252,6 +361,7 @@ export default function Navigation() {
                   </Badge>
                 </div>
               </Button>
+
               {/* Other navigation items */}
               {navItems.slice(1).map((item) => (
                 <Button
@@ -264,6 +374,7 @@ export default function Navigation() {
                   {item.name}
                 </Button>
               ))}
+
               {aboutItems.map((item) => (
                 <Button
                   key={item.name}
@@ -275,15 +386,73 @@ export default function Navigation() {
                   {item.name}
                 </Button>
               ))}
+
+              {/* Company items for mobile - only show if user has company account */}
+              {user && !companyCheckLoading && hasCompanyAccount && (
+                <>
+                  <div className="border-t my-2" />
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/b2b/dashboard')}
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Company Dashboard
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/b2b/job-posts')}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Job Posts
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/b2b/responses')}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Applications
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/b2b/credits/purchase')}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    Buy Credits
+                  </Button>
+                </>
+              )}
+
               {user ? (
-                <Button
-                  variant="ghost"
-                  className="justify-start hover:bg-[#78cd001c]"
-                  onClick={handleSignOut}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/profile')}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    My Profile
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={() => handleNavigation('/dashboard')}
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="justify-start hover:bg-[#78cd001c]"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </Button>
+                </>
               ) : (
                 <Button
                   variant="ghost"

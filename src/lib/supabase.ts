@@ -20,6 +20,7 @@ export const supabase =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : {
         auth: {
+          getUser: async () => ({ data: { user: null }, error: null }),
           getSession: async () => ({ data: { session: null }, error: null }),
           onAuthStateChange: () => ({
             data: { subscription: { unsubscribe: () => {} } },

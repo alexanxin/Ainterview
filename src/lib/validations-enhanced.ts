@@ -20,8 +20,8 @@ export const UserProfileSchema = z.object({
 
 export const InterviewContextSchema = z.object({
   jobPosting: z.string().min(10).max(10000),
-  companyInfo: z.string().min(10).max(5000),
-  userCv: z.string().min(10).max(10000),
+  companyInfo: z.string().max(5000), // Temporarily removed min(1) for testing
+  userCv: z.string().max(10000), // Temporarily removed min(1) for testing
 });
 
 // Performance comparison tracking

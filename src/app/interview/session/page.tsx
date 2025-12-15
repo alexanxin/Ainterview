@@ -689,12 +689,27 @@ export default function InterviewSessionPage() {
   };
 
   const completeInterviewWithBatchEvaluation = async (allAnswers: string[], isResume: boolean = false) => {
+    console.log('🔄 STEP 1: Starting completeInterviewWithBatchEvaluation');
+    console.log('📊 Input data:', {
+      allAnswersCount: allAnswers.length,
+      questionsCount: questions.length,
+      isResume,
+      hasInterviewContext: !!interviewContext,
+      interviewSessionId,
+      userId: user?.id
+    });
+
     if (!interviewContext) {
+      console.log('❌ STEP 1.1: No interview context - exiting early');
       if (!isResume) setIsLoading(false);
       return;
     }
 
+    console.log('✅ STEP 1.2: Interview context validated');
+
     try {
+      console.log('🔄 STEP 2: Starting batch evaluation with Gemini AI');
+
       // Perform batch evaluation using Gemini
       const batchAnalysis = await geminiService.batchEvaluateAnswers(
         interviewContext,
@@ -704,6 +719,7 @@ export default function InterviewSessionPage() {
         connection, // Solana connection
         walletAdapter, // Solana wallet
         (message) => {
+          console.log('💳 STEP 2.1: Payment initiated callback triggered - this should not happen');
           // onPaymentInitiated - This should not happen in the centralized system
           // Users should have been redirected to payment before reaching this point
           console.warn('Payment initiated during batch evaluation - this should not happen in centralized system');
@@ -718,15 +734,28 @@ export default function InterviewSessionPage() {
         (message) => error(message) // onPaymentFailure
       );
 
+      console.log('✅ STEP 2.2: Batch evaluation completed successfully');
+      console.log('📊 Batch analysis result:', {
+        hasEvaluations: !!batchAnalysis.evaluations,
+        evaluationsCount: batchAnalysis.evaluations?.length,
+        hasRemainingQuota: typeof batchAnalysis.remainingQuota === 'number'
+      });
+
+      console.log('🔄 STEP 3: Starting database storage operations');
+
       // Store all answers and their evaluations in the database
       if (interviewSessionId) {
+        console.log('🔄 STEP 3.1: Processing answers for database storage');
         // Process each answer and its evaluation
         for (let i = 0; i < questions.length; i++) {
+          console.log(`🔄 STEP 3.2: Processing answer ${i + 1}/${questions.length}`);
           try {
             // Get the actual question ID from the database
             let question = await getQuestionBySessionAndNumber(interviewSessionId, i + 1);
+            console.log(`🔄 STEP 3.3: Question ${i + 1} lookup result:`, { found: !!question, questionId: question?.id });
 
             if (!question) {
+              console.log(`🔄 STEP 3.4: Creating missing question ${i + 1}`);
               // Question might not be created yet, try to create it now
               const questionData = {
                 session_id: interviewSessionId,
@@ -737,12 +766,14 @@ export default function InterviewSessionPage() {
               const newQuestion = await createInterviewQuestion(questionData);
               if (newQuestion && newQuestion.id) {
                 question = newQuestion;
+                console.log(`✅ STEP 3.5: Question ${i + 1} created successfully:`, newQuestion.id);
               } else {
-                // Log error to console but don't show to user as it's a background operation
+                console.log(`❌ STEP 3.6: Failed to create question ${i + 1}`);
               }
             }
 
-            if (question && question.id) {
+            if (question?.id) {
+              console.log(`🔄 STEP 3.7: Creating answer record for question ${i + 1}`);
               // Get the evaluation for this specific question
               const evaluation = batchAnalysis.evaluations[i];
 
@@ -756,10 +787,12 @@ export default function InterviewSessionPage() {
               };
 
               await createInterviewAnswer(answerData);
+              console.log(`✅ STEP 3.8: Answer ${i + 1} stored successfully`);
             } else {
-              // Log error to console but don't show to user as it's a background operation
+              console.log(`❌ STEP 3.9: No valid question found for answer ${i + 1}`);
             }
           } catch (dbError) {
+            console.log(`❌ STEP 3.10: Database error for answer ${i + 1}:`, dbError);
             // Fallback to localStorage if database storage fails
             const feedbackItem = {
               id: `feedback_${Date.now()}_${i}`,
@@ -776,9 +809,15 @@ export default function InterviewSessionPage() {
             // Add new feedback and save back to localStorage
             const updatedFeedback = [feedbackItem, ...existingFeedback];
             localStorage.setItem('interviewFeedback', JSON.stringify(updatedFeedback));
+            console.log(`✅ STEP 3.11: Answer ${i + 1} stored in localStorage fallback`);
           }
         }
+        console.log('✅ STEP 3.12: Database storage operations completed');
+      } else {
+        console.log('⚠️ STEP 3.13: No interview session ID - skipping database storage');
       }
+
+      console.log('🔄 STEP 4: Starting localStorage operations');
 
       // Save completed interview to localStorage for dashboard
       const completedInterview = {
@@ -792,18 +831,22 @@ export default function InterviewSessionPage() {
         completed: true
       };
 
+      console.log('🔄 STEP 4.1: Saving completed interview to localStorage');
       // Get existing interviews from localStorage
       const existingInterviews = JSON.parse(localStorage.getItem('interviews') || '[]');
       // Add new interview and save back to localStorage
       const updatedInterviews = [completedInterview, ...existingInterviews];
       localStorage.setItem('interviews', JSON.stringify(updatedInterviews));
+      console.log('✅ STEP 4.2: Interview saved to localStorage successfully');
 
       setInterviewCompleted(true);
+      console.log('✅ STEP 4.3: Interview completion state set');
 
       // Update the interview session as completed in the database
       if (interviewSessionId && user?.id) {
+        console.log('🔄 STEP 5: Starting database session completion');
         try {
-          console.log('🔄 MARKING SESSION AS COMPLETED:', interviewSessionId);
+          console.log('🔄 STEP 5.1: Calling updateInterviewSession API');
           const success = await updateInterviewSession(interviewSessionId, {
             completed: true,
             total_questions: questions.length,
@@ -811,33 +854,46 @@ export default function InterviewSessionPage() {
           });
 
           if (success) {
-            console.log('✅ Session successfully marked as completed');
+            console.log('✅ STEP 5.2: Session successfully marked as completed');
+            console.log('🔄 STEP 5.3: Starting cache refresh operations');
             // Refresh cache for the session and user after AI feedback is submitted
             await cacheRefreshService.refreshCacheForSession(interviewSessionId);
+            console.log('✅ STEP 5.4: Session cache refreshed');
             await cacheRefreshService.refreshCacheForUser(user.id);
+            console.log('✅ STEP 5.5: User cache refreshed');
           } else {
-            console.error('❌ Failed to mark session as completed - API returned false');
+            console.error('❌ STEP 5.6: Failed to mark session as completed - API returned false');
           }
         } catch (dbError) {
-          console.error('❌ Error marking session as completed:', dbError);
+          console.error('❌ STEP 5.7: Error marking session as completed:', dbError);
           // Log error to console but don't show to user as it's a background operation
         }
+        console.log('✅ STEP 5.8: Database session completion operations finished');
+      } else {
+        console.log('⚠️ STEP 5.9: No interview session ID or user ID - skipping database completion');
       }
 
       // Update quota information in UI if needed
       if (batchAnalysis.remainingQuota !== undefined) {
+        console.log('🔄 STEP 6.1: Remaining quota available:', batchAnalysis.remainingQuota);
       }
 
+      console.log('🔄 STEP 7: Starting redirect to feedback page');
       // Redirect to feedback page after successful completion and credit deduction
       setTimeout(() => {
+        console.log('✅ STEP 7.1: Timeout reached, showing success message and redirecting');
         success('Interview completed! Redirecting to your feedback...');
         router.push('/feedback');
+        console.log('✅ STEP 7.2: Redirect initiated to /feedback');
       }, 2000); // 2 second delay to ensure user sees the completion message
 
       // Reset loading state when not resuming
       if (!isResume) {
         setIsLoading(false);
+        console.log('✅ STEP 8: Loading state reset (non-resume mode)');
       }
+
+      console.log('🎉 FINAL: completeInterviewWithBatchEvaluation completed successfully');
     } catch (err) {
       if (err instanceof Error && (err.message?.includes('Free quota exceeded') || (err as { status?: number }).status === 402)) {
         // In the centralized system, users should have been redirected to payment before reaching this point

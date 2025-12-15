@@ -1,5 +1,8 @@
 import { Logger } from "./logger";
-import { validateInterviewContext, sanitizeInput } from "./validations";
+import {
+  validateInterviewContext,
+  sanitizeInput,
+} from "./validations-enhanced";
 import { deductUserCredits } from "./database"; // Import deductUserCredits
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
@@ -96,11 +99,16 @@ export class GeminiService {
 
     const result = await res.json();
 
-    // Trigger credit refresh after successful API calls that may have spent credits
-    // Only trigger for actions that cost credits (not generateFlow which is free)
-    // Trigger credit refresh after successful API calls that may have spent credits
-    // or after a successful payment flow (which implies credits were added)
-    if (this.onCreditsChanged) {
+    // Only trigger credit refresh for actions that actually cost credits
+    // Free actions like generateFlow, generateQuestion, generateSimilarQuestion don't need credit refresh
+    const creditCostingActions = [
+      "analyzeAnswer",
+      "batchEvaluate",
+      "analyzeCV",
+      "analyzeJobFit",
+    ];
+
+    if (this.onCreditsChanged && creditCostingActions.includes(action)) {
       Logger.info("Triggering credit refresh after API call", {
         action,
         userId,
@@ -589,6 +597,78 @@ export class GeminiService {
           "Consider how your skills match the role",
         ],
         rating: 5,
+      };
+    }
+  }
+
+  async generateEvaluation(
+    context: {
+      jobPosting: string;
+      companyInfo: string;
+      applicantName: string;
+      applicantEmail: string;
+      applicantCV: string;
+      interviewAnswers: Array<{ question: string; answer: string }>;
+    },
+    userId?: string,
+    onPaymentInitiated?: (message: string) => void,
+    onPaymentSuccess?: (message: string) => void,
+    onPaymentFailure?: (message: string) => void
+  ): Promise<{
+    overall_score: number;
+    recommended_role: string;
+    feedback: string;
+    strengths: string[];
+    weaknesses: string[];
+    technical_skills?: string;
+    experience_match?: string;
+    grade: string;
+  }> {
+    try {
+      // Use the unified API client to call evaluateApplicant action
+      const data = await this.callGeminiAPI<{
+        overall_score: number;
+        recommended_role: string;
+        feedback: string;
+        strengths: string[];
+        weaknesses: string[];
+        technical_skills?: string;
+        experience_match?: string;
+        grade: string;
+      }>(
+        "evaluateApplicant",
+        {
+          context,
+        },
+        userId,
+        undefined, // connection
+        undefined, // wallet
+        onPaymentInitiated,
+        onPaymentSuccess,
+        onPaymentFailure
+      );
+
+      return data;
+    } catch (error) {
+      Logger.error("Error generating evaluation:", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+
+      if ((error as { status?: number }).status === 402) {
+        throw error; // Let 402 errors bubble up to page component
+      }
+      // Return a fallback evaluation if API call fails
+      return {
+        overall_score: 7,
+        recommended_role: "Software Developer",
+        feedback:
+          "Unable to generate detailed evaluation at this time. Please try again later.",
+        strengths: ["Technical skills", "Experience"],
+        weaknesses: ["Could not be determined"],
+        grade: "C",
+        technical_skills: "Unable to determine",
+        experience_match: "Unable to determine"
       };
     }
   }

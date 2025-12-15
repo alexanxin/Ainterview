@@ -5,6 +5,11 @@ import {
   UserProfile,
   UsageRecord,
 } from "./database";
+import type {
+  Company,
+  JobPost,
+  ApplicantResponse,
+} from "../types/b2b-types";
 
 // Cache entry interface with timestamp for expiration
 interface CacheEntry<T> {
@@ -22,6 +27,12 @@ interface CacheStorage {
   interviewAnswers: Map<string, CacheEntry<InterviewAnswer[]>>;
   usageRecords: Map<string, CacheEntry<UsageRecord[]>>;
   userCredits: Map<string, CacheEntry<number>>;
+  companies: Map<string, CacheEntry<Company | null>>;
+  jobPosts: Map<string, CacheEntry<JobPost | null>>;
+  jobPostsByUrl: Map<string, CacheEntry<JobPost | null>>;
+  jobPostsByCompany: Map<string, CacheEntry<JobPost[]>>;
+  applicantResponses: Map<string, CacheEntry<ApplicantResponse[]>>;
+  applicantResponseById: Map<string, CacheEntry<ApplicantResponse | null>>;
 }
 
 // Initialize cache storage
@@ -33,6 +44,12 @@ const cacheStorage: CacheStorage = {
   interviewAnswers: new Map(),
   usageRecords: new Map(),
   userCredits: new Map(),
+  companies: new Map(),
+  jobPosts: new Map(),
+  jobPostsByUrl: new Map(),
+  jobPostsByCompany: new Map(),
+  applicantResponses: new Map(),
+  applicantResponseById: new Map(),
 };
 
 // Cache configuration
@@ -284,6 +301,150 @@ export const cacheService = {
     cacheStorage.userCredits.delete(userId);
   },
 
+  // Company caching
+  getCompanyByUserId: (userId: string): Company | undefined | null => {
+    const entry = cacheStorage.companies.get(userId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.companies.delete(userId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setCompanyByUserId: (userId: string, company: Company | null): void => {
+    const entry: CacheEntry<Company | null> = {
+      data: company,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.userProfile, // Use same expiry as profiles (5 min)
+    };
+    cacheStorage.companies.set(userId, entry);
+  },
+
+  invalidateCompanyByUserId: (userId: string): void => {
+    cacheStorage.companies.delete(userId);
+  },
+
+  // Job Post caching
+  getJobPostById: (jobPostId: string): JobPost | undefined | null => {
+    const entry = cacheStorage.jobPosts.get(jobPostId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.jobPosts.delete(jobPostId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setJobPostById: (jobPostId: string, jobPost: JobPost | null): void => {
+    const entry: CacheEntry<JobPost | null> = {
+      data: jobPost,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessionById, // Use similar expiry as sessions (10 min)
+    };
+    cacheStorage.jobPosts.set(jobPostId, entry);
+  },
+
+  invalidateJobPostById: (jobPostId: string): void => {
+    cacheStorage.jobPosts.delete(jobPostId);
+  },
+
+  getJobPostByShareableUrl: (shareableUrl: string): JobPost | undefined | null => {
+    const entry = cacheStorage.jobPostsByUrl.get(shareableUrl);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.jobPostsByUrl.delete(shareableUrl);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setJobPostByShareableUrl: (shareableUrl: string, jobPost: JobPost | null): void => {
+    const entry: CacheEntry<JobPost | null> = {
+      data: jobPost,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessionById, // Use similar expiry as sessions (10 min)
+    };
+    cacheStorage.jobPostsByUrl.set(shareableUrl, entry);
+  },
+
+  // Job Posts by Company caching
+  getJobPostsByCompany: (companyId: string): JobPost[] | undefined => {
+    const entry = cacheStorage.jobPostsByCompany.get(companyId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.jobPostsByCompany.delete(companyId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setJobPostsByCompany: (companyId: string, jobPosts: JobPost[]): void => {
+    const entry: CacheEntry<JobPost[]> = {
+      data: jobPosts,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessions, // Use same expiry as sessions (2 min)
+    };
+    cacheStorage.jobPostsByCompany.set(companyId, entry);
+  },
+
+  invalidateJobPostsByCompany: (companyId: string): void => {
+    cacheStorage.jobPostsByCompany.delete(companyId);
+  },
+
+  // Applicant Response caching
+  getApplicantResponsesByJobPost: (jobPostId: string): ApplicantResponse[] | undefined => {
+    const entry = cacheStorage.applicantResponses.get(jobPostId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.applicantResponses.delete(jobPostId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setApplicantResponsesByJobPost: (jobPostId: string, responses: ApplicantResponse[]): void => {
+    const entry: CacheEntry<ApplicantResponse[]> = {
+      data: responses,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewAnswers, // Use same expiry as answers (5 min)
+    };
+    cacheStorage.applicantResponses.set(jobPostId, entry);
+  },
+
+  invalidateApplicantResponsesByJobPost: (jobPostId: string): void => {
+    cacheStorage.applicantResponses.delete(jobPostId);
+  },
+
+  getApplicantResponseById: (responseId: string): ApplicantResponse | undefined | null => {
+    const entry = cacheStorage.applicantResponseById.get(responseId);
+    if (entry && !isExpired(entry)) {
+      return entry.data;
+    } else if (entry) {
+      // Clean expired entry
+      cacheStorage.applicantResponseById.delete(responseId);
+    }
+    return undefined; // undefined means not in cache
+  },
+
+  setApplicantResponseById: (responseId: string, response: ApplicantResponse | null): void => {
+    const entry: CacheEntry<ApplicantResponse | null> = {
+      data: response,
+      timestamp: Date.now(),
+      expiry: CACHE_CONFIG.interviewSessionById, // Use similar expiry as sessions (10 min)
+    };
+    cacheStorage.applicantResponseById.set(responseId, entry);
+  },
+
+  invalidateApplicantResponseById: (responseId: string): void => {
+    cacheStorage.applicantResponseById.delete(responseId);
+  },
+
   // Get cache statistics
   getStats: (): { [key: string]: number } => {
     return {
@@ -294,6 +455,12 @@ export const cacheService = {
       interviewAnswers: cacheStorage.interviewAnswers.size,
       usageRecords: cacheStorage.usageRecords.size,
       userCredits: cacheStorage.userCredits.size,
+      companies: cacheStorage.companies.size,
+      jobPosts: cacheStorage.jobPosts.size,
+      jobPostsByUrl: cacheStorage.jobPostsByUrl.size,
+      jobPostsByCompany: cacheStorage.jobPostsByCompany.size,
+      applicantResponses: cacheStorage.applicantResponses.size,
+      applicantResponseById: cacheStorage.applicantResponseById.size,
     };
   },
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { toast } from 'sonner';
+import { useMemo } from 'react';
 
 export const useToast = () => {
   const success = (message: string) => {
@@ -79,10 +80,11 @@ export const useToast = () => {
     }
   };
 
-  return {
+  // Memoize the return object to prevent infinite loops in useEffect dependencies
+  return useMemo(() => ({
     success,
     error,
     info,
     warning,
-  };
+  }), []);
 };

@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     remotePatterns: [{ hostname: "localhost" }, { hostname: "ainterview.app" }],
     formats: ["image/webp", "image/avif"],
@@ -11,6 +14,15 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: true,
+  },
+  // Proxy configuration to replace deprecated middleware.ts
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "/api/:path*",
+      },
+    ];
   },
   async headers() {
     return [
