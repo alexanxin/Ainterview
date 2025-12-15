@@ -20,11 +20,11 @@ import {
   createTransferInstruction,
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountInstruction,
   getMint,
-  transferCheckedWithFee,
   createTransferCheckedInstruction
 } from '@solana/spl-token';
+import { createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import { transferCheckedWithFee } from '@solana/spl-token';
 
 // Define the associated token program ID
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');

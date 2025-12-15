@@ -19,11 +19,11 @@ import { Transaction, PublicKey } from '@solana/web3.js';
 import {
     createTransferInstruction,
     getAssociatedTokenAddress,
-    createAssociatedTokenAccountInstruction,
     getMint,
-    transferCheckedWithFee,
     createTransferCheckedInstruction
 } from '@solana/spl-token';
+import { createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+
 
 // Define TOKEN_2022_PROGRAM_ID manually since it's not exported from @solana/spl-token
 const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
@@ -292,52 +292,22 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, paymentContex
                             hasTransferFeeExtension: !!mintInfo.transferFeeConfig
                         });
 
-                        // Handle transfer instruction based on transfer fee extension
-                        if (mintInfo.transferFeeConfig) {
-                            // Calculate expected fee (even if 0)
-                            const feeBasisPoints = mintInfo.transferFeeConfig.transferFeeBasisPoints;
-                            const maxFee = mintInfo.transferFeeConfig.maximumFee;
-                            const calculatedFee = (rawAmount * BigInt(feeBasisPoints)) / BigInt(10000);
-                            const expectedFee = calculatedFee > maxFee ? maxFee : calculatedFee;
+                        console.log('Creating transfer instruction with programId:', programId);
 
-                            console.log('Using transferCheckedWithFee:', {
-                                feeBasisPoints,
-                                maxFee: maxFee.toString(),
-                                calculatedFee: calculatedFee.toString(),
-                                expectedFee: expectedFee.toString()
-                            });
+                        // Use createTransferCheckedInstruction for all transfers
+                        // Token-2022 will automatically handle transfer fees if the mint has the extension enabled
+                        const transferInstruction = createTransferCheckedInstruction(
+                            senderTokenAccount,
+                            tokenMintPublicKey,
+                            recipientTokenAccount,
+                            publicKey,
+                            rawAmount,
+                            decimals,
+                            [], // multiSigners
+                            programId
+                        );
 
-                            // Use transferCheckedWithFee for tokens with fee extension
-                            const transferInstruction = transferCheckedWithFee(
-                                senderTokenAccount,
-                                tokenMintPublicKey,
-                                recipientTokenAccount,
-                                publicKey,
-                                rawAmount,
-                                decimals,
-                                expectedFee,
-                                [], // multiSigners
-                                programId
-                            );
-
-                            transaction.add(transferInstruction);
-                        } else {
-                            console.log('Using createTransferCheckedInstruction (no fee extension)');
-
-                            // Fallback to checked transfer for standard tokens
-                            const transferInstruction = createTransferCheckedInstruction(
-                                senderTokenAccount,
-                                tokenMintPublicKey,
-                                recipientTokenAccount,
-                                publicKey,
-                                rawAmount,
-                                decimals,
-                                [], // multiSigners
-                                programId
-                            );
-
-                            transaction.add(transferInstruction);
-                        }
+                        transaction.add(transferInstruction);
 
                         // Get the latest blockhash for the transaction
                         const { blockhash } = await connection.getLatestBlockhash();
