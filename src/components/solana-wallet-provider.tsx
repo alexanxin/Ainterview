@@ -21,15 +21,14 @@ export default function SolanaWalletProvider({ children }: { children: React.Rea
         }
     }, [network]);
 
-    // Initialize wallet adapters - remove Phantom as it's now a standard wallet
+    // Initialize wallet adapters
     const wallets = useMemo(() => [
-        // Phantom is now automatically detected as a standard wallet
-        // Only add custom wallets here if needed
+        new PhantomWalletAdapter(),
     ], []);
 
     return (
         <ConnectionProvider endpoint={endpoint}>
-            <WalletProvider wallets={wallets} autoConnect={false}>
+            <WalletProvider wallets={wallets} autoConnect>
                 <WalletModalProvider>
                     {children}
                 </WalletModalProvider>
